@@ -2,6 +2,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 
 import AboutPage from "../pages/AboutPage";
 import ContactPage from "../pages/ContactPage";
+import EndpointsPage from "../pages/EndpointsPage";
 import LandingPage from "../pages/LandingPage";
 import InvoicePage from "../pages/InvoicePage";
 import OtherDocPage from "../pages/OtherDocPage";
@@ -16,6 +17,7 @@ export default function App() {
         <Route path="/about" element={<AboutPage />} />
         <Route path="/contact" element={<ContactPage />} />
         <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/endpoints" element={<EndpointsPage />} />
         <Route path="/prescription" element={<PrescriptionPage />} />
         <Route path="/invoice" element={<InvoicePage />} />
         <Route path="/other-doc" element={<OtherDocPage />} />

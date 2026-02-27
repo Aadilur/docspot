@@ -1,18 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Footer from "../components/Footer";
 import Header from "../components/Header";
 import { API_BASE_URL, apiFetch } from "../shared/api/http";
 import {
-  deleteUser,
-  firebaseUserToUpsertPayload,
-  getUserByProvider,
-  patchUser,
-  presignUserPhotoUpload,
-  upsertUser,
+  getMe,
+  patchMe,
+  presignMyPhotoUpload,
   type UserRecord,
-  type UserType,
 } from "../shared/api/users";
 import { useAuthState } from "../shared/firebase/useAuthState";
 
@@ -40,7 +36,6 @@ function withCacheBust(url: string, token: string): string {
 }
 
 function isLikelyCorsNetworkError(err: unknown): boolean {
-  // Browsers typically surface CORS-blocked PUT as a generic "TypeError: Failed to fetch".
   if (!(err instanceof Error)) return false;
   return /failed to fetch/i.test(err.message);
 }
@@ -53,19 +48,10 @@ export default function ProfilePage() {
   const [serverError, setServerError] = useState<string | null>(null);
 
   const [busy, setBusy] = useState(false);
+  const [loadingMe, setLoadingMe] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [record, setRecord] = useState<UserRecord | null>(null);
-
-  const [userType, setUserType] = useState<UserType>("free");
-  const [subscriptionType, setSubscriptionType] = useState<string>("");
-  const [storageQuotaMb, setStorageQuotaMb] = useState<string>("");
-
-  const providerKey = useMemo(() => {
-    if (!user) return null;
-    const provider = user.providerData?.[0]?.providerId || "firebase";
-    return { provider, providerUserId: user.uid };
-  }, [user]);
 
   useEffect(() => {
     let cancelled = false;
@@ -88,7 +74,35 @@ export default function ProfilePage() {
     };
   }, []);
 
-  const canSync = configured && !loading && !!user;
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!configured || loading) return;
+    if (!user) {
+      setRecord(null);
+      setLoadingMe(false);
+      return;
+    }
+
+    setLoadingMe(true);
+    setError(null);
+    setMessage(null);
+
+    (async () => {
+      try {
+        const me = await getMe();
+        if (!cancelled) setRecord(me);
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (!cancelled) setLoadingMe(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [configured, loading, user?.uid]);
 
   async function runAction(action: () => Promise<void>) {
     setBusy(true);
@@ -99,88 +113,6 @@ export default function ProfilePage() {
     } finally {
       setBusy(false);
     }
-  }
-
-  async function refreshFromServer() {
-    if (!providerKey) return;
-    await runAction(async () => {
-      try {
-        const found = await getUserByProvider(providerKey);
-        setRecord(found);
-        setUserType(found.userType);
-        setSubscriptionType(found.subscriptionType ?? "");
-        setStorageQuotaMb(
-          found.storageQuotaBytes
-            ? String(Math.round(found.storageQuotaBytes / 1024 / 1024))
-            : "",
-        );
-        setMessage(t("profileLoaded"));
-      } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
-      }
-    });
-  }
-
-  async function syncUser() {
-    if (!user) return;
-    await runAction(async () => {
-      try {
-        const payload = firebaseUserToUpsertPayload(user);
-        const saved = await upsertUser(payload);
-        setRecord(saved);
-        setUserType(saved.userType);
-        setSubscriptionType(saved.subscriptionType ?? "");
-        setStorageQuotaMb(
-          String(Math.round(saved.storageQuotaBytes / 1024 / 1024)),
-        );
-        setMessage(t("profileSynced"));
-      } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
-      }
-    });
-  }
-
-  async function savePlan() {
-    if (!record) return;
-
-    const quotaMb = storageQuotaMb.trim()
-      ? Number(storageQuotaMb.trim())
-      : null;
-    const storageQuotaBytes =
-      quotaMb == null || !Number.isFinite(quotaMb)
-        ? null
-        : Math.max(0, Math.round(quotaMb * 1024 * 1024));
-
-    await runAction(async () => {
-      try {
-        const updated = await patchUser(record.id, {
-          userType,
-          subscriptionType: subscriptionType.trim()
-            ? subscriptionType.trim()
-            : null,
-          storageQuotaBytes,
-        });
-        setRecord(updated);
-        setMessage(t("profileUpdated"));
-      } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
-      }
-    });
-  }
-
-  async function removeUser() {
-    if (!record) return;
-    if (!confirm(t("profileDeleteConfirm"))) return;
-
-    await runAction(async () => {
-      try {
-        await deleteUser(record.id);
-        setRecord(null);
-        setMessage(t("profileDeleted"));
-      } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
-      }
-    });
   }
 
   async function uploadProfilePhoto(file: File) {
@@ -200,17 +132,14 @@ export default function ProfilePage() {
     await runAction(async () => {
       try {
         const contentType = file.type || "image/png";
-        const presign = await presignUserPhotoUpload({
-          id: record.id,
+        const presign = await presignMyPhotoUpload({
           filename: file.name || "avatar.png",
           contentType,
         });
 
         const putRes = await fetch(presign.url, {
           method: "PUT",
-          headers: {
-            "Content-Type": contentType,
-          },
+          headers: { "Content-Type": contentType },
           body: file,
         });
         if (!putRes.ok) {
@@ -219,9 +148,7 @@ export default function ProfilePage() {
           );
         }
 
-        const updated = await patchUser(record.id, {
-          photoKey: presign.key,
-        });
+        const updated = await patchMe({ photoKey: presign.key });
         setRecord(updated);
         setMessage(t("profilePhotoUpdated"));
       } catch (e) {
@@ -229,22 +156,6 @@ export default function ProfilePage() {
           setError(t("profilePhotoUploadCors"));
           return;
         }
-        setError(e instanceof Error ? e.message : String(e));
-      }
-    });
-  }
-
-  async function resetPhotoToProvider() {
-    if (!record) return;
-    await runAction(async () => {
-      try {
-        const updated = await patchUser(record.id, {
-          photoKey: null,
-          photoUrl: user?.photoURL ?? null,
-        });
-        setRecord(updated);
-        setMessage(t("profilePhotoResetDone"));
-      } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
       }
     });
@@ -284,12 +195,6 @@ export default function ProfilePage() {
                       record.updatedAt,
                     )}
                   />
-                ) : user?.photoURL ? (
-                  <img
-                    alt={t("accountAvatarAlt")}
-                    className="h-full w-full object-cover"
-                    src={user.photoURL}
-                  />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center text-xs text-zinc-500 dark:text-zinc-400">
                     {t("profilePhotoEmpty")}
@@ -315,24 +220,8 @@ export default function ProfilePage() {
                 <div className="mt-0.5 opacity-80">{API_BASE_URL}</div>
               </div>
 
-              <div className="flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={syncUser}
-                  disabled={!canSync || busy}
-                  className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 disabled:opacity-60"
-                >
-                  {busy ? t("loading") : t("profileSync")}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={refreshFromServer}
-                  disabled={!providerKey || busy}
-                  className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 shadow-sm hover:bg-zinc-50 disabled:opacity-60 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
-                >
-                  {t("profileRefresh")}
-                </button>
+              <div className="text-sm text-zinc-600 dark:text-zinc-300">
+                {loadingMe ? t("loading") : ""}
               </div>
             </div>
           </div>
@@ -382,7 +271,7 @@ export default function ProfilePage() {
                   </div>
                 </div>
               ) : (
-                t("profileNotSignedIn")
+                t("profilePleaseLogin")
               )}
             </div>
           </div>
@@ -394,9 +283,6 @@ export default function ProfilePage() {
             <div className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">
               {record ? (
                 <div className="grid gap-1">
-                  <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                    ID: {record.id}
-                  </div>
                   <div>
                     <span className="font-semibold text-zinc-900 dark:text-zinc-50">
                       {t("profileStorage")}:{" "}
@@ -435,26 +321,40 @@ export default function ProfilePage() {
                     })}
                   </div>
                 </div>
+              ) : user ? (
+                <div className="text-zinc-500 dark:text-zinc-400">
+                  {t("profileNoServerRecord")}
+                </div>
               ) : (
-                t("profileNoServerRecord")
+                <div className="text-zinc-500 dark:text-zinc-400">
+                  {t("profilePleaseLogin")}
+                </div>
               )}
             </div>
           </div>
         </section>
 
-        <section className="mt-8 rounded-2xl border border-zinc-200/70 bg-white/80 p-6 shadow-sm backdrop-blur-sm dark:border-zinc-800/70 dark:bg-zinc-950/60">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-              {t("profilePhotoTitle")}
-            </h2>
+        <section className="mt-8 rounded-2xl border border-zinc-200/70 bg-white/80 p-5 shadow-sm backdrop-blur-sm dark:border-zinc-800/70 dark:bg-zinc-950/60">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                {t("profilePhotoTitle")}
+              </h2>
+              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                {t("profilePhotoHint")}
+              </p>
+            </div>
             <div className="text-xs text-zinc-500 dark:text-zinc-400">
-              {t("profilePhotoHint")}
+              {t("profilePhotoBackedByStorage")}
             </div>
           </div>
 
-          <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-4">
-              <div className="h-16 w-16 overflow-hidden rounded-full border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+          <div className="mt-4 grid gap-4 sm:grid-cols-[160px,1fr]">
+            <div>
+              <div className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">
+                {t("profilePhotoCurrent")}
+              </div>
+              <div className="mt-2 h-28 w-28 overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
                 {record?.photoUrl ? (
                   <img
                     alt={t("accountAvatarAlt")}
@@ -464,139 +364,58 @@ export default function ProfilePage() {
                       record.updatedAt,
                     )}
                   />
-                ) : user?.photoURL ? (
-                  <img
-                    alt={t("accountAvatarAlt")}
-                    className="h-full w-full object-cover"
-                    src={user.photoURL}
-                  />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center text-xs text-zinc-500 dark:text-zinc-400">
                     {t("profilePhotoEmpty")}
                   </div>
                 )}
               </div>
+            </div>
 
-              <div className="grid gap-1">
-                <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                  {t("profilePhotoCurrent")}
+            <div className="grid gap-3">
+              {!user && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+                  {t("profilePleaseLogin")}
                 </div>
-                <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                  {record
-                    ? t("profilePhotoBackedByStorage")
-                    : t("profilePhotoSyncFirst")}
-                </div>
+              )}
+
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 disabled:opacity-60">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    disabled={!record || busy}
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      e.currentTarget.value = "";
+                      void uploadProfilePhoto(file);
+                    }}
+                  />
+                  {t("profilePhotoUpload")}
+                </label>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    void runAction(async () => {
+                      const updated = await patchMe({ photoKey: null });
+                      setRecord(updated);
+                      setMessage(t("profilePhotoResetDone"));
+                    })
+                  }
+                  disabled={!record || busy}
+                  className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 shadow-sm hover:bg-zinc-50 disabled:opacity-60 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
+                >
+                  {t("remove")}
+                </button>
+              </div>
+
+              <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                {t("profilePhotoBackedByStorage")}
               </div>
             </div>
-
-            <div className="flex flex-wrap gap-3">
-              <label
-                className={
-                  "rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 " +
-                  (!record || busy
-                    ? "cursor-not-allowed opacity-60"
-                    : "cursor-pointer")
-                }
-              >
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  disabled={!record || busy}
-                  onChange={(e) => {
-                    const f = e.currentTarget.files?.[0];
-                    // allow selecting same file again
-                    e.currentTarget.value = "";
-                    if (!f) return;
-                    void uploadProfilePhoto(f);
-                  }}
-                />
-                {t("profilePhotoUpload")}
-              </label>
-
-              <button
-                type="button"
-                onClick={resetPhotoToProvider}
-                disabled={!record || busy}
-                className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 shadow-sm hover:bg-zinc-50 disabled:opacity-60 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
-              >
-                {t("profilePhotoReset")}
-              </button>
-            </div>
-          </div>
-        </section>
-
-        <section className="mt-8 rounded-2xl border border-zinc-200/70 bg-white/80 p-6 shadow-sm backdrop-blur-sm dark:border-zinc-800/70 dark:bg-zinc-950/60">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-              {t("profilePlanTitle")}
-            </h2>
-            <div className="text-xs text-zinc-500 dark:text-zinc-400">
-              {t("profilePlanHint")}
-            </div>
-          </div>
-
-          <div className="mt-4 grid gap-4 sm:grid-cols-3">
-            <label className="grid gap-1">
-              <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
-                {t("profileUserType")}
-              </span>
-              <select
-                value={userType}
-                onChange={(e) => setUserType(e.target.value as UserType)}
-                disabled={!record || busy}
-                className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-200 disabled:opacity-60 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:ring-brand-900"
-              >
-                <option value="free">{t("profileFree")}</option>
-                <option value="paid">{t("profilePaid")}</option>
-              </select>
-            </label>
-
-            <label className="grid gap-1">
-              <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
-                {t("profileSubscriptionType")}
-              </span>
-              <input
-                value={subscriptionType}
-                onChange={(e) => setSubscriptionType(e.target.value)}
-                disabled={!record || busy}
-                placeholder="e.g. monthly"
-                className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-200 disabled:opacity-60 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:ring-brand-900"
-              />
-            </label>
-
-            <label className="grid gap-1">
-              <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
-                {t("profileQuotaMb")}
-              </span>
-              <input
-                inputMode="numeric"
-                value={storageQuotaMb}
-                onChange={(e) => setStorageQuotaMb(e.target.value)}
-                disabled={!record || busy}
-                placeholder="100"
-                className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-200 disabled:opacity-60 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:ring-brand-900"
-              />
-            </label>
-          </div>
-
-          <div className="mt-5 flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={savePlan}
-              disabled={!record || busy}
-              className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 disabled:opacity-60"
-            >
-              {t("profileSave")}
-            </button>
-            <button
-              type="button"
-              onClick={removeUser}
-              disabled={!record || busy}
-              className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 shadow-sm hover:bg-red-50 disabled:opacity-60 dark:border-red-900/60 dark:bg-zinc-950 dark:text-red-200 dark:hover:bg-red-950/30"
-            >
-              {t("profileDelete")}
-            </button>
           </div>
         </section>
       </main>

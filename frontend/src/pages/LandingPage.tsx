@@ -86,58 +86,8 @@ export default function LandingPage() {
               className="group rounded-2xl border border-zinc-200/70 bg-white/80 p-5 shadow-sm backdrop-blur-sm transition-colors hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none dark:border-zinc-800/70 dark:bg-zinc-950/60 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
               aria-label={t("servicePrescriptionTitle")}
             >
-              <div className="mb-4 overflow-hidden rounded-xl border border-zinc-200/70 bg-white/70 p-3 text-brand-700 dark:border-zinc-800/70 dark:bg-zinc-950/30 dark:text-brand-300">
-                <svg
-                  viewBox="0 0 240 120"
-                  className="h-16 w-full"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  aria-hidden="true"
-                >
-                  <rect
-                    x="18"
-                    y="18"
-                    width="140"
-                    height="84"
-                    rx="14"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                    opacity="0.6"
-                  />
-                  <path
-                    d="M52 44h72"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                    strokeLinecap="round"
-                    opacity="0.6"
-                  />
-                  <path
-                    d="M52 62h52"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                    strokeLinecap="round"
-                    opacity="0.6"
-                  />
-                  <path
-                    d="M52 80h64"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                    strokeLinecap="round"
-                    opacity="0.6"
-                  />
-                  <path
-                    d="M186 44l26 26"
-                    stroke="currentColor"
-                    strokeWidth="6"
-                    strokeLinecap="round"
-                  />
-                  <path
-                    d="M212 44l-26 26"
-                    stroke="currentColor"
-                    strokeWidth="6"
-                    strokeLinecap="round"
-                  />
-                </svg>
+              <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl border border-zinc-200/70 bg-white/70 text-brand-700 dark:border-zinc-800/70 dark:bg-zinc-950/30 dark:text-brand-300">
+                <Pill className="h-6 w-6" aria-hidden="true" />
               </div>
               <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
                 {t("servicePrescriptionTitle")}
@@ -151,58 +101,8 @@ export default function LandingPage() {
               className="group rounded-2xl border border-zinc-200/70 bg-white/80 p-5 shadow-sm backdrop-blur-sm transition-colors hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none dark:border-zinc-800/70 dark:bg-zinc-950/60 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
               aria-label={t("serviceDocumentTitle")}
             >
-              <div className="mb-4 overflow-hidden rounded-xl border border-zinc-200/70 bg-white/70 p-3 text-brand-700 dark:border-zinc-800/70 dark:bg-zinc-950/30 dark:text-brand-300">
-                <svg
-                  viewBox="0 0 240 120"
-                  className="h-16 w-full"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  aria-hidden="true"
-                >
-                  <path
-                    d="M58 28h110"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                    strokeLinecap="round"
-                    opacity="0.6"
-                  />
-                  <path
-                    d="M58 46h86"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                    strokeLinecap="round"
-                    opacity="0.6"
-                  />
-                  <path
-                    d="M58 64h98"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                    strokeLinecap="round"
-                    opacity="0.6"
-                  />
-                  <path
-                    d="M58 82h76"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                    strokeLinecap="round"
-                    opacity="0.6"
-                  />
-                  <rect
-                    x="26"
-                    y="18"
-                    width="188"
-                    height="84"
-                    rx="14"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  />
-                  <path
-                    d="M154 72h36"
-                    stroke="currentColor"
-                    strokeWidth="6"
-                    strokeLinecap="round"
-                  />
-                </svg>
+              <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl border border-zinc-200/70 bg-white/70 text-brand-700 dark:border-zinc-800/70 dark:bg-zinc-950/30 dark:text-brand-300">
+                <Receipt className="h-6 w-6" aria-hidden="true" />
               </div>
               <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
                 {t("serviceDocumentTitle")}
@@ -216,41 +116,8 @@ export default function LandingPage() {
               className="group rounded-2xl border border-zinc-200/70 bg-white/80 p-5 shadow-sm backdrop-blur-sm transition-colors hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none dark:border-zinc-800/70 dark:bg-zinc-950/60 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
               aria-label={t("serviceOtherTitle")}
             >
-              <div className="mb-4 overflow-hidden rounded-xl border border-zinc-200/70 bg-white/70 p-3 text-brand-700 dark:border-zinc-800/70 dark:bg-zinc-950/30 dark:text-brand-300">
-                <svg
-                  viewBox="0 0 240 120"
-                  className="h-16 w-full"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  aria-hidden="true"
-                >
-                  <path
-                    d="M68 26h78l26 26v42a16 16 0 0 1-16 16H68a16 16 0 0 1-16-16V42a16 16 0 0 1 16-16Z"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  />
-                  <path
-                    d="M146 26v30h30"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                    strokeLinecap="round"
-                    opacity="0.8"
-                  />
-                  <path
-                    d="M72 64h68"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                    strokeLinecap="round"
-                    opacity="0.6"
-                  />
-                  <path
-                    d="M72 82h52"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                    strokeLinecap="round"
-                    opacity="0.6"
-                  />
-                </svg>
+              <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl border border-zinc-200/70 bg-white/70 text-brand-700 dark:border-zinc-800/70 dark:bg-zinc-950/30 dark:text-brand-300">
+                <FileText className="h-6 w-6" aria-hidden="true" />
               </div>
               <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
                 {t("serviceOtherTitle")}

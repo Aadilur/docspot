@@ -42,14 +42,36 @@ Health check:
 
 Presign endpoint (to test uploads):
 
-- `POST /uploads/presign`
+- `POST /uploads/presign` (auth required)
   - Body: `{ "filename": "test.pdf", "contentType": "application/pdf" }`
   - Response: `{ ok, url, key, bucket, expiresInSeconds }`
   - Then do a `PUT` to the returned `url` with the file bytes and the same `Content-Type`.
 
-## Users API (CRUD)
+### Auth (Firebase)
 
-These endpoints are intended for development/testing right now (no auth yet):
+This backend verifies Firebase ID tokens (JWTs) via Firebase Admin SDK.
+
+Set:
+
+- `FIREBASE_SERVICE_ACCOUNT_JSON` — service account JSON (as a single-line string)
+- `ADMIN_UIDS` — comma-separated Firebase `uid`s allowed to call admin-only endpoints
+
+Authenticated requests must include:
+
+- `Authorization: Bearer <FIREBASE_ID_TOKEN>`
+
+## Me API (current user)
+
+These are the user-facing endpoints (practical profile flow):
+
+- `GET /me` (auth) — get or create the current user record
+- `PATCH /me` (auth) — update editable fields
+- `POST /me/photo/presign` (auth) — presign profile photo upload
+- `GET /me/photo` (auth) — redirect to signed S3 GET URL
+
+## Users API (admin-only)
+
+These endpoints are restricted (require auth + admin):
 
 - `GET /users?limit=50&offset=0`
 - `GET /users/:id`

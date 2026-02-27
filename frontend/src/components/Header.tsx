@@ -33,13 +33,16 @@ export default function Header() {
     <header className="sticky top-0 z-10 border-b border-zinc-200/70 bg-white/80 backdrop-blur dark:border-zinc-800/70 dark:bg-zinc-950/60">
       <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 px-5 py-4">
         <Link to="/" className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl bg-brand-600/15 ring-1 ring-brand-500/25 dark:bg-brand-400/10 dark:ring-brand-400/20" />
+          <div className="inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl bg-brand-600/15 ring-1 ring-brand-500/25 dark:bg-brand-400/10 dark:ring-brand-400/20">
+            <img
+              src="/icon.svg"
+              alt={t("brand")}
+              className="h-6 w-6 object-contain"
+            />
+          </div>
           <div className="leading-tight">
             <div className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
               {t("brand")}
-            </div>
-            <div className="text-xs text-zinc-500 dark:text-zinc-400">
-              PWA • Responsive
             </div>
           </div>
         </Link>
@@ -78,18 +81,20 @@ export default function Header() {
             onClick={toggle}
             aria-label={t("toggleTheme")}
             aria-pressed={theme === "dark"}
-            className="group relative inline-flex h-9 w-[72px] items-center rounded-full border border-zinc-200 bg-white px-1 shadow-sm transition-colors duration-300 hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900 dark:focus:ring-brand-900"
+            className="group relative inline-flex h-8 w-[60px] items-center rounded-full border border-zinc-200 bg-white/90 px-1 shadow-sm transition-colors duration-300 hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900 dark:focus:ring-brand-900 sm:h-9 sm:w-[72px]"
           >
             <span
               className={
-                "inline-flex h-7 w-7 items-center justify-center rounded-full bg-zinc-900 text-white shadow-sm transition-transform duration-300 ease-out motion-reduce:transition-none dark:bg-zinc-100 dark:text-zinc-900 " +
-                (theme === "dark" ? "translate-x-[34px]" : "translate-x-0")
+                "inline-flex h-6 w-6 items-center justify-center rounded-full bg-zinc-900 text-white shadow-sm ring-1 ring-zinc-900/10 transition-transform duration-300 ease-out motion-reduce:transition-none dark:bg-zinc-100 dark:text-zinc-900 dark:ring-zinc-100/10 sm:h-7 sm:w-7 " +
+                (theme === "dark"
+                  ? "translate-x-[28px] sm:translate-x-[34px]"
+                  : "translate-x-0")
               }
             >
               {theme === "dark" ? (
-                <Moon className="h-4 w-4" aria-hidden="true" />
+                <Moon className="h-3.5 w-3.5 sm:h-4 sm:w-4" aria-hidden="true" />
               ) : (
-                <Sun className="h-4 w-4" aria-hidden="true" />
+                <Sun className="h-3.5 w-3.5 sm:h-4 sm:w-4" aria-hidden="true" />
               )}
             </span>
           </button>
@@ -101,19 +106,10 @@ export default function Header() {
                 aria-label={t("accountMenu")}
               >
                 <span className="inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-brand-600/15 ring-1 ring-brand-500/25 dark:bg-brand-400/10 dark:ring-brand-400/20">
-                  {user.photoURL ? (
-                    <img
-                      src={user.photoURL}
-                      alt={t("accountAvatarAlt")}
-                      className="h-full w-full object-cover"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <UserRound
-                      className="h-5 w-5 text-zinc-700 dark:text-zinc-200"
-                      aria-hidden="true"
-                    />
-                  )}
+                  <UserRound
+                    className="h-5 w-5 text-zinc-700 dark:text-zinc-200"
+                    aria-hidden="true"
+                  />
                 </span>
               </summary>
 
@@ -176,7 +172,7 @@ export default function Header() {
               title={!configured ? t("firebaseNotConfigured") : undefined}
               className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-300 disabled:opacity-60 dark:focus:ring-brand-900"
             >
-              {t("signInGoogle")}
+              {t("login")}
             </button>
           )}
         </div>

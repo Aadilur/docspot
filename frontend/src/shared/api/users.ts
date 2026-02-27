@@ -25,6 +25,46 @@ export type UserRecord = {
   metadata: unknown | null;
 };
 
+export async function getMe(): Promise<UserRecord> {
+  const res = await apiFetch<{ ok: true; user: UserRecord }>("/me");
+  return res.user;
+}
+
+export async function patchMe(
+  patch: Partial<{
+    displayName: string | null;
+    locale: string | null;
+    photoKey: string | null;
+  }>,
+): Promise<UserRecord> {
+  const res = await apiFetch<{ ok: true; user: UserRecord }>("/me", {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+  return res.user;
+}
+
+export async function presignMyPhotoUpload(params: {
+  filename: string;
+  contentType: string;
+}): Promise<{ url: string; key: string; expiresInSeconds: number }> {
+  const res = await apiFetch<{
+    ok: true;
+    url: string;
+    key: string;
+    bucket: string;
+    expiresInSeconds: number;
+  }>(`/me/photo/presign`, {
+    method: "POST",
+    body: JSON.stringify({
+      filename: params.filename,
+      contentType: params.contentType,
+    }),
+  });
+
+  return { url: res.url, key: res.key, expiresInSeconds: res.expiresInSeconds };
+}
+
 export async function upsertUser(payload: {
   provider: string;
   providerUserId: string;

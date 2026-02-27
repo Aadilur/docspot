@@ -1,3 +1,5 @@
+import { getFirebaseAuth, isFirebaseConfigured } from "../firebase/firebase";
+
 export const API_BASE_URL: string =
   (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ||
   "https://api.docspot.app";
@@ -18,10 +20,21 @@ export async function apiFetch<T>(
 ): Promise<T> {
   const url = `${API_BASE_URL}${path.startsWith("/") ? "" : "/"}${path}`;
 
+  let idToken: string | null = null;
+  if (isFirebaseConfigured()) {
+    try {
+      const user = getFirebaseAuth().currentUser;
+      idToken = user ? await user.getIdToken() : null;
+    } catch {
+      idToken = null;
+    }
+  }
+
   const res = await fetch(url, {
     ...init,
     headers: {
       "Content-Type": "application/json",
+      ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
       ...(init?.headers ?? {}),
     },
   });

@@ -4,24 +4,51 @@ This is a single place to see all HTTP endpoints, grouped segment-by-segment.
 
 Base URL (prod): `https://api.docspot.app`
 
+## Auth
+
+This API uses Firebase Authentication.
+
+- Send `Authorization: Bearer <FIREBASE_ID_TOKEN>` on authenticated requests.
+- Most user-facing operations are under `/me`.
+- Admin-only endpoints require `ADMIN_UIDS` to include your Firebase `uid`.
+
 ## 1) Root
 
-- `GET /` — liveness JSON
+- `GET /` — liveness JSON (public)
 
 ## 2) Health
 
-- `GET /health` — service health
-- `GET /health/db` — Postgres connectivity (200 ok, 503 if unavailable)
-- `GET /health/storage` — S3 env/config status (200 ok, 503 if not configured)
+- `GET /health` — service health (public)
+- `GET /health/db` — Postgres connectivity (public; 200 ok, 503 if unavailable)
+- `GET /health/storage` — S3 env/config status (public; 200 ok, 503 if not configured)
 
 ## 3) Storage uploads (generic)
 
-- `POST /uploads/presign`
+- `POST /uploads/presign` (auth)
   - Body: `{ "filename": "test.pdf", "contentType": "application/pdf" }`
   - Response: `{ ok, url, key, bucket, expiresInSeconds }`
   - Next: `PUT <url>` with file bytes and the same `Content-Type`
 
-## 4) Users (CRUD)
+## 4) Me (current user)
+
+- `GET /me` (auth) — get or create the current user
+- `PATCH /me` (auth) — update editable fields
+
+### Profile photo (S3-backed)
+
+- `POST /me/photo/presign` (auth)
+  - Body: `{ "filename": "avatar.png", "contentType": "image/png" }`
+  - Response: `{ ok, url, key, bucket, expiresInSeconds }`
+  - Next: `PUT <url>` with image bytes and the same `Content-Type`
+
+- `PATCH /me` (auth)
+  - Attach uploaded photo: `{ "photoKey": "<key>" }`
+  - Remove custom photo: `{ "photoKey": null }`
+
+- `GET /me/photo` (auth)
+  - Redirects to a short-lived signed S3 GET URL if `photoKey` exists
+
+## 5) Users (admin only)
 
 - `GET /users?limit=50&offset=0` — list users
 - `GET /users/:id` — get a user by id
@@ -31,7 +58,7 @@ Base URL (prod): `https://api.docspot.app`
 - `PATCH /users/:id` — update fields (plan/quota/profile fields)
 - `DELETE /users/:id` — delete user
 
-## 5) User profile photo (S3-backed)
+## 6) User profile photo (admin only)
 
 This flow keeps buckets private: the backend returns a redirect to a short-lived signed URL.
 

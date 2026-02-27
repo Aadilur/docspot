@@ -12,11 +12,17 @@ import {
   listUsers,
   updateUser,
   upsertUser,
+  type UserRecord,
 } from "../../infrastructure/db/users";
 import {
   createPresignedGetUrl,
   createPresignedPutUrl,
 } from "../../infrastructure/storage/s3";
+import {
+  requireAdmin,
+  requireFirebaseAuth,
+  type AuthContext,
+} from "./middleware/firebaseAuth";
 
 export function createHttpRouter(): Router {
   const router = Router();
@@ -30,6 +36,39 @@ export function createHttpRouter(): Router {
 
   const getQueryString = (value: unknown): string =>
     typeof value === "string" ? value : "";
+
+  const getAuth = (req: any): AuthContext | null => {
+    const auth = req?.auth as AuthContext | undefined;
+    return auth?.uid ? auth : null;
+  };
+
+  const toMeUser = (user: UserRecord): UserRecord => {
+    return {
+      ...user,
+      photoUrl: user.photoUrl ? "/me/photo" : null,
+    };
+  };
+
+  const ensureMe = async (req: any): Promise<UserRecord> => {
+    const auth = getAuth(req);
+    if (!auth) throw new Error("Unauthorized");
+
+    const user = await upsertUser({
+      provider: "firebase",
+      providerUserId: auth.uid,
+      // Don't default to provider picture; keep profile photo app-controlled.
+      photoUrl: null,
+      email: auth.email ?? null,
+      displayName: auth.name ?? null,
+      locale: auth.locale ?? null,
+      metadata: {
+        firebase: { uid: auth.uid },
+        signInProvider: auth.provider ?? null,
+      },
+    });
+
+    return user;
+  };
 
   const parseBoundedInt = (
     raw: string,
@@ -82,7 +121,7 @@ export function createHttpRouter(): Router {
     });
   });
 
-  router.post("/uploads/presign", async (req, res) => {
+  router.post("/uploads/presign", requireFirebaseAuth, async (req, res) => {
     const filename =
       typeof req.body?.filename === "string" ? req.body.filename : "upload";
     const contentType =
@@ -108,7 +147,102 @@ export function createHttpRouter(): Router {
     }
   });
 
-  router.get("/users", async (req, res) => {
+  router.get("/me", requireFirebaseAuth, async (req, res) => {
+    try {
+      const me = await ensureMe(req);
+      res.json({ ok: true, user: toMeUser(me) });
+    } catch (err) {
+      if (toErrorMessage(err) === "Unauthorized") {
+        res.status(401).json({ ok: false, error: "Unauthorized" });
+        return;
+      }
+      unavailable(res, err);
+    }
+  });
+
+  router.patch("/me", requireFirebaseAuth, async (req, res) => {
+    try {
+      const me = await ensureMe(req);
+
+      const body = (req as any).body ?? {};
+      const patch: any = {};
+      if (Object.prototype.hasOwnProperty.call(body, "displayName")) {
+        patch.displayName = body.displayName ?? null;
+      }
+      if (Object.prototype.hasOwnProperty.call(body, "locale")) {
+        patch.locale = body.locale ?? null;
+      }
+      if (Object.prototype.hasOwnProperty.call(body, "photoKey")) {
+        patch.photoKey = body.photoKey ?? null;
+      }
+
+      const updated = await updateUser(me.id, patch);
+
+      res.json({ ok: true, user: toMeUser(updated ?? me) });
+    } catch (err) {
+      badRequest(res, toErrorMessage(err));
+    }
+  });
+
+  router.post("/me/photo/presign", requireFirebaseAuth, async (req, res) => {
+    const filename =
+      typeof req.body?.filename === "string" ? req.body.filename : "avatar";
+    const contentType =
+      typeof req.body?.contentType === "string"
+        ? req.body.contentType
+        : "application/octet-stream";
+
+    if (!contentType.startsWith("image/")) {
+      badRequest(res, "contentType must be image/*");
+      return;
+    }
+
+    if (filename.length > 200) {
+      badRequest(res, "filename is too long");
+      return;
+    }
+
+    try {
+      const me = await ensureMe(req);
+      const safeName = sanitizeFilename(filename);
+      const key = `users/${me.id}/avatar/${crypto.randomUUID()}-${safeName}`;
+      const presign = await createPresignedPutUrl({
+        key,
+        contentType,
+        expiresInSeconds: 60,
+      });
+      res.json({ ok: true, ...presign });
+    } catch (err) {
+      unavailable(res, err);
+    }
+  });
+
+  router.get("/me/photo", requireFirebaseAuth, async (req, res) => {
+    try {
+      const me = await ensureMe(req);
+      const photo = await getUserPhotoById(me.id);
+      if (!photo) {
+        notFound(res);
+        return;
+      }
+
+      if (photo.photoKey) {
+        const signed = await createPresignedGetUrl({
+          key: photo.photoKey,
+          expiresInSeconds: 60,
+        });
+        res.setHeader("Cache-Control", "private, max-age=60");
+        res.redirect(302, signed.url);
+        return;
+      }
+
+      res.status(404).json({ ok: false, error: "no photo" });
+    } catch (err) {
+      badRequest(res, toErrorMessage(err));
+    }
+  });
+
+  router.get("/users", requireFirebaseAuth, requireAdmin, async (req, res) => {
     const limit = parseBoundedInt(getQueryString(req.query.limit), 50, 1, 200);
     const offset = parseBoundedInt(
       getQueryString(req.query.offset),
@@ -128,41 +262,51 @@ export function createHttpRouter(): Router {
     }
   });
 
-  router.get("/users/by-provider", async (req, res) => {
-    const provider = getQueryString(req.query.provider);
-    const providerUserId = getQueryString(req.query.providerUserId);
+  router.get(
+    "/users/by-provider",
+    requireFirebaseAuth,
+    requireAdmin,
+    async (req, res) => {
+      const provider = getQueryString(req.query.provider);
+      const providerUserId = getQueryString(req.query.providerUserId);
 
-    if (!provider || !providerUserId) {
-      badRequest(res, "provider and providerUserId are required");
-      return;
-    }
-
-    try {
-      const user = await getUserByProvider({ provider, providerUserId });
-      if (!user) {
-        notFound(res);
+      if (!provider || !providerUserId) {
+        badRequest(res, "provider and providerUserId are required");
         return;
       }
-      res.json({ ok: true, user });
-    } catch (err) {
-      unavailable(res, err);
-    }
-  });
 
-  router.get("/users/:id", async (req, res) => {
-    try {
-      const user = await getUserById(req.params.id);
-      if (!user) {
-        notFound(res);
-        return;
+      try {
+        const user = await getUserByProvider({ provider, providerUserId });
+        if (!user) {
+          notFound(res);
+          return;
+        }
+        res.json({ ok: true, user });
+      } catch (err) {
+        unavailable(res, err);
       }
-      res.json({ ok: true, user });
-    } catch (err) {
-      unavailable(res, err);
-    }
-  });
+    },
+  );
 
-  router.post("/users", async (req, res) => {
+  router.get(
+    "/users/:id",
+    requireFirebaseAuth,
+    requireAdmin,
+    async (req, res) => {
+      try {
+        const user = await getUserById(req.params.id);
+        if (!user) {
+          notFound(res);
+          return;
+        }
+        res.json({ ok: true, user });
+      } catch (err) {
+        unavailable(res, err);
+      }
+    },
+  );
+
+  router.post("/users", requireFirebaseAuth, requireAdmin, async (req, res) => {
     try {
       const user = await createUser({
         provider: req.body?.provider,
@@ -185,136 +329,168 @@ export function createHttpRouter(): Router {
     }
   });
 
-  router.post("/users/upsert", async (req, res) => {
-    try {
-      const user = await upsertUser({
-        provider: req.body?.provider,
-        providerUserId: req.body?.providerUserId,
-        providerAppId: req.body?.providerAppId ?? null,
-        email: req.body?.email ?? null,
-        displayName: req.body?.displayName ?? null,
-        photoUrl: req.body?.photoUrl ?? null,
-        locale: req.body?.locale ?? null,
-        metadata: req.body?.metadata ?? null,
-      });
-      res.json({ ok: true, user });
-    } catch (err) {
-      badRequest(res, toErrorMessage(err));
-    }
-  });
-
-  router.patch("/users/:id", async (req, res) => {
-    try {
-      const user = await updateUser(req.params.id, {
-        email: req.body?.email,
-        displayName: req.body?.displayName,
-        photoUrl: req.body?.photoUrl,
-        photoKey: req.body?.photoKey,
-        locale: req.body?.locale,
-        userType: req.body?.userType,
-        subscriptionType: req.body?.subscriptionType,
-        subscriptionStatus: req.body?.subscriptionStatus,
-        storageQuotaBytes: req.body?.storageQuotaBytes,
-        storageUsedBytes: req.body?.storageUsedBytes,
-      });
-      if (!user) {
-        notFound(res);
-        return;
+  router.post(
+    "/users/upsert",
+    requireFirebaseAuth,
+    requireAdmin,
+    async (req, res) => {
+      try {
+        const user = await upsertUser({
+          provider: req.body?.provider,
+          providerUserId: req.body?.providerUserId,
+          providerAppId: req.body?.providerAppId ?? null,
+          email: req.body?.email ?? null,
+          displayName: req.body?.displayName ?? null,
+          photoUrl: req.body?.photoUrl ?? null,
+          locale: req.body?.locale ?? null,
+          metadata: req.body?.metadata ?? null,
+        });
+        res.json({ ok: true, user });
+      } catch (err) {
+        badRequest(res, toErrorMessage(err));
       }
-      res.json({ ok: true, user });
-    } catch (err) {
-      badRequest(res, toErrorMessage(err));
-    }
-  });
+    },
+  );
 
-  router.post("/users/:id/photo/presign", async (req, res) => {
-    const filename =
-      typeof req.body?.filename === "string" ? req.body.filename : "avatar";
-    const contentType =
-      typeof req.body?.contentType === "string"
-        ? req.body.contentType
-        : "application/octet-stream";
+  router.patch(
+    "/users/:id",
+    requireFirebaseAuth,
+    requireAdmin,
+    async (req, res) => {
+      try {
+        const body = (req as any).body ?? {};
+        const patch: any = {};
+        const addIfPresent = (key: string, value: any) => {
+          if (Object.prototype.hasOwnProperty.call(body, key))
+            patch[key] = value;
+        };
 
-    if (!contentType.startsWith("image/")) {
-      badRequest(res, "contentType must be image/*");
-      return;
-    }
+        addIfPresent("email", body.email ?? null);
+        addIfPresent("displayName", body.displayName ?? null);
+        addIfPresent("photoUrl", body.photoUrl ?? null);
+        addIfPresent("photoKey", body.photoKey ?? null);
+        addIfPresent("locale", body.locale ?? null);
+        addIfPresent("userType", body.userType);
+        addIfPresent("subscriptionType", body.subscriptionType ?? null);
+        addIfPresent("subscriptionStatus", body.subscriptionStatus ?? null);
+        addIfPresent("storageQuotaBytes", body.storageQuotaBytes ?? null);
+        addIfPresent("storageUsedBytes", body.storageUsedBytes ?? 0);
 
-    if (filename.length > 200) {
-      badRequest(res, "filename is too long");
-      return;
-    }
-
-    // Validate that the user exists and id is a UUID.
-    try {
-      const existing = await getUserById(req.params.id);
-      if (!existing) {
-        notFound(res);
-        return;
+        const user = await updateUser(req.params.id, patch);
+        if (!user) {
+          notFound(res);
+          return;
+        }
+        res.json({ ok: true, user });
+      } catch (err) {
+        badRequest(res, toErrorMessage(err));
       }
-    } catch (err) {
-      badRequest(res, toErrorMessage(err));
-      return;
-    }
+    },
+  );
 
-    const safeName = sanitizeFilename(filename);
-    const key = `users/${req.params.id}/avatar/${crypto.randomUUID()}-${safeName}`;
+  router.post(
+    "/users/:id/photo/presign",
+    requireFirebaseAuth,
+    requireAdmin,
+    async (req, res) => {
+      const filename =
+        typeof req.body?.filename === "string" ? req.body.filename : "avatar";
+      const contentType =
+        typeof req.body?.contentType === "string"
+          ? req.body.contentType
+          : "application/octet-stream";
 
-    try {
-      const presign = await createPresignedPutUrl({
-        key,
-        contentType,
-        expiresInSeconds: 60,
-      });
-      res.json({ ok: true, ...presign });
-    } catch (err) {
-      unavailable(res, err);
-    }
-  });
-
-  router.get("/users/:id/photo", async (req, res) => {
-    try {
-      const photo = await getUserPhotoById(req.params.id);
-      if (!photo) {
-        notFound(res);
+      if (!contentType.startsWith("image/")) {
+        badRequest(res, "contentType must be image/*");
         return;
       }
 
-      if (photo.photoKey) {
-        const signed = await createPresignedGetUrl({
-          key: photo.photoKey,
+      if (filename.length > 200) {
+        badRequest(res, "filename is too long");
+        return;
+      }
+
+      // Validate that the user exists and id is a UUID.
+      try {
+        const existing = await getUserById(req.params.id);
+        if (!existing) {
+          notFound(res);
+          return;
+        }
+      } catch (err) {
+        badRequest(res, toErrorMessage(err));
+        return;
+      }
+
+      const safeName = sanitizeFilename(filename);
+      const key = `users/${req.params.id}/avatar/${crypto.randomUUID()}-${safeName}`;
+
+      try {
+        const presign = await createPresignedPutUrl({
+          key,
+          contentType,
           expiresInSeconds: 60,
         });
-        res.setHeader("Cache-Control", "private, max-age=60");
-        res.redirect(302, signed.url);
-        return;
+        res.json({ ok: true, ...presign });
+      } catch (err) {
+        unavailable(res, err);
       }
+    },
+  );
 
-      if (photo.photoUrl && /^https?:\/\//i.test(photo.photoUrl)) {
-        res.setHeader("Cache-Control", "private, max-age=300");
-        res.redirect(302, photo.photoUrl);
-        return;
+  router.get(
+    "/users/:id/photo",
+    requireFirebaseAuth,
+    requireAdmin,
+    async (req, res) => {
+      try {
+        const photo = await getUserPhotoById(req.params.id);
+        if (!photo) {
+          notFound(res);
+          return;
+        }
+
+        if (photo.photoKey) {
+          const signed = await createPresignedGetUrl({
+            key: photo.photoKey,
+            expiresInSeconds: 60,
+          });
+          res.setHeader("Cache-Control", "private, max-age=60");
+          res.redirect(302, signed.url);
+          return;
+        }
+
+        if (photo.photoUrl && /^https?:\/\//i.test(photo.photoUrl)) {
+          res.setHeader("Cache-Control", "private, max-age=300");
+          res.redirect(302, photo.photoUrl);
+          return;
+        }
+
+        res.status(404).json({ ok: false, error: "no photo" });
+      } catch (err) {
+        // Invalid UUID or DB error.
+        badRequest(res, toErrorMessage(err));
       }
+    },
+  );
 
-      res.status(404).json({ ok: false, error: "no photo" });
-    } catch (err) {
-      // Invalid UUID or DB error.
-      badRequest(res, toErrorMessage(err));
-    }
-  });
-
-  router.delete("/users/:id", async (req, res) => {
-    try {
-      const ok = await deleteUser(req.params.id);
-      if (!ok) {
-        notFound(res);
-        return;
+  router.delete(
+    "/users/:id",
+    requireFirebaseAuth,
+    requireAdmin,
+    async (req, res) => {
+      try {
+        const ok = await deleteUser(req.params.id);
+        if (!ok) {
+          notFound(res);
+          return;
+        }
+        res.json({ ok: true });
+      } catch (err) {
+        unavailable(res, err);
       }
-      res.json({ ok: true });
-    } catch (err) {
-      unavailable(res, err);
-    }
-  });
+    },
+  );
 
   return router;
 }

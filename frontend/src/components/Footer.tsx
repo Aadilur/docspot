@@ -54,6 +54,12 @@ export default function Footer() {
             >
               {t("navContact")}
             </Link>
+            <Link
+              to="/endpoints"
+              className="rounded-lg px-1 py-0.5 hover:text-zinc-900 focus:outline-none focus:ring-2 focus:ring-brand-200 dark:hover:text-zinc-50 dark:focus:ring-brand-900"
+            >
+              {t("endpoints")}
+            </Link>
           </div>
         </div>
       </div>
