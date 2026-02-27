@@ -7,15 +7,40 @@ import {
   createUser,
   deleteUser,
   getUserById,
+  getUserPhotoById,
   getUserByProvider,
   listUsers,
   updateUser,
   upsertUser,
 } from "../../infrastructure/db/users";
-import { createPresignedPutUrl } from "../../infrastructure/storage/s3";
+import {
+  createPresignedGetUrl,
+  createPresignedPutUrl,
+} from "../../infrastructure/storage/s3";
 
 export function createHttpRouter(): Router {
   const router = Router();
+
+  const badRequest = (res: any, error: string) =>
+    res.status(400).json({ ok: false, error });
+  const notFound = (res: any) =>
+    res.status(404).json({ ok: false, error: "not found" });
+  const unavailable = (res: any, err: unknown) =>
+    res.status(503).json({ ok: false, error: toErrorMessage(err) });
+
+  const getQueryString = (value: unknown): string =>
+    typeof value === "string" ? value : "";
+
+  const parseBoundedInt = (
+    raw: string,
+    defaultValue: number,
+    min: number,
+    max: number,
+  ): number => {
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return defaultValue;
+    return Math.max(min, Math.min(max, Math.trunc(n)));
+  };
 
   router.get("/", (_req, res) => {
     res.json({ ok: true, service: "docspot-backend", docs: "/health" });
@@ -30,7 +55,7 @@ export function createHttpRouter(): Router {
       await pingDatabase();
       res.json({ ok: true });
     } catch (err) {
-      res.status(503).json({ ok: false, error: toErrorMessage(err) });
+      unavailable(res, err);
     }
   });
 
@@ -66,7 +91,7 @@ export function createHttpRouter(): Router {
         : "application/octet-stream";
 
     if (filename.length > 200) {
-      res.status(400).json({ ok: false, error: "filename is too long" });
+      badRequest(res, "filename is too long");
       return;
     }
 
@@ -79,55 +104,48 @@ export function createHttpRouter(): Router {
       const presign = await createPresignedPutUrl({ key, contentType });
       res.json({ ok: true, ...presign });
     } catch (err) {
-      res.status(503).json({ ok: false, error: toErrorMessage(err) });
+      unavailable(res, err);
     }
   });
 
   router.get("/users", async (req, res) => {
-    const limitRaw =
-      typeof req.query.limit === "string" ? req.query.limit : "50";
-    const offsetRaw =
-      typeof req.query.offset === "string" ? req.query.offset : "0";
-
-    const limit = Number(limitRaw);
-    const offset = Number(offsetRaw);
+    const limit = parseBoundedInt(getQueryString(req.query.limit), 50, 1, 200);
+    const offset = parseBoundedInt(
+      getQueryString(req.query.offset),
+      0,
+      0,
+      1_000_000,
+    );
 
     try {
       const users = await listUsers({
-        limit: Number.isFinite(limit) ? limit : 50,
-        offset: Number.isFinite(offset) ? offset : 0,
+        limit,
+        offset,
       });
       res.json({ ok: true, users });
     } catch (err) {
-      res.status(503).json({ ok: false, error: toErrorMessage(err) });
+      unavailable(res, err);
     }
   });
 
   router.get("/users/by-provider", async (req, res) => {
-    const provider =
-      typeof req.query.provider === "string" ? req.query.provider : "";
-    const providerUserId =
-      typeof req.query.providerUserId === "string"
-        ? req.query.providerUserId
-        : "";
+    const provider = getQueryString(req.query.provider);
+    const providerUserId = getQueryString(req.query.providerUserId);
 
     if (!provider || !providerUserId) {
-      res.status(400).json({
-        ok: false,
-        error: "provider and providerUserId are required",
-      });
+      badRequest(res, "provider and providerUserId are required");
       return;
     }
 
     try {
       const user = await getUserByProvider({ provider, providerUserId });
       if (!user) {
-        res.status(404).json({ ok: false, error: "not found" });
+        notFound(res);
         return;
       }
       res.json({ ok: true, user });
     } catch (err) {
-      res.status(503).json({ ok: false, error: toErrorMessage(err) });
+      unavailable(res, err);
     }
   });
 
@@ -135,12 +153,12 @@ export function createHttpRouter(): Router {
     try {
       const user = await getUserById(req.params.id);
       if (!user) {
-        res.status(404).json({ ok: false, error: "not found" });
+        notFound(res);
         return;
       }
       res.json({ ok: true, user });
     } catch (err) {
-      res.status(503).json({ ok: false, error: toErrorMessage(err) });
+      unavailable(res, err);
     }
   });
 
@@ -163,7 +181,7 @@ export function createHttpRouter(): Router {
       });
       res.status(201).json({ ok: true, user });
     } catch (err) {
-      res.status(400).json({ ok: false, error: toErrorMessage(err) });
+      badRequest(res, toErrorMessage(err));
     }
   });
 
@@ -181,7 +199,7 @@ export function createHttpRouter(): Router {
       });
       res.json({ ok: true, user });
     } catch (err) {
-      res.status(400).json({ ok: false, error: toErrorMessage(err) });
+      badRequest(res, toErrorMessage(err));
     }
   });
 
@@ -191,6 +209,7 @@ export function createHttpRouter(): Router {
         email: req.body?.email,
         displayName: req.body?.displayName,
         photoUrl: req.body?.photoUrl,
+        photoKey: req.body?.photoKey,
         locale: req.body?.locale,
         userType: req.body?.userType,
         subscriptionType: req.body?.subscriptionType,
@@ -199,12 +218,88 @@ export function createHttpRouter(): Router {
         storageUsedBytes: req.body?.storageUsedBytes,
       });
       if (!user) {
-        res.status(404).json({ ok: false, error: "not found" });
+        notFound(res);
         return;
       }
       res.json({ ok: true, user });
     } catch (err) {
-      res.status(400).json({ ok: false, error: toErrorMessage(err) });
+      badRequest(res, toErrorMessage(err));
+    }
+  });
+
+  router.post("/users/:id/photo/presign", async (req, res) => {
+    const filename =
+      typeof req.body?.filename === "string" ? req.body.filename : "avatar";
+    const contentType =
+      typeof req.body?.contentType === "string"
+        ? req.body.contentType
+        : "application/octet-stream";
+
+    if (!contentType.startsWith("image/")) {
+      badRequest(res, "contentType must be image/*");
+      return;
+    }
+
+    if (filename.length > 200) {
+      badRequest(res, "filename is too long");
+      return;
+    }
+
+    // Validate that the user exists and id is a UUID.
+    try {
+      const existing = await getUserById(req.params.id);
+      if (!existing) {
+        notFound(res);
+        return;
+      }
+    } catch (err) {
+      badRequest(res, toErrorMessage(err));
+      return;
+    }
+
+    const safeName = sanitizeFilename(filename);
+    const key = `users/${req.params.id}/avatar/${crypto.randomUUID()}-${safeName}`;
+
+    try {
+      const presign = await createPresignedPutUrl({
+        key,
+        contentType,
+        expiresInSeconds: 60,
+      });
+      res.json({ ok: true, ...presign });
+    } catch (err) {
+      unavailable(res, err);
+    }
+  });
+
+  router.get("/users/:id/photo", async (req, res) => {
+    try {
+      const photo = await getUserPhotoById(req.params.id);
+      if (!photo) {
+        notFound(res);
+        return;
+      }
+
+      if (photo.photoKey) {
+        const signed = await createPresignedGetUrl({
+          key: photo.photoKey,
+          expiresInSeconds: 60,
+        });
+        res.setHeader("Cache-Control", "private, max-age=60");
+        res.redirect(302, signed.url);
+        return;
+      }
+
+      if (photo.photoUrl && /^https?:\/\//i.test(photo.photoUrl)) {
+        res.setHeader("Cache-Control", "private, max-age=300");
+        res.redirect(302, photo.photoUrl);
+        return;
+      }
+
+      res.status(404).json({ ok: false, error: "no photo" });
+    } catch (err) {
+      // Invalid UUID or DB error.
+      badRequest(res, toErrorMessage(err));
     }
   });
 
@@ -212,12 +307,12 @@ export function createHttpRouter(): Router {
     try {
       const ok = await deleteUser(req.params.id);
       if (!ok) {
-        res.status(404).json({ ok: false, error: "not found" });
+        notFound(res);
         return;
       }
       res.json({ ok: true });
     } catch (err) {
-      res.status(503).json({ ok: false, error: toErrorMessage(err) });
+      unavailable(res, err);
     }
   });
 

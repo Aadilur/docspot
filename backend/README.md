@@ -59,6 +59,19 @@ These endpoints are intended for development/testing right now (no auth yet):
 - `PATCH /users/:id` (update plan fields, quota, etc.)
 - `DELETE /users/:id`
 
+### Profile photo (S3-backed)
+
+- `POST /users/:id/photo/presign`
+  - Body: `{ "filename": "avatar.png", "contentType": "image/png" }`
+  - Response: `{ ok, url, key, bucket, expiresInSeconds }`
+  - Then do a `PUT` to `url` with the image bytes and the same `Content-Type`.
+- `PATCH /users/:id`
+  - Set `{ "photoKey": "<returned key>" }` to attach the uploaded photo to the user.
+  - You can also set `{ "photoKey": null }` to remove the custom photo.
+- `GET /users/:id/photo`
+  - Redirects to a short-lived signed S3 URL (if `photoKey` exists).
+  - Falls back to redirecting to the stored provider photo URL (if `photoUrl` exists).
+
 ## Layers
 
 - `src/domain` — core business rules (no frameworks)

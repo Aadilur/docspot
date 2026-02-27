@@ -9,6 +9,7 @@ import {
   firebaseUserToUpsertPayload,
   getUserByProvider,
   patchUser,
+  presignUserPhotoUpload,
   upsertUser,
   type UserRecord,
   type UserType,
@@ -25,6 +26,17 @@ function formatBytes(value: number): string {
     i += 1;
   }
   return `${v.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+}
+
+function resolveApiAssetUrl(pathOrUrl: string): string {
+  if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
+  if (pathOrUrl.startsWith("/")) return `${API_BASE_URL}${pathOrUrl}`;
+  return `${API_BASE_URL}/${pathOrUrl}`;
+}
+
+function withCacheBust(url: string, token: string): string {
+  const safe = encodeURIComponent(token);
+  return url.includes("?") ? `${url}&v=${safe}` : `${url}?v=${safe}`;
 }
 
 export default function ProfilePage() {
@@ -159,6 +171,73 @@ export default function ProfilePage() {
       await deleteUser(record.id);
       setRecord(null);
       setMessage(t("profileDeleted"));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function uploadProfilePhoto(file: File) {
+    if (!record) return;
+
+    if (!file.type.startsWith("image/")) {
+      setError(t("profilePhotoUnsupported"));
+      return;
+    }
+
+    const maxBytes = 5 * 1024 * 1024;
+    if (file.size > maxBytes) {
+      setError(t("profilePhotoTooLarge"));
+      return;
+    }
+
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const presign = await presignUserPhotoUpload({
+        id: record.id,
+        filename: file.name || "avatar.png",
+        contentType: file.type || "image/png",
+      });
+
+      const putRes = await fetch(presign.url, {
+        method: "PUT",
+        headers: {
+          "Content-Type": file.type || "application/octet-stream",
+        },
+        body: file,
+      });
+      if (!putRes.ok) {
+        throw new Error(`Upload failed (${putRes.status})`);
+      }
+
+      const updated = await patchUser(record.id, {
+        photoKey: presign.key,
+      });
+      setRecord(updated);
+      setMessage(t("profilePhotoUpdated"));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function resetPhotoToProvider() {
+    if (!record) return;
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const updated = await patchUser(record.id, {
+        photoKey: null,
+        photoUrl: user?.photoURL ?? null,
+      });
+      setRecord(updated);
+      setMessage(t("profilePhotoResetDone"));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -307,6 +386,83 @@ export default function ProfilePage() {
               ) : (
                 t("profileNoServerRecord")
               )}
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-8 rounded-2xl border border-zinc-200/70 bg-white/80 p-6 shadow-sm backdrop-blur-sm dark:border-zinc-800/70 dark:bg-zinc-950/60">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+              {t("profilePhotoTitle")}
+            </h2>
+            <div className="text-xs text-zinc-500 dark:text-zinc-400">
+              {t("profilePhotoHint")}
+            </div>
+          </div>
+
+          <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-4">
+              <div className="h-16 w-16 overflow-hidden rounded-full border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+                {record?.photoUrl ? (
+                  <img
+                    alt={t("accountAvatarAlt")}
+                    className="h-full w-full object-cover"
+                    src={withCacheBust(
+                      resolveApiAssetUrl(record.photoUrl),
+                      record.updatedAt,
+                    )}
+                  />
+                ) : user?.photoURL ? (
+                  <img
+                    alt={t("accountAvatarAlt")}
+                    className="h-full w-full object-cover"
+                    src={user.photoURL}
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-xs text-zinc-500 dark:text-zinc-400">
+                    {t("profilePhotoEmpty")}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid gap-1">
+                <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                  {t("profilePhotoCurrent")}
+                </div>
+                <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                  {record
+                    ? t("profilePhotoBackedByStorage")
+                    : t("profilePhotoSyncFirst")}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <label className="cursor-pointer rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={!record || busy}
+                  onChange={(e) => {
+                    const f = e.currentTarget.files?.[0];
+                    // allow selecting same file again
+                    e.currentTarget.value = "";
+                    if (!f) return;
+                    void uploadProfilePhoto(f);
+                  }}
+                />
+                {t("profilePhotoUpload")}
+              </label>
+
+              <button
+                type="button"
+                onClick={resetPhotoToProvider}
+                disabled={!record || busy}
+                className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 shadow-sm hover:bg-zinc-50 disabled:opacity-60 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
+              >
+                {t("profilePhotoReset")}
+              </button>
             </div>
           </div>
         </section>

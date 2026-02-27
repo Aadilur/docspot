@@ -18,6 +18,7 @@ export async function ensureSchema(): Promise<void> {
       email text,
       display_name text,
       photo_url text,
+      photo_key text,
       locale text,
 
       user_type text not null default 'free',
@@ -34,6 +35,9 @@ export async function ensureSchema(): Promise<void> {
       updated_at timestamptz not null default now()
     );
   `);
+
+  // Backward-compatible migrations for existing deployments.
+  await pg.query("alter table users add column if not exists photo_key text;");
 
   await pg.query(
     "create unique index if not exists users_provider_uid_uq on users(provider, provider_user_id);",

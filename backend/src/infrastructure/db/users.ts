@@ -49,6 +49,7 @@ export type UpdateUserInput = Partial<{
   email: string | null;
   displayName: string | null;
   photoUrl: string | null;
+  photoKey: string | null;
   locale: string | null;
   userType: UserType;
   subscriptionType: string | null;
@@ -88,14 +89,17 @@ function mapRow(row: any): UserRecord {
   const quota = computeQuotaBytes(row);
   const left = Math.max(0, quota - used);
 
+  const id = String(row.id);
+  const hasAnyPhoto = !!row.photo_key || !!row.photo_url;
+
   return {
-    id: String(row.id),
+    id,
     provider: String(row.provider),
     providerUserId: String(row.provider_user_id),
     providerAppId: row.provider_app_id ?? null,
     email: row.email ?? null,
     displayName: row.display_name ?? null,
-    photoUrl: row.photo_url ?? null,
+    photoUrl: hasAnyPhoto ? `/users/${id}/photo` : null,
     locale: row.locale ?? null,
     userType: normalizeUserType(row.user_type),
     subscriptionType: row.subscription_type ?? null,
@@ -323,6 +327,7 @@ export async function updateUser(
   if ("email" in patch) add("email", patch.email ?? null);
   if ("displayName" in patch) add("display_name", patch.displayName ?? null);
   if ("photoUrl" in patch) add("photo_url", patch.photoUrl ?? null);
+  if ("photoKey" in patch) add("photo_key", patch.photoKey ?? null);
   if ("locale" in patch) add("locale", patch.locale ?? null);
   if ("userType" in patch) add("user_type", patch.userType ?? "free");
   if ("subscriptionType" in patch)
@@ -351,4 +356,21 @@ export async function deleteUser(id: string): Promise<boolean> {
   const pg = getPostgresPool();
   const result = await pg.query("delete from users where id = $1::uuid", [id]);
   return result.rowCount === 1;
+}
+
+export async function getUserPhotoById(id: string): Promise<{
+  photoKey: string | null;
+  photoUrl: string | null;
+} | null> {
+  await ensureSchema();
+  const pg = getPostgresPool();
+  const result = await pg.query(
+    "select photo_key, photo_url from users where id = $1::uuid",
+    [id],
+  );
+  if (!result.rows[0]) return null;
+  return {
+    photoKey: result.rows[0].photo_key ?? null,
+    photoUrl: result.rows[0].photo_url ?? null,
+  };
 }
