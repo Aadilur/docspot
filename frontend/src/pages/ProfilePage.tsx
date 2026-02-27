@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import Footer from "../components/Footer";
 import Header from "../components/Header";
-import { API_BASE_URL, ApiError, apiFetch } from "../shared/api/http";
+import { API_BASE_URL, apiFetch } from "../shared/api/http";
 import {
   deleteUser,
   firebaseUserToUpsertPayload,
@@ -37,6 +37,12 @@ function resolveApiAssetUrl(pathOrUrl: string): string {
 function withCacheBust(url: string, token: string): string {
   const safe = encodeURIComponent(token);
   return url.includes("?") ? `${url}&v=${safe}` : `${url}?v=${safe}`;
+}
+
+function isLikelyCorsNetworkError(err: unknown): boolean {
+  // Browsers typically surface CORS-blocked PUT as a generic "TypeError: Failed to fetch".
+  if (!(err instanceof Error)) return false;
+  return /failed to fetch/i.test(err.message);
 }
 
 export default function ProfilePage() {
@@ -84,56 +90,58 @@ export default function ProfilePage() {
 
   const canSync = configured && !loading && !!user;
 
-  async function refreshFromServer() {
-    if (!providerKey) return;
+  async function runAction(action: () => Promise<void>) {
     setBusy(true);
     setError(null);
     setMessage(null);
     try {
-      const found = await getUserByProvider(providerKey);
-      setRecord(found);
-      setUserType(found.userType);
-      setSubscriptionType(found.subscriptionType ?? "");
-      setStorageQuotaMb(
-        found.storageQuotaBytes
-          ? String(Math.round(found.storageQuotaBytes / 1024 / 1024))
-          : "",
-      );
-      setMessage(t("profileLoaded"));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      await action();
     } finally {
       setBusy(false);
     }
+  }
+
+  async function refreshFromServer() {
+    if (!providerKey) return;
+    await runAction(async () => {
+      try {
+        const found = await getUserByProvider(providerKey);
+        setRecord(found);
+        setUserType(found.userType);
+        setSubscriptionType(found.subscriptionType ?? "");
+        setStorageQuotaMb(
+          found.storageQuotaBytes
+            ? String(Math.round(found.storageQuotaBytes / 1024 / 1024))
+            : "",
+        );
+        setMessage(t("profileLoaded"));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
+    });
   }
 
   async function syncUser() {
     if (!user) return;
-    setBusy(true);
-    setError(null);
-    setMessage(null);
-    try {
-      const payload = firebaseUserToUpsertPayload(user);
-      const saved = await upsertUser(payload);
-      setRecord(saved);
-      setUserType(saved.userType);
-      setSubscriptionType(saved.subscriptionType ?? "");
-      setStorageQuotaMb(
-        String(Math.round(saved.storageQuotaBytes / 1024 / 1024)),
-      );
-      setMessage(t("profileSynced"));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
+    await runAction(async () => {
+      try {
+        const payload = firebaseUserToUpsertPayload(user);
+        const saved = await upsertUser(payload);
+        setRecord(saved);
+        setUserType(saved.userType);
+        setSubscriptionType(saved.subscriptionType ?? "");
+        setStorageQuotaMb(
+          String(Math.round(saved.storageQuotaBytes / 1024 / 1024)),
+        );
+        setMessage(t("profileSynced"));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
+    });
   }
 
   async function savePlan() {
     if (!record) return;
-    setBusy(true);
-    setError(null);
-    setMessage(null);
 
     const quotaMb = storageQuotaMb.trim()
       ? Number(storageQuotaMb.trim())
@@ -143,39 +151,36 @@ export default function ProfilePage() {
         ? null
         : Math.max(0, Math.round(quotaMb * 1024 * 1024));
 
-    try {
-      const updated = await patchUser(record.id, {
-        userType,
-        subscriptionType: subscriptionType.trim()
-          ? subscriptionType.trim()
-          : null,
-        storageQuotaBytes,
-      });
-      setRecord(updated);
-      setMessage(t("profileUpdated"));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
+    await runAction(async () => {
+      try {
+        const updated = await patchUser(record.id, {
+          userType,
+          subscriptionType: subscriptionType.trim()
+            ? subscriptionType.trim()
+            : null,
+          storageQuotaBytes,
+        });
+        setRecord(updated);
+        setMessage(t("profileUpdated"));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
+    });
   }
 
   async function removeUser() {
     if (!record) return;
     if (!confirm(t("profileDeleteConfirm"))) return;
 
-    setBusy(true);
-    setError(null);
-    setMessage(null);
-    try {
-      await deleteUser(record.id);
-      setRecord(null);
-      setMessage(t("profileDeleted"));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
+    await runAction(async () => {
+      try {
+        await deleteUser(record.id);
+        setRecord(null);
+        setMessage(t("profileDeleted"));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
+    });
   }
 
   async function uploadProfilePhoto(file: File) {
@@ -192,57 +197,57 @@ export default function ProfilePage() {
       return;
     }
 
-    setBusy(true);
-    setError(null);
-    setMessage(null);
+    await runAction(async () => {
+      try {
+        const contentType = file.type || "image/png";
+        const presign = await presignUserPhotoUpload({
+          id: record.id,
+          filename: file.name || "avatar.png",
+          contentType,
+        });
 
-    try {
-      const presign = await presignUserPhotoUpload({
-        id: record.id,
-        filename: file.name || "avatar.png",
-        contentType: file.type || "image/png",
-      });
+        const putRes = await fetch(presign.url, {
+          method: "PUT",
+          headers: {
+            "Content-Type": contentType,
+          },
+          body: file,
+        });
+        if (!putRes.ok) {
+          throw new Error(
+            `${t("profilePhotoUploadFailed")} (${putRes.status})`,
+          );
+        }
 
-      const putRes = await fetch(presign.url, {
-        method: "PUT",
-        headers: {
-          "Content-Type": file.type || "application/octet-stream",
-        },
-        body: file,
-      });
-      if (!putRes.ok) {
-        throw new Error(`Upload failed (${putRes.status})`);
+        const updated = await patchUser(record.id, {
+          photoKey: presign.key,
+        });
+        setRecord(updated);
+        setMessage(t("profilePhotoUpdated"));
+      } catch (e) {
+        if (isLikelyCorsNetworkError(e)) {
+          setError(t("profilePhotoUploadCors"));
+          return;
+        }
+        setError(e instanceof Error ? e.message : String(e));
       }
-
-      const updated = await patchUser(record.id, {
-        photoKey: presign.key,
-      });
-      setRecord(updated);
-      setMessage(t("profilePhotoUpdated"));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
+    });
   }
 
   async function resetPhotoToProvider() {
     if (!record) return;
-    setBusy(true);
-    setError(null);
-    setMessage(null);
-    try {
-      const updated = await patchUser(record.id, {
-        photoKey: null,
-        photoUrl: user?.photoURL ?? null,
-      });
-      setRecord(updated);
-      setMessage(t("profilePhotoResetDone"));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
+    await runAction(async () => {
+      try {
+        const updated = await patchUser(record.id, {
+          photoKey: null,
+          photoUrl: user?.photoURL ?? null,
+        });
+        setRecord(updated);
+        setMessage(t("profilePhotoResetDone"));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
+    });
   }
 
   const serverBadge =
@@ -267,21 +272,68 @@ export default function ProfilePage() {
 
       <main className="mx-auto w-full max-w-5xl px-5 pb-12 pt-8">
         <section className="rounded-2xl border border-zinc-200/70 bg-white/70 p-6 shadow-sm backdrop-blur-sm dark:border-zinc-800/70 dark:bg-zinc-950/30">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-                {t("profilePageTitle")}
-              </h1>
-              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
-                {t("profilePageSubtitle")}
-              </p>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-4">
+              <div className="h-14 w-14 overflow-hidden rounded-full border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+                {record?.photoUrl ? (
+                  <img
+                    alt={t("accountAvatarAlt")}
+                    className="h-full w-full object-cover"
+                    src={withCacheBust(
+                      resolveApiAssetUrl(record.photoUrl),
+                      record.updatedAt,
+                    )}
+                  />
+                ) : user?.photoURL ? (
+                  <img
+                    alt={t("accountAvatarAlt")}
+                    className="h-full w-full object-cover"
+                    src={user.photoURL}
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-xs text-zinc-500 dark:text-zinc-400">
+                    {t("profilePhotoEmpty")}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+                  {t("profilePageTitle")}
+                </h1>
+                <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
+                  {t("profilePageSubtitle")}
+                </p>
+              </div>
             </div>
 
-            <div
-              className={`rounded-xl border px-3 py-2 text-xs ${serverBadge.tone}`}
-            >
-              <div className="font-semibold">{serverBadge.label}</div>
-              <div className="mt-0.5 opacity-80">{API_BASE_URL}</div>
+            <div className="flex flex-col items-stretch gap-3 sm:items-end">
+              <div
+                className={`rounded-xl border px-3 py-2 text-xs ${serverBadge.tone}`}
+              >
+                <div className="font-semibold">{serverBadge.label}</div>
+                <div className="mt-0.5 opacity-80">{API_BASE_URL}</div>
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={syncUser}
+                  disabled={!canSync || busy}
+                  className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 disabled:opacity-60"
+                >
+                  {busy ? t("loading") : t("profileSync")}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={refreshFromServer}
+                  disabled={!providerKey || busy}
+                  className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 shadow-sm hover:bg-zinc-50 disabled:opacity-60 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
+                >
+                  {t("profileRefresh")}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -296,26 +348,6 @@ export default function ProfilePage() {
               {serverError}
             </div>
           )}
-
-          <div className="mt-6 flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={syncUser}
-              disabled={!canSync || busy}
-              className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 disabled:opacity-60"
-            >
-              {t("profileSync")}
-            </button>
-
-            <button
-              type="button"
-              onClick={refreshFromServer}
-              disabled={!providerKey || busy}
-              className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 shadow-sm hover:bg-zinc-50 disabled:opacity-60 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
-            >
-              {t("profileRefresh")}
-            </button>
-          </div>
 
           {(message || error) && (
             <div
@@ -376,6 +408,26 @@ export default function ProfilePage() {
                       ({formatBytes(record.storageLeftBytes)}{" "}
                       {t("profileStorageLeft")})
                     </span>
+                  </div>
+                  <div className="mt-1">
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
+                      <div
+                        className="h-full rounded-full bg-brand-600"
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            Math.max(
+                              0,
+                              Math.round(
+                                (record.storageUsedBytes /
+                                  Math.max(1, record.storageQuotaBytes)) *
+                                  100,
+                              ),
+                            ),
+                          )}%`,
+                        }}
+                      />
+                    </div>
                   </div>
                   <div className="text-xs text-zinc-500 dark:text-zinc-400">
                     {t("updatedAt", {
@@ -438,7 +490,14 @@ export default function ProfilePage() {
             </div>
 
             <div className="flex flex-wrap gap-3">
-              <label className="cursor-pointer rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">
+              <label
+                className={
+                  "rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 " +
+                  (!record || busy
+                    ? "cursor-not-allowed opacity-60"
+                    : "cursor-pointer")
+                }
+              >
                 <input
                   type="file"
                   accept="image/*"

@@ -52,6 +52,8 @@
   "profilePhotoResetDone": "Profile photo reset.",
   "profilePhotoTooLarge": "Photo is too large (max 5MB).",
   "profilePhotoUnsupported": "Please choose an image file.",
+  "profilePhotoUploadFailed": "Upload failed",
+  "profilePhotoUploadCors": "Upload failed due to a network/CORS block. If you use a private S3 bucket, allow CORS for your frontend origin and allow PUT with Content-Type.",
   "profilePlanTitle": "Plan",
   "profilePlanHint": "For testing: update plan fields",
   "profileUserType": "User type",
