@@ -1,0 +1,21 @@
+{
+  "name": "docspot",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev:frontend": "npm -w frontend run dev",
+    "build:frontend": "npm -w frontend run build",
+    "preview:frontend": "npm -w frontend run preview",
+    "dev:backend": "npm -w backend run dev",
+    "build:backend": "npm -w backend run build",
+    "start:backend": "npm -w backend run start"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": ""
+}
