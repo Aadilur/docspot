@@ -48,6 +48,9 @@ This API uses Firebase Authentication.
 - `GET /me/photo` (auth)
   - Redirects to a short-lived signed S3 GET URL if `photoKey` exists
 
+- `GET /me/photo/url` (auth)
+  - Returns `{ ok: true, url, expiresInSeconds }` for a short-lived signed S3 GET URL
+
 ## 5) Users (admin only)
 
 - `GET /users?limit=50&offset=0` — list users

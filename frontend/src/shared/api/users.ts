@@ -65,6 +65,19 @@ export async function presignMyPhotoUpload(params: {
   return { url: res.url, key: res.key, expiresInSeconds: res.expiresInSeconds };
 }
 
+export async function getMyPhotoUrl(): Promise<{
+  url: string;
+  expiresInSeconds: number;
+}> {
+  const res = await apiFetch<{
+    ok: true;
+    url: string;
+    expiresInSeconds: number;
+  }>(`/me/photo/url`);
+
+  return { url: res.url, expiresInSeconds: res.expiresInSeconds };
+}
+
 export async function upsertUser(payload: {
   provider: string;
   providerUserId: string;

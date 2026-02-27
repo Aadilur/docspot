@@ -242,6 +242,37 @@ export function createHttpRouter(): Router {
     }
   });
 
+  router.get("/me/photo/url", requireFirebaseAuth, async (req, res) => {
+    try {
+      const me = await ensureMe(req);
+      const photo = await getUserPhotoById(me.id);
+      if (!photo) {
+        notFound(res);
+        return;
+      }
+
+      if (photo.photoKey) {
+        const signed = await createPresignedGetUrl({
+          key: photo.photoKey,
+          expiresInSeconds: 60,
+        });
+        res.setHeader("Cache-Control", "private, max-age=60");
+        res.json({ ok: true, url: signed.url, expiresInSeconds: 60 });
+        return;
+      }
+
+      if (photo.photoUrl && /^https?:\/\//i.test(photo.photoUrl)) {
+        res.setHeader("Cache-Control", "private, max-age=60");
+        res.json({ ok: true, url: photo.photoUrl, expiresInSeconds: 60 });
+        return;
+      }
+
+      res.status(404).json({ ok: false, error: "no photo" });
+    } catch (err) {
+      badRequest(res, toErrorMessage(err));
+    }
+  });
+
   router.get("/users", requireFirebaseAuth, requireAdmin, async (req, res) => {
     const limit = parseBoundedInt(getQueryString(req.query.limit), 50, 1, 200);
     const offset = parseBoundedInt(

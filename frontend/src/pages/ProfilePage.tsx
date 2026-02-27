@@ -6,6 +6,7 @@ import Header from "../components/Header";
 import { API_BASE_URL, apiFetch } from "../shared/api/http";
 import {
   getMe,
+  getMyPhotoUrl,
   patchMe,
   presignMyPhotoUpload,
   type UserRecord,
@@ -52,6 +53,7 @@ export default function ProfilePage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [record, setRecord] = useState<UserRecord | null>(null);
+  const [photoSrc, setPhotoSrc] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -103,6 +105,36 @@ export default function ProfilePage() {
       cancelled = true;
     };
   }, [configured, loading, user?.uid]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!configured || loading) return;
+    if (!user) {
+      setPhotoSrc(null);
+      return;
+    }
+
+    if (!record?.photoUrl) {
+      setPhotoSrc(null);
+      return;
+    }
+
+    (async () => {
+      try {
+        const { url } = await getMyPhotoUrl();
+        if (!cancelled) {
+          setPhotoSrc(withCacheBust(resolveApiAssetUrl(url), record.updatedAt));
+        }
+      } catch {
+        if (!cancelled) setPhotoSrc(null);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [configured, loading, user?.uid, record?.photoUrl, record?.updatedAt]);
 
   async function runAction(action: () => Promise<void>) {
     setBusy(true);
@@ -190,10 +222,7 @@ export default function ProfilePage() {
                   <img
                     alt={t("accountAvatarAlt")}
                     className="h-full w-full object-cover"
-                    src={withCacheBust(
-                      resolveApiAssetUrl(record.photoUrl),
-                      record.updatedAt,
-                    )}
+                    src={photoSrc ?? ""}
                   />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center text-xs text-zinc-500 dark:text-zinc-400">

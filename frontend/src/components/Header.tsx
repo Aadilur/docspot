@@ -92,7 +92,10 @@ export default function Header() {
               }
             >
               {theme === "dark" ? (
-                <Moon className="h-3.5 w-3.5 sm:h-4 sm:w-4" aria-hidden="true" />
+                <Moon
+                  className="h-3.5 w-3.5 sm:h-4 sm:w-4"
+                  aria-hidden="true"
+                />
               ) : (
                 <Sun className="h-3.5 w-3.5 sm:h-4 sm:w-4" aria-hidden="true" />
               )}
