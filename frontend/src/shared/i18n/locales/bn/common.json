@@ -4,6 +4,9 @@
   "subtitle": "ইনভয়েস, প্রেসক্রিপশন এবং জরুরি ফাইল এক জায়গায়।",
   "ctaPrimary": "শুরু করুন",
   "ctaSecondary": "আরও জানুন",
+  "signInGoogle": "Google দিয়ে সাইন ইন করুন",
+  "signOut": "সাইন আউট",
+  "signedInAs": "সাইন ইন করা আছে",
   "toggleTheme": "থিম পরিবর্তন করুন",
   "language": "ভাষা",
   "trustTitle": "বিশ্বাসের জন্য তৈরি",
@@ -12,5 +15,5 @@
     "পরিষ্কার অনুমতি ও শেয়ারিং",
     "শান্ত ও নিরাপদ অভিজ্ঞতার জন্য ডিজাইন"
   ],
-  "comingSoon": "Firebase দিয়ে Google/Facebook লগইন শিগগিরই আসছে।"
+  "comingSoon": "Firebase env vars যোগ করলে Google লগইন কাজ করবে।"
 }

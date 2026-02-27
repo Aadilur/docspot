@@ -4,6 +4,9 @@
   "subtitle": "Invoices, prescriptions, and important files in one trusted place.",
   "ctaPrimary": "Get started",
   "ctaSecondary": "Learn more",
+  "signInGoogle": "Sign in with Google",
+  "signOut": "Sign out",
+  "signedInAs": "Signed in as",
   "toggleTheme": "Toggle theme",
   "language": "Language",
   "trustTitle": "Built for trust",
@@ -12,5 +15,5 @@
     "Clear permissions and sharing",
     "Designed for safe, calm reading"
   ],
-  "comingSoon": "Login (Google/Facebook via Firebase) coming soon."
+  "comingSoon": "Google sign-in is ready once you add Firebase env vars."
 }

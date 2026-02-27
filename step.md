@@ -187,6 +187,10 @@ Set in Railway → **frontend** → **Variables** (examples):
 - `VITE_FIREBASE_PROJECT_ID`
 - `VITE_FIREBASE_APP_ID`
 
+Optional (Analytics):
+
+- `VITE_FIREBASE_MEASUREMENT_ID`
+
 ---
 
 ## 7) Managing deployments on Railway

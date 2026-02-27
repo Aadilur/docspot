@@ -1,12 +1,16 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { setLanguage } from "../shared/i18n";
+import { signInWithGoogle, signOutUser } from "../shared/firebase/auth";
 import { useTheme } from "../shared/theme/useTheme";
 
 export default function LandingPage() {
   const { t, i18n } = useTranslation();
   const { toggle } = useTheme();
+  const [authEmail, setAuthEmail] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authBusy, setAuthBusy] = useState(false);
 
   const trustPoints = useMemo(
     () => t("trustPoints", { returnObjects: true }) as string[],
@@ -74,6 +78,49 @@ export default function LandingPage() {
             >
               {t("ctaPrimary")}
             </button>
+
+            {authEmail ? (
+              <button
+                type="button"
+                onClick={async () => {
+                  setAuthBusy(true);
+                  setAuthError(null);
+                  try {
+                    await signOutUser();
+                    setAuthEmail(null);
+                  } catch (e) {
+                    setAuthError(e instanceof Error ? e.message : String(e));
+                  } finally {
+                    setAuthBusy(false);
+                  }
+                }}
+                disabled={authBusy}
+                className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 shadow-sm hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-brand-200 disabled:opacity-60 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900 dark:focus:ring-brand-900"
+              >
+                {t("signOut")}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={async () => {
+                  setAuthBusy(true);
+                  setAuthError(null);
+                  try {
+                    const result = await signInWithGoogle();
+                    setAuthEmail(result.user.email ?? result.user.uid);
+                  } catch (e) {
+                    setAuthError(e instanceof Error ? e.message : String(e));
+                  } finally {
+                    setAuthBusy(false);
+                  }
+                }}
+                disabled={authBusy}
+                className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 shadow-sm hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-brand-200 disabled:opacity-60 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900 dark:focus:ring-brand-900"
+              >
+                {t("signInGoogle")}
+              </button>
+            )}
+
             <button
               type="button"
               className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 shadow-sm hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-brand-200 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900 dark:focus:ring-brand-900"
@@ -83,6 +130,19 @@ export default function LandingPage() {
             <p className="w-full pt-2 text-sm text-zinc-500 dark:text-zinc-400">
               {t("comingSoon")}
             </p>
+
+            {authEmail ? (
+              <p className="w-full text-sm text-zinc-600 dark:text-zinc-300">
+                {t("signedInAs")}:{" "}
+                <span className="font-medium">{authEmail}</span>
+              </p>
+            ) : null}
+
+            {authError ? (
+              <p className="w-full text-sm text-red-600 dark:text-red-400">
+                {authError}
+              </p>
+            ) : null}
           </div>
         </section>
 
