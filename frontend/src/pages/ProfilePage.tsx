@@ -54,6 +54,7 @@ export default function ProfilePage() {
   const [error, setError] = useState<string | null>(null);
   const [record, setRecord] = useState<UserRecord | null>(null);
   const [photoSrc, setPhotoSrc] = useState<string | null>(null);
+  const [loadingPhoto, setLoadingPhoto] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -122,12 +123,15 @@ export default function ProfilePage() {
 
     (async () => {
       try {
+        setLoadingPhoto(true);
         const { url } = await getMyPhotoUrl();
         if (!cancelled) {
           setPhotoSrc(withCacheBust(resolveApiAssetUrl(url), record.updatedAt));
         }
       } catch {
         if (!cancelled) setPhotoSrc(null);
+      } finally {
+        if (!cancelled) setLoadingPhoto(false);
       }
     })();
 
@@ -218,15 +222,17 @@ export default function ProfilePage() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4">
               <div className="h-14 w-14 overflow-hidden rounded-full border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-                {record?.photoUrl ? (
+                {photoSrc ? (
                   <img
                     alt={t("accountAvatarAlt")}
                     className="h-full w-full object-cover"
-                    src={photoSrc ?? ""}
+                    src={photoSrc}
                   />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center text-xs text-zinc-500 dark:text-zinc-400">
-                    {t("profilePhotoEmpty")}
+                    {record?.photoUrl && loadingPhoto
+                      ? t("loading")
+                      : t("profilePhotoEmpty")}
                   </div>
                 )}
               </div>
@@ -384,18 +390,17 @@ export default function ProfilePage() {
                 {t("profilePhotoCurrent")}
               </div>
               <div className="mt-2 h-28 w-28 overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-                {record?.photoUrl ? (
+                {photoSrc ? (
                   <img
                     alt={t("accountAvatarAlt")}
                     className="h-full w-full object-cover"
-                    src={withCacheBust(
-                      resolveApiAssetUrl(record.photoUrl),
-                      record.updatedAt,
-                    )}
+                    src={photoSrc}
                   />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center text-xs text-zinc-500 dark:text-zinc-400">
-                    {t("profilePhotoEmpty")}
+                    {record?.photoUrl && loadingPhoto
+                      ? t("loading")
+                      : t("profilePhotoEmpty")}
                   </div>
                 )}
               </div>

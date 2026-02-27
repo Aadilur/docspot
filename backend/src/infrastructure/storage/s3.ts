@@ -1,4 +1,5 @@
 import {
+  DeleteObjectCommand,
   GetObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -92,4 +93,13 @@ export async function createPresignedGetUrl(params: {
     expiresIn: expiresInSeconds,
   });
   return { url, key: params.key, bucket, expiresInSeconds };
+}
+
+export async function deleteObject(params: { key: string }): Promise<void> {
+  const { client, bucket } = getS3Client();
+  const command = new DeleteObjectCommand({
+    Bucket: bucket,
+    Key: params.key,
+  });
+  await client.send(command);
 }

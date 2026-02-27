@@ -17,6 +17,7 @@ import {
 import {
   createPresignedGetUrl,
   createPresignedPutUrl,
+  deleteObject,
 } from "../../infrastructure/storage/s3";
 import {
   requireAdmin,
@@ -164,6 +165,8 @@ export function createHttpRouter(): Router {
     try {
       const me = await ensureMe(req);
 
+      const beforePhoto = await getUserPhotoById(me.id);
+
       const body = (req as any).body ?? {};
       const patch: any = {};
       if (Object.prototype.hasOwnProperty.call(body, "displayName")) {
@@ -177,6 +180,19 @@ export function createHttpRouter(): Router {
       }
 
       const updated = await updateUser(me.id, patch);
+
+      if (Object.prototype.hasOwnProperty.call(patch, "photoKey")) {
+        const oldKey = beforePhoto?.photoKey ?? null;
+        const newKey = (patch.photoKey ?? null) as string | null;
+        const prefix = `users/${me.id}/avatar/`;
+        if (oldKey && oldKey !== newKey && oldKey.startsWith(prefix)) {
+          try {
+            await deleteObject({ key: oldKey });
+          } catch {
+            // Best-effort cleanup; don't fail the user update.
+          }
+        }
+      }
 
       res.json({ ok: true, user: toMeUser(updated ?? me) });
     } catch (err) {
@@ -204,8 +220,7 @@ export function createHttpRouter(): Router {
 
     try {
       const me = await ensureMe(req);
-      const safeName = sanitizeFilename(filename);
-      const key = `users/${me.id}/avatar/${crypto.randomUUID()}-${safeName}`;
+      const key = `users/${me.id}/avatar/profile`;
       const presign = await createPresignedPutUrl({
         key,
         contentType,
@@ -389,6 +404,8 @@ export function createHttpRouter(): Router {
     requireAdmin,
     async (req, res) => {
       try {
+        const beforePhoto = await getUserPhotoById(req.params.id);
+
         const body = (req as any).body ?? {};
         const patch: any = {};
         const addIfPresent = (key: string, value: any) => {
@@ -411,6 +428,19 @@ export function createHttpRouter(): Router {
         if (!user) {
           notFound(res);
           return;
+        }
+
+        if (Object.prototype.hasOwnProperty.call(patch, "photoKey")) {
+          const oldKey = beforePhoto?.photoKey ?? null;
+          const newKey = (patch.photoKey ?? null) as string | null;
+          const prefix = `users/${req.params.id}/avatar/`;
+          if (oldKey && oldKey !== newKey && oldKey.startsWith(prefix)) {
+            try {
+              await deleteObject({ key: oldKey });
+            } catch {
+              // Best-effort cleanup; don't fail the admin update.
+            }
+          }
         }
         res.json({ ok: true, user });
       } catch (err) {
@@ -453,8 +483,7 @@ export function createHttpRouter(): Router {
         return;
       }
 
-      const safeName = sanitizeFilename(filename);
-      const key = `users/${req.params.id}/avatar/${crypto.randomUUID()}-${safeName}`;
+      const key = `users/${req.params.id}/avatar/profile`;
 
       try {
         const presign = await createPresignedPutUrl({
