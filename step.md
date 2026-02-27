@@ -12,6 +12,7 @@ Railway should run them as **two different services** from the same GitHub repo.
 ## 0) One-time checks (deploy readiness)
 
 ### Frontend must have a production start command
+
 Railway needs a server process. The frontend uses a static server:
 
 - `frontend/package.json`
@@ -19,11 +20,13 @@ Railway needs a server process. The frontend uses a static server:
   - `start`: `serve -s dist -l $PORT`
 
 ### Backend must listen on PORT
+
 Railway sets `PORT` automatically.
 
 - `backend/src/main.ts` uses `process.env.PORT` ✅
 
 ### .gitignore
+
 Make sure you do **not** commit secrets. The root `.gitignore` should ignore:
 
 - `node_modules/`
@@ -35,12 +38,14 @@ Make sure you do **not** commit secrets. The root `.gitignore` should ignore:
 ## 1) Publish to GitHub (first time)
 
 ### 1.1 Create a GitHub repo
+
 1. Go to GitHub → **New repository**
 2. Name it (example): `docspot`
 3. Keep it **Public or Private** (your choice)
 4. Do **NOT** initialize with README (you already have files locally)
 
 ### 1.2 Initialize git + push
+
 Run these commands from the repo root:
 
 ```bash
@@ -54,6 +59,7 @@ git push -u origin main
 ```
 
 ### 1.3 Future updates
+
 ```bash
 git add .
 git commit -m "Your message"
@@ -65,11 +71,13 @@ git push
 ## 2) Deploy to Railway (recommended: 2 services in 1 project)
 
 ### Why two services?
+
 - Frontend and backend scale/deploy independently
 - Frontend is a static build served via Node
 - Backend is an API server
 
 ### 2.1 Create a Railway project
+
 1. Railway → **New Project**
 2. Choose **Deploy from GitHub repo**
 3. Pick your `docspot` repo
@@ -83,10 +91,13 @@ git push
 3. Name it: `backend`
 
 ### Service settings (important for workspaces)
+
 In the backend service → **Settings**:
+
 - **Root Directory**: `.` (repo root)
 
 ### Commands
+
 - **Build Command**:
   ```bash
   npm ci --include=dev && npm run -w backend build
@@ -97,6 +108,7 @@ In the backend service → **Settings**:
   ```
 
 ### Verify
+
 After deploy completes, open the backend URL and check:
 
 - `GET https://<backend-service>.up.railway.app/health`
@@ -112,10 +124,13 @@ Railway provides `PORT` automatically.
 3. Name it: `frontend`
 
 ### Service settings
+
 In the frontend service → **Settings**:
+
 - **Root Directory**: `.` (repo root)
 
 ### Commands
+
 - **Build Command**:
   ```bash
   npm ci --include=dev && npm run -w frontend build
@@ -126,6 +141,7 @@ In the frontend service → **Settings**:
   ```
 
 ### Verify
+
 - Open `https://<frontend-service>.up.railway.app/`
 - Install as PWA (Chrome/Edge: “Install app”)
 
@@ -134,11 +150,13 @@ In the frontend service → **Settings**:
 ## 5) Connect frontend → backend (when you start calling APIs)
 
 ### 5.1 Add env var to Frontend service
+
 Railway → **frontend** service → **Variables**:
 
 - `VITE_API_BASE_URL = https://<backend-service>.up.railway.app`
 
 ### 5.2 Use it in the frontend
+
 In code:
 
 ```ts
@@ -152,12 +170,15 @@ const apiBase = import.meta.env.VITE_API_BASE_URL;
 ## 6) Security basics (recommended)
 
 ### 6.1 Restrict backend CORS
+
 Set backend variable:
+
 - `CORS_ORIGIN = https://<frontend-service>.up.railway.app`
 
 (If you allow multiple origins, use comma-separated values.)
 
 ### 6.2 Firebase (frontend) variables
+
 Do NOT commit Firebase secrets.
 Set in Railway → **frontend** → **Variables** (examples):
 
@@ -171,16 +192,20 @@ Set in Railway → **frontend** → **Variables** (examples):
 ## 7) Managing deployments on Railway
 
 ### Auto-deploy on git push
+
 - Push to `main`
 - Railway will rebuild/redeploy each service
 
 ### View logs
+
 - Railway project → select service → **Logs**
 
 ### Redeploy
+
 - Railway project → select service → **Deployments** → **Redeploy**
 
 ### Rollback
+
 - Railway project → select service → **Deployments** → pick an older deploy → **Rollback** (if available in your plan/UI)
 
 ---
@@ -188,6 +213,7 @@ Set in Railway → **frontend** → **Variables** (examples):
 ## 8) Optional: Custom domains
 
 Typical setup:
+
 - Frontend: `docspot.com` or `app.docspot.com`
 - Backend: `api.docspot.com`
 
@@ -198,11 +224,13 @@ Railway → service → **Settings / Domains** → add your domain and follow DN
 ## Troubleshooting
 
 ### Build fails because devDependencies are missing
+
 Use the provided build commands with:
 
 - `npm ci --include=dev`
 
 ### 404 on SPA routes
+
 If you later add routing, keep using:
 
 - `serve -s dist`
