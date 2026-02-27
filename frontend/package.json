@@ -10,12 +10,15 @@
     "start": "sh -c 'test -d dist || npm run build && serve -s dist -l tcp://0.0.0.0:${PORT:-3000}'"
   },
   "dependencies": {
+    "audio-recorder-polyfill": "^0.4.1",
     "firebase": "^10.14.1",
     "i18next": "^23.0.0",
+    "localforage": "^1.10.0",
     "lucide-react": "^0.575.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-i18next": "^14.0.0",
+    "react-media-recorder": "^1.7.2",
     "react-router-dom": "^7.13.1",
     "serve": "^14.2.4"
   },
@@ -23,6 +26,7 @@
     "@types/node": "^20.11.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
+    "@vitejs/plugin-basic-ssl": "^1.2.0",
     "@vitejs/plugin-react": "^4.3.0",
     "autoprefixer": "^10.4.0",
     "postcss": "^8.4.0",
