@@ -30,10 +30,14 @@ export default function LandingPage() {
   }, [getStartedOpen]);
 
   return (
-    <div className="min-h-dvh">
+    <div className="min-h-dvh bg-gradient-to-b from-zinc-50 via-white to-white dark:from-zinc-950 dark:via-zinc-950 dark:to-zinc-900">
       <Header />
 
-      <main className="mx-auto w-full max-w-5xl px-5 pb-12 pt-8">
+      <main className="relative mx-auto w-full max-w-5xl px-5 pb-12 pt-8">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-56 bg-gradient-to-b from-brand-100/40 via-transparent to-transparent dark:from-brand-500/10"
+        />
         <section
           id="home"
           className="rounded-2xl border border-zinc-200/70 bg-white/70 p-6 shadow-sm backdrop-blur-sm dark:border-zinc-800/70 dark:bg-zinc-950/30"
@@ -77,7 +81,11 @@ export default function LandingPage() {
           </p>
 
           <div className="mt-6 grid gap-4 sm:grid-cols-3">
-            <div className="rounded-2xl border border-zinc-200/70 bg-white p-5 shadow-sm dark:border-zinc-800/70 dark:bg-zinc-950">
+            <Link
+              to="/prescription"
+              className="group rounded-2xl border border-zinc-200/70 bg-white/80 p-5 shadow-sm backdrop-blur-sm transition-colors hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none dark:border-zinc-800/70 dark:bg-zinc-950/60 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
+              aria-label={t("servicePrescriptionTitle")}
+            >
               <div className="mb-4 overflow-hidden rounded-xl border border-zinc-200/70 bg-white/70 p-3 text-brand-700 dark:border-zinc-800/70 dark:bg-zinc-950/30 dark:text-brand-300">
                 <svg
                   viewBox="0 0 240 120"
@@ -137,8 +145,12 @@ export default function LandingPage() {
               <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">
                 {t("servicePrescriptionBody")}
               </p>
-            </div>
-            <div className="rounded-2xl border border-zinc-200/70 bg-white p-5 shadow-sm dark:border-zinc-800/70 dark:bg-zinc-950">
+            </Link>
+            <Link
+              to="/invoice"
+              className="group rounded-2xl border border-zinc-200/70 bg-white/80 p-5 shadow-sm backdrop-blur-sm transition-colors hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none dark:border-zinc-800/70 dark:bg-zinc-950/60 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
+              aria-label={t("serviceDocumentTitle")}
+            >
               <div className="mb-4 overflow-hidden rounded-xl border border-zinc-200/70 bg-white/70 p-3 text-brand-700 dark:border-zinc-800/70 dark:bg-zinc-950/30 dark:text-brand-300">
                 <svg
                   viewBox="0 0 240 120"
@@ -198,8 +210,12 @@ export default function LandingPage() {
               <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">
                 {t("serviceDocumentBody")}
               </p>
-            </div>
-            <div className="rounded-2xl border border-zinc-200/70 bg-white p-5 shadow-sm dark:border-zinc-800/70 dark:bg-zinc-950">
+            </Link>
+            <Link
+              to="/other-doc"
+              className="group rounded-2xl border border-zinc-200/70 bg-white/80 p-5 shadow-sm backdrop-blur-sm transition-colors hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none dark:border-zinc-800/70 dark:bg-zinc-950/60 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
+              aria-label={t("serviceOtherTitle")}
+            >
               <div className="mb-4 overflow-hidden rounded-xl border border-zinc-200/70 bg-white/70 p-3 text-brand-700 dark:border-zinc-800/70 dark:bg-zinc-950/30 dark:text-brand-300">
                 <svg
                   viewBox="0 0 240 120"
@@ -242,7 +258,7 @@ export default function LandingPage() {
               <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">
                 {t("serviceOtherBody")}
               </p>
-            </div>
+            </Link>
           </div>
         </section>
 
