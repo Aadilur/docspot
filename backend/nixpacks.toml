@@ -1,0 +1,11 @@
+# Railway / Nixpacks config for the backend service
+# Use this when the Railway service Root Directory is set to `backend/`.
+
+[phases.install]
+cmds = ["npm ci --include=dev"]
+
+[phases.build]
+cmds = ["npm run build"]
+
+[start]
+cmd = "npm run start"

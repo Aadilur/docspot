@@ -204,6 +204,19 @@ Optional (Analytics):
 
 - `VITE_FIREBASE_MEASUREMENT_ID`
 
+### 6.3 Fix: Firebase `auth/unauthorized-domain`
+
+If Google sign-in fails with `Firebase: Error (auth/unauthorized-domain)`, you must allow your domain in Firebase:
+
+1. Firebase Console → **Authentication** → **Settings**
+2. Under **Authorized domains**, add your production hostnames, for example:
+
+- `docspot.app`
+- `www.docspot.app` (only if you use it)
+- your Railway preview domain (optional), e.g. `xxxx.up.railway.app`
+
+After updating Authorized domains, redeploy the frontend if needed and retry sign-in.
+
 ---
 
 ## 7) Managing deployments on Railway

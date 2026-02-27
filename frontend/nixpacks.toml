@@ -1,0 +1,11 @@
+# Railway / Nixpacks config for the frontend service
+# Use this when the Railway service Root Directory is set to `frontend/`.
+
+[phases.install]
+cmds = ["npm ci --include=dev"]
+
+[phases.build]
+cmds = ["npm run build"]
+
+[start]
+cmd = "npm run start"
