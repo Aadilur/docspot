@@ -140,6 +140,19 @@ In the frontend service → **Settings**:
   npm run -w frontend start
   ```
 
+### If you set Root Directory to `frontend` instead of `.`
+
+Use these commands instead (because Railway will run inside `/app/frontend`):
+
+- **Build Command**:
+  ```bash
+  npm ci --include=dev && npm run build
+  ```
+- **Start Command**:
+  ```bash
+  npm run start
+  ```
+
 ### Verify
 
 - Open `https://<frontend-service>.up.railway.app/`
