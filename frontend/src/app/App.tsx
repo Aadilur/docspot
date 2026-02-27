@@ -6,6 +6,7 @@ import LandingPage from "../pages/LandingPage";
 import InvoicePage from "../pages/InvoicePage";
 import OtherDocPage from "../pages/OtherDocPage";
 import PrescriptionPage from "../pages/PrescriptionPage";
+import ProfilePage from "../pages/ProfilePage";
 
 export default function App() {
   return (
@@ -14,6 +15,7 @@ export default function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/contact" element={<ContactPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
         <Route path="/prescription" element={<PrescriptionPage />} />
         <Route path="/invoice" element={<InvoicePage />} />
         <Route path="/other-doc" element={<OtherDocPage />} />

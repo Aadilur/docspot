@@ -13,6 +13,8 @@ Production: `https://api.docspot.app`
 
 ## Environment variables
 
+Note (Railway): do not manually set `PORT` in service variables. Railway injects `PORT` dynamically; overriding it commonly causes 502 (edge cannot reach your app).
+
 ### Database (Postgres)
 
 Set:
@@ -44,6 +46,18 @@ Presign endpoint (to test uploads):
   - Body: `{ "filename": "test.pdf", "contentType": "application/pdf" }`
   - Response: `{ ok, url, key, bucket, expiresInSeconds }`
   - Then do a `PUT` to the returned `url` with the file bytes and the same `Content-Type`.
+
+## Users API (CRUD)
+
+These endpoints are intended for development/testing right now (no auth yet):
+
+- `GET /users?limit=50&offset=0`
+- `GET /users/:id`
+- `GET /users/by-provider?provider=google.com&providerUserId=<uid>`
+- `POST /users` (create)
+- `POST /users/upsert` (create or update by `(provider, providerUserId)`)
+- `PATCH /users/:id` (update plan fields, quota, etc.)
+- `DELETE /users/:id`
 
 ## Layers
 

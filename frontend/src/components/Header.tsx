@@ -128,12 +128,12 @@ export default function Header() {
                 </div>
 
                 <div className="grid gap-2">
-                  <a
-                    href="/#account"
+                  <Link
+                    to="/profile"
                     className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
                   >
                     {t("profile")}
-                  </a>
+                  </Link>
                   <button
                     type="button"
                     onClick={async () => {
