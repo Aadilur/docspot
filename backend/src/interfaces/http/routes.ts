@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { Router } from "express";
 
-import { getConfig } from "../../infrastructure/config/env";
+import { getConfig, getS3MissingKeys } from "../../infrastructure/config/env";
 import { pingDatabase } from "../../infrastructure/db/postgres";
 import { createPresignedPutUrl } from "../../infrastructure/storage/s3";
 
@@ -24,7 +24,14 @@ export function createHttpRouter(): Router {
   router.get("/health/storage", (_req, res) => {
     const { s3 } = getConfig();
     if (!s3) {
-      res.status(503).json({ ok: false, error: "S3 is not configured." });
+      const missingKeys = getS3MissingKeys();
+      res.status(503).json({
+        ok: false,
+        error:
+          missingKeys.length > 0
+            ? `S3 is not fully configured. Missing: ${missingKeys.join(", ")}`
+            : "S3 is not configured.",
+      });
       return;
     }
 

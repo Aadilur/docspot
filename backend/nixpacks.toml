@@ -2,7 +2,7 @@
 # Use this when the Railway service Root Directory is set to `backend/`.
 
 [phases.install]
-cmds = ["npm ci --include=dev"]
+cmds = ["npm install --include=dev --no-fund --no-audit"]
 
 [phases.build]
 cmds = ["npm run build"]
