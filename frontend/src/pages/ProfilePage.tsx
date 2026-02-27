@@ -55,6 +55,7 @@ export default function ProfilePage() {
   const [record, setRecord] = useState<UserRecord | null>(null);
   const [photoSrc, setPhotoSrc] = useState<string | null>(null);
   const [loadingPhoto, setLoadingPhoto] = useState(false);
+  const [displayNameDraft, setDisplayNameDraft] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -87,11 +88,10 @@ export default function ProfilePage() {
       return;
     }
 
-    setLoadingMe(true);
-    setError(null);
-    setMessage(null);
-
     (async () => {
+      setLoadingMe(true);
+      setError(null);
+      setMessage(null);
       try {
         const me = await getMe();
         if (!cancelled) setRecord(me);
@@ -106,6 +106,22 @@ export default function ProfilePage() {
       cancelled = true;
     };
   }, [configured, loading, user?.uid]);
+
+  useEffect(() => {
+    setDisplayNameDraft(record?.displayName ?? "");
+  }, [record?.displayName]);
+
+  async function refreshMe() {
+    if (!configured || loading || !user) return;
+
+    setLoadingMe(true);
+    try {
+      const me = await getMe();
+      setRecord(me);
+    } finally {
+      setLoadingMe(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -126,7 +142,7 @@ export default function ProfilePage() {
         setLoadingPhoto(true);
         const { url } = await getMyPhotoUrl();
         if (!cancelled) {
-          setPhotoSrc(withCacheBust(resolveApiAssetUrl(url), record.updatedAt));
+          setPhotoSrc(resolveApiAssetUrl(url));
         }
       } catch {
         if (!cancelled) setPhotoSrc(null);
@@ -184,8 +200,8 @@ export default function ProfilePage() {
           );
         }
 
-        const updated = await patchMe({ photoKey: presign.key });
-        setRecord(updated);
+        await patchMe({ photoKey: presign.key });
+        await refreshMe();
         setMessage(t("profilePhotoUpdated"));
       } catch (e) {
         if (isLikelyCorsNetworkError(e)) {
@@ -369,6 +385,50 @@ export default function ProfilePage() {
           </div>
         </section>
 
+        <section className="mt-4 rounded-2xl border border-zinc-200/70 bg-white/80 p-5 shadow-sm backdrop-blur-sm dark:border-zinc-800/70 dark:bg-zinc-950/60">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                {t("profileNameTitle")}
+              </h2>
+              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                {t("profileNameHint")}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-[1fr,auto] sm:items-end">
+            <label className="grid gap-2">
+              <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">
+                {t("profileNameLabel")}
+              </span>
+              <input
+                value={displayNameDraft}
+                onChange={(e) => setDisplayNameDraft(e.target.value)}
+                placeholder={t("profileNamePlaceholder")}
+                disabled={!record || busy}
+                className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none focus:border-brand-300 focus:ring-2 focus:ring-brand-200 disabled:opacity-60 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-brand-700 dark:focus:ring-brand-900"
+              />
+            </label>
+
+            <button
+              type="button"
+              onClick={() =>
+                void runAction(async () => {
+                  const next = displayNameDraft.trim();
+                  await patchMe({ displayName: next.length > 0 ? next : null });
+                  await refreshMe();
+                  setMessage(t("profileUpdated"));
+                })
+              }
+              disabled={!record || busy}
+              className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 disabled:opacity-60"
+            >
+              {t("profileSave")}
+            </button>
+          </div>
+        </section>
+
         <section className="mt-8 rounded-2xl border border-zinc-200/70 bg-white/80 p-5 shadow-sm backdrop-blur-sm dark:border-zinc-800/70 dark:bg-zinc-950/60">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -434,8 +494,8 @@ export default function ProfilePage() {
                   type="button"
                   onClick={() =>
                     void runAction(async () => {
-                      const updated = await patchMe({ photoKey: null });
-                      setRecord(updated);
+                      await patchMe({ photoKey: null });
+                      await refreshMe();
                       setMessage(t("profilePhotoResetDone"));
                     })
                   }
