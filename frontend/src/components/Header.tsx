@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import { LogOut, Moon, Sun, UserRound } from "lucide-react";
 
 import { setLanguage } from "../shared/i18n";
+import { getCmsLogoCached } from "../shared/api/cms";
 import { getMe } from "../shared/api/users";
 import { signInWithGoogle, signOutUser } from "../shared/firebase/auth";
 import { useAuthState } from "../shared/firebase/useAuthState";
@@ -28,6 +29,8 @@ export default function Header() {
 
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [logoAlt, setLogoAlt] = useState<string | null>(null);
 
   const canAuth = configured && !loading;
 
@@ -42,15 +45,30 @@ export default function Header() {
   const etaLabel = formatEtaSeconds(activeTask?.progress.etaSeconds ?? null);
   const percent = activeTask?.progress.percent ?? 0;
 
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const logo = await getCmsLogoCached();
+      if (cancelled) return;
+      setLogoUrl(logo?.imageUrl ?? null);
+      setLogoAlt(logo?.imageAlt ?? null);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <header className="sticky top-0 z-10 border-b border-zinc-200/70 bg-white/80 backdrop-blur dark:border-zinc-800/70 dark:bg-zinc-950/60">
       <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 px-5 py-4">
         <Link to="/" className="flex items-center gap-3">
           <div className="inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl bg-brand-600/15 ring-1 ring-brand-500/25 dark:bg-brand-400/10 dark:ring-brand-400/20">
             <img
-              src="/icon.svg"
-              alt={t("brand")}
-              className="h-6 w-6 object-contain"
+              src={logoUrl ?? "/icon.svg"}
+              alt={(logoAlt ?? t("brand")) as any}
+              className="h-8 w-8 object-contain"
             />
           </div>
           <div className="leading-tight">

@@ -15,6 +15,10 @@ import {
   type UserRecord,
 } from "../../infrastructure/db/users";
 import {
+  getActiveLogo,
+  listPublishedBanners,
+} from "../../infrastructure/db/cms";
+import {
   applyObjectDeletes,
   applyPrefixDeletes,
   cancelUploadReservations,
@@ -151,6 +155,63 @@ export function createHttpRouter(): Router {
       bucket: s3.bucket,
       forcePathStyle: s3.forcePathStyle,
     });
+  });
+
+  router.get("/cms/banners", async (_req, res) => {
+    try {
+      const banners = await listPublishedBanners();
+
+      const { s3 } = getConfig();
+      const withUrls = await Promise.all(
+        banners.map(async (banner) => {
+          if (!s3 || !banner.imageKey) {
+            return { ...banner, imageUrl: null };
+          }
+
+          try {
+            const signed = await createPresignedGetUrl({
+              key: banner.imageKey,
+              expiresInSeconds: ATTACHMENT_URL_EXPIRES_SECONDS,
+            });
+            return { ...banner, imageUrl: signed.url };
+          } catch {
+            return { ...banner, imageUrl: null };
+          }
+        }),
+      );
+
+      res.json({ ok: true, banners: withUrls });
+    } catch (err) {
+      unavailable(res, err);
+    }
+  });
+
+  router.get("/cms/logo", async (_req, res) => {
+    try {
+      const logo = await getActiveLogo();
+      if (!logo) {
+        res.json({ ok: true, logo: null });
+        return;
+      }
+
+      const { s3 } = getConfig();
+      if (!s3 || !logo.imageKey) {
+        res.json({ ok: true, logo: { ...logo, imageUrl: null } });
+        return;
+      }
+
+      try {
+        const signed = await createPresignedGetUrl({
+          key: logo.imageKey,
+          expiresInSeconds: ATTACHMENT_URL_EXPIRES_SECONDS,
+        });
+        res.json({ ok: true, logo: { ...logo, imageUrl: signed.url } });
+      } catch {
+        res.json({ ok: true, logo: { ...logo, imageUrl: null } });
+      }
+    } catch (err) {
+      unavailable(res, err);
+    }
   });
 
   router.post("/uploads/presign", requireFirebaseAuth, async (req, res) => {

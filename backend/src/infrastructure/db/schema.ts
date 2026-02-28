@@ -322,5 +322,179 @@ export async function ensureSchema(): Promise<void> {
     "create index if not exists object_share_links_expires_idx on object_share_links(expires_at);",
   );
 
+  // Admin-managed CMS content.
+  await pg.query(`
+    create table if not exists cms_posts (
+      id uuid primary key,
+      title text not null,
+      slug text not null,
+      excerpt text,
+      content text,
+      cover_image_key text,
+      cover_image_filename text,
+      cover_image_content_type text,
+      cover_image_size_bytes bigint default 0,
+      cover_image_alt text,
+      status text not null default 'draft',
+      published_at timestamptz,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now(),
+      unique (slug)
+    );
+  `);
+  await pg.query(
+    "alter table cms_posts add column if not exists cover_image_filename text;",
+  );
+  await pg.query(
+    "alter table cms_posts add column if not exists cover_image_content_type text;",
+  );
+  await pg.query(
+    "alter table cms_posts add column if not exists cover_image_size_bytes bigint;",
+  );
+  await pg.query(
+    "update cms_posts set cover_image_size_bytes = 0 where cover_image_size_bytes is null;",
+  );
+  await pg.query(
+    "alter table cms_posts alter column cover_image_size_bytes set default 0;",
+  );
+  await pg.query(
+    "alter table cms_posts alter column cover_image_size_bytes drop not null;",
+  );
+  await pg.query(
+    "create index if not exists cms_posts_status_idx on cms_posts(status, updated_at desc);",
+  );
+  await pg.query(
+    "create index if not exists cms_posts_published_idx on cms_posts(published_at desc) where status = 'published';",
+  );
+
+  await pg.query(`
+    create table if not exists cms_faqs (
+      id uuid primary key,
+      question text not null,
+      answer text not null,
+      sort_order int not null default 0,
+      is_published boolean not null default true,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+  `);
+  await pg.query(
+    "create index if not exists cms_faqs_published_idx on cms_faqs(is_published, sort_order asc, updated_at desc);",
+  );
+
+  await pg.query(`
+    create table if not exists cms_testimonials (
+      id uuid primary key,
+      name text not null,
+      role text,
+      quote text not null,
+      avatar_key text,
+      avatar_filename text,
+      avatar_content_type text,
+      avatar_size_bytes bigint default 0,
+      avatar_alt text,
+      sort_order int not null default 0,
+      is_published boolean not null default true,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+  `);
+  await pg.query(
+    "alter table cms_testimonials add column if not exists avatar_filename text;",
+  );
+  await pg.query(
+    "alter table cms_testimonials add column if not exists avatar_content_type text;",
+  );
+  await pg.query(
+    "alter table cms_testimonials add column if not exists avatar_size_bytes bigint;",
+  );
+  await pg.query(
+    "update cms_testimonials set avatar_size_bytes = 0 where avatar_size_bytes is null;",
+  );
+  await pg.query(
+    "alter table cms_testimonials alter column avatar_size_bytes set default 0;",
+  );
+  await pg.query(
+    "alter table cms_testimonials alter column avatar_size_bytes drop not null;",
+  );
+  await pg.query(
+    "create index if not exists cms_testimonials_published_idx on cms_testimonials(is_published, sort_order asc, updated_at desc);",
+  );
+
+  await pg.query(`
+    create table if not exists cms_banners (
+      id uuid primary key,
+      title text,
+      subtitle text,
+      link_url text,
+      image_key text,
+      image_filename text,
+      image_content_type text,
+      image_size_bytes bigint default 0,
+      image_alt text,
+      sort_order int not null default 0,
+      is_published boolean not null default true,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+  `);
+  await pg.query(
+    "alter table cms_banners add column if not exists image_filename text;",
+  );
+  await pg.query(
+    "alter table cms_banners add column if not exists image_content_type text;",
+  );
+  await pg.query(
+    "alter table cms_banners add column if not exists image_size_bytes bigint;",
+  );
+  await pg.query(
+    "update cms_banners set image_size_bytes = 0 where image_size_bytes is null;",
+  );
+  await pg.query(
+    "alter table cms_banners alter column image_size_bytes set default 0;",
+  );
+  await pg.query(
+    "alter table cms_banners alter column image_size_bytes drop not null;",
+  );
+  await pg.query(
+    "create index if not exists cms_banners_published_idx on cms_banners(is_published, sort_order asc, updated_at desc);",
+  );
+
+  await pg.query(`
+    create table if not exists cms_logos (
+      id uuid primary key,
+      name text not null default 'default',
+      image_key text,
+      image_filename text,
+      image_content_type text,
+      image_size_bytes bigint default 0,
+      image_alt text,
+      is_active boolean not null default true,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+  `);
+  await pg.query(
+    "alter table cms_logos add column if not exists image_filename text;",
+  );
+  await pg.query(
+    "alter table cms_logos add column if not exists image_content_type text;",
+  );
+  await pg.query(
+    "alter table cms_logos add column if not exists image_size_bytes bigint;",
+  );
+  await pg.query(
+    "update cms_logos set image_size_bytes = 0 where image_size_bytes is null;",
+  );
+  await pg.query(
+    "alter table cms_logos alter column image_size_bytes set default 0;",
+  );
+  await pg.query(
+    "alter table cms_logos alter column image_size_bytes drop not null;",
+  );
+  await pg.query(
+    "create index if not exists cms_logos_active_idx on cms_logos(is_active, updated_at desc);",
+  );
+
   ensured = true;
 }

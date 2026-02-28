@@ -10,6 +10,41 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["icon.svg"],
+      workbox: {
+        runtimeCaching: [
+          {
+            urlPattern: ({ url }) =>
+              url.pathname.startsWith("/cms/banners") ||
+              url.pathname.startsWith("/cms/logo"),
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "cms-api",
+              networkTimeoutSeconds: 3,
+              expiration: {
+                maxEntries: 20,
+                maxAgeSeconds: 60 * 5,
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+            },
+          },
+          {
+            urlPattern: ({ request }) => request.destination === "image",
+            handler: "CacheFirst",
+            options: {
+              cacheName: "image-assets",
+              expiration: {
+                maxEntries: 120,
+                maxAgeSeconds: 60 * 60 * 24 * 7,
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+            },
+          },
+        ],
+      },
       manifest: {
         name: "DocSpot",
         short_name: "DocSpot",

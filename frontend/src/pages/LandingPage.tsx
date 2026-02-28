@@ -6,11 +6,44 @@ import { FileText, Pill, Receipt, X } from "lucide-react";
 
 import Footer from "../components/Footer";
 import Header from "../components/Header";
+import { getCmsBannersCached } from "../shared/api/cms";
+
+type CmsBanner = {
+  id: string;
+  title: string | null;
+  subtitle: string | null;
+  linkUrl: string | null;
+  imageAlt: string | null;
+  imageKey: string | null;
+  imageUrl: string | null;
+  sortOrder: number;
+  updatedAt: string;
+};
 
 export default function LandingPage() {
   const { t } = useTranslation();
 
   const [getStartedOpen, setGetStartedOpen] = useState(false);
+  const [banners, setBanners] = useState<CmsBanner[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        if (cancelled) return;
+        const next = await getCmsBannersCached();
+        setBanners(next);
+      } catch {
+        if (cancelled) return;
+        setBanners([]);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!getStartedOpen) return;
@@ -34,6 +67,50 @@ export default function LandingPage() {
       <Header />
 
       <main className="relative mx-auto w-full max-w-5xl px-4 pb-12 pt-6 sm:px-5 sm:pt-8">
+        {banners.length > 0 && (
+          <section
+            aria-label={t("bannerTitle", { defaultValue: "Banners" }) as any}
+            className="mb-6 grid gap-3 "
+          >
+            {banners.map((banner) => {
+              const Wrapper: any = banner.linkUrl ? "a" : "div";
+              const wrapperProps = banner.linkUrl
+                ? {
+                    href: banner.linkUrl,
+                    target: "_blank",
+                    rel: "noreferrer",
+                  }
+                : {};
+
+              const alt =
+                banner.imageAlt || t("bannerImage", { defaultValue: "Banner" });
+
+              return (
+                <Wrapper
+                  key={banner.id}
+                  {...wrapperProps}
+                  className="group relative overflow-hidden rounded-2xl border border-zinc-200/70 bg-white/80 shadow-sm backdrop-blur-sm transition-colors hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none dark:border-zinc-800/70 dark:bg-zinc-950/60 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
+                >
+                  <div className="relative  w-full overflow-hidden bg-zinc-50 dark:bg-zinc-900/40">
+                    {banner.imageUrl ? (
+                      <img
+                        src={banner.imageUrl}
+                        alt={alt as any}
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-zinc-400 dark:text-zinc-500">
+                        {t("banner", { defaultValue: "Banner" })}
+                      </div>
+                    )}
+                  </div>
+                </Wrapper>
+              );
+            })}
+          </section>
+        )}
+
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-56 bg-gradient-to-b from-brand-100/40 via-transparent to-transparent dark:from-brand-500/10"
