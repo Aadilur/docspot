@@ -86,8 +86,9 @@ function computeQuotaBytes(row: any): number {
 
 function mapRow(row: any): UserRecord {
   const used = Math.max(0, coerceBigintLike(row.storage_used_bytes));
+  const reserved = Math.max(0, coerceBigintLike(row.storage_reserved_bytes));
   const quota = computeQuotaBytes(row);
-  const left = Math.max(0, quota - used);
+  const left = Math.max(0, quota - (used + reserved));
 
   const id = String(row.id);
   const hasAnyPhoto = !!row.photo_key || !!row.photo_url;
@@ -169,9 +170,9 @@ export async function upsertUser(input: UpsertUserInput): Promise<UserRecord> {
       do update set
         provider_app_id = excluded.provider_app_id,
         email = coalesce(excluded.email, users.email),
-        display_name = coalesce(excluded.display_name, users.display_name),
+        display_name = coalesce(users.display_name, excluded.display_name),
         photo_url = coalesce(excluded.photo_url, users.photo_url),
-        locale = coalesce(excluded.locale, users.locale),
+        locale = coalesce(users.locale, excluded.locale),
         metadata = coalesce(excluded.metadata, users.metadata),
         last_login_at = now(),
         updated_at = now()

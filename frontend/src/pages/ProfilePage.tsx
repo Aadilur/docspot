@@ -4,7 +4,9 @@ import { useTranslation } from "react-i18next";
 import Footer from "../components/Footer";
 import Header from "../components/Header";
 import { API_BASE_URL, apiFetch } from "../shared/api/http";
+import { API_PATHS } from "../shared/api/endpoints";
 import {
+  confirmMyPhotoUpload,
   getMe,
   getMyPhotoUrl,
   patchMe,
@@ -29,11 +31,6 @@ function resolveApiAssetUrl(pathOrUrl: string): string {
   if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
   if (pathOrUrl.startsWith("/")) return `${API_BASE_URL}${pathOrUrl}`;
   return `${API_BASE_URL}/${pathOrUrl}`;
-}
-
-function withCacheBust(url: string, token: string): string {
-  const safe = encodeURIComponent(token);
-  return url.includes("?") ? `${url}&v=${safe}` : `${url}?v=${safe}`;
 }
 
 function isLikelyCorsNetworkError(err: unknown): boolean {
@@ -61,7 +58,7 @@ export default function ProfilePage() {
     let cancelled = false;
     (async () => {
       try {
-        await apiFetch("/health");
+        await apiFetch(API_PATHS.health);
         if (!cancelled) {
           setServerOk(true);
           setServerError(null);
@@ -187,6 +184,7 @@ export default function ProfilePage() {
         const presign = await presignMyPhotoUpload({
           filename: file.name || "avatar.png",
           contentType,
+          sizeBytes: file.size,
         });
 
         const putRes = await fetch(presign.url, {
@@ -200,8 +198,8 @@ export default function ProfilePage() {
           );
         }
 
-        await patchMe({ photoKey: presign.key });
-        await refreshMe();
+        const updated = await confirmMyPhotoUpload({ key: presign.key });
+        setRecord(updated);
         setMessage(t("profilePhotoUpdated"));
       } catch (e) {
         if (isLikelyCorsNetworkError(e)) {
@@ -233,7 +231,7 @@ export default function ProfilePage() {
     <div className="min-h-dvh bg-gradient-to-b from-zinc-50 via-white to-white dark:from-zinc-950 dark:via-zinc-950 dark:to-zinc-900">
       <Header />
 
-      <main className="mx-auto w-full max-w-5xl px-5 pb-12 pt-8">
+      <main className="mx-auto w-full max-w-xl px-4 pb-10 pt-6">
         <section className="rounded-2xl border border-zinc-200/70 bg-white/70 p-6 shadow-sm backdrop-blur-sm dark:border-zinc-800/70 dark:bg-zinc-950/30">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4">
@@ -303,30 +301,7 @@ export default function ProfilePage() {
           )}
         </section>
 
-        <section className="mt-8 grid gap-4 sm:grid-cols-2">
-          <div className="rounded-2xl border border-zinc-200/70 bg-white/80 p-5 shadow-sm backdrop-blur-sm dark:border-zinc-800/70 dark:bg-zinc-950/60">
-            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-              {t("profileLocalAuth")}
-            </h2>
-            <div className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">
-              {user ? (
-                <div className="grid gap-1">
-                  <div>
-                    <span className="font-semibold text-zinc-900 dark:text-zinc-50">
-                      {t("signedInAs")}:
-                    </span>{" "}
-                    {user.email ?? user.displayName ?? user.uid}
-                  </div>
-                  <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                    UID: {user.uid}
-                  </div>
-                </div>
-              ) : (
-                t("profilePleaseLogin")
-              )}
-            </div>
-          </div>
-
+        <section className="mt-6">
           <div className="rounded-2xl border border-zinc-200/70 bg-white/80 p-5 shadow-sm backdrop-blur-sm dark:border-zinc-800/70 dark:bg-zinc-950/60">
             <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
               {t("profileServerRecord")}

@@ -37,9 +37,15 @@ This API uses Firebase Authentication.
 ### Profile photo (S3-backed)
 
 - `POST /me/photo/presign` (auth)
-  - Body: `{ "filename": "avatar.png", "contentType": "image/png" }`
-  - Response: `{ ok, url, key, bucket, expiresInSeconds }`
+  - Body: `{ "filename": "avatar.png", "contentType": "image/png", "sizeBytes": 12345 }`
+  - Response: `{ ok, url, key, bucket, expiresInSeconds, usage, warning, reservationExpiresAt }`
   - Next: `PUT <url>` with image bytes and the same `Content-Type`
+  - Note: `key` is a stable avatar key with an image extension (example: `users/<id>/avatar/profile.png`).
+
+- `POST /me/photo/confirm` (auth)
+  - Body: `{ "key": "<key>" }`
+  - Confirms the upload (heads the object, updates storage accounting, sets `photoKey` on the user)
+  - Response: `{ ok, user, object, usage, warning }`
 
 - `PATCH /me` (auth)
   - Attach uploaded photo: `{ "photoKey": "<key>" }`
@@ -69,6 +75,7 @@ This flow keeps buckets private: the backend returns a redirect to a short-lived
   - Body: `{ "filename": "avatar.png", "contentType": "image/png" }`
   - Response: `{ ok, url, key, bucket, expiresInSeconds }`
   - Next: `PUT <url>` with image bytes and the same `Content-Type`
+  - Note: `key` is a stable avatar key with an image extension (example: `users/<id>/avatar/profile.png`).
 
 - `PATCH /users/:id`
   - Attach uploaded photo: `{ "photoKey": "<key>" }`

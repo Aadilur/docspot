@@ -1,5 +1,6 @@
 import type { User } from "firebase/auth";
 
+import { API_PATHS } from "./endpoints";
 import { apiFetch } from "./http";
 
 export type UserType = "free" | "paid";
@@ -26,7 +27,7 @@ export type UserRecord = {
 };
 
 export async function getMe(): Promise<UserRecord> {
-  const res = await apiFetch<{ ok: true; user: UserRecord }>("/me");
+  const res = await apiFetch<{ ok: true; user: UserRecord }>(API_PATHS.me);
   return res.user;
 }
 
@@ -37,7 +38,7 @@ export async function patchMe(
     photoKey: string | null;
   }>,
 ): Promise<UserRecord> {
-  const res = await apiFetch<{ ok: true; user: UserRecord }>("/me", {
+  const res = await apiFetch<{ ok: true; user: UserRecord }>(API_PATHS.me, {
     method: "PATCH",
     body: JSON.stringify(patch),
   });
@@ -47,6 +48,7 @@ export async function patchMe(
 export async function presignMyPhotoUpload(params: {
   filename: string;
   contentType: string;
+  sizeBytes: number;
 }): Promise<{ url: string; key: string; expiresInSeconds: number }> {
   const res = await apiFetch<{
     ok: true;
@@ -54,15 +56,29 @@ export async function presignMyPhotoUpload(params: {
     key: string;
     bucket: string;
     expiresInSeconds: number;
-  }>(`/me/photo/presign`, {
+  }>(API_PATHS.mePhotoPresign, {
     method: "POST",
     body: JSON.stringify({
       filename: params.filename,
       contentType: params.contentType,
+      sizeBytes: params.sizeBytes,
     }),
   });
 
   return { url: res.url, key: res.key, expiresInSeconds: res.expiresInSeconds };
+}
+
+export async function confirmMyPhotoUpload(params: {
+  key: string;
+}): Promise<UserRecord> {
+  const res = await apiFetch<{ ok: true; user: UserRecord }>(
+    API_PATHS.mePhotoConfirm,
+    {
+      method: "POST",
+      body: JSON.stringify({ key: params.key }),
+    },
+  );
+  return res.user;
 }
 
 export async function getMyPhotoUrl(): Promise<{
@@ -73,9 +89,29 @@ export async function getMyPhotoUrl(): Promise<{
     ok: true;
     url: string;
     expiresInSeconds: number;
-  }>(`/me/photo/url`);
+  }>(API_PATHS.mePhotoUrl);
 
   return { url: res.url, expiresInSeconds: res.expiresInSeconds };
+}
+
+export async function getMyStorageUsage(params?: {
+  folder?: string;
+}): Promise<{ prefix: string; totalBytes: number; objectCount: number }> {
+  const qs = new URLSearchParams();
+  if (params?.folder) qs.set("folder", params.folder);
+
+  const res = await apiFetch<{
+    ok: true;
+    prefix: string;
+    totalBytes: number;
+    objectCount: number;
+  }>(`${API_PATHS.meStorageUsage}${qs.toString() ? `?${qs.toString()}` : ""}`);
+
+  return {
+    prefix: res.prefix,
+    totalBytes: res.totalBytes,
+    objectCount: res.objectCount,
+  };
 }
 
 export async function upsertUser(payload: {
@@ -88,10 +124,13 @@ export async function upsertUser(payload: {
   locale?: string | null;
   metadata?: unknown | null;
 }): Promise<UserRecord> {
-  const res = await apiFetch<{ ok: true; user: UserRecord }>("/users/upsert", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+  const res = await apiFetch<{ ok: true; user: UserRecord }>(
+    API_PATHS.usersUpsert,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
   return res.user;
 }
 
@@ -104,7 +143,7 @@ export async function getUserByProvider(params: {
     providerUserId: params.providerUserId,
   });
   const res = await apiFetch<{ ok: true; user: UserRecord }>(
-    `/users/by-provider?${qs.toString()}`,
+    `${API_PATHS.usersByProvider}?${qs.toString()}`,
   );
   return res.user;
 }
@@ -121,10 +160,13 @@ export async function patchUser(
     storageUsedBytes: number;
   }>,
 ): Promise<UserRecord> {
-  const res = await apiFetch<{ ok: true; user: UserRecord }>(`/users/${id}`, {
-    method: "PATCH",
-    body: JSON.stringify(patch),
-  });
+  const res = await apiFetch<{ ok: true; user: UserRecord }>(
+    API_PATHS.userById(id),
+    {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    },
+  );
   return res.user;
 }
 
@@ -139,7 +181,7 @@ export async function presignUserPhotoUpload(params: {
     key: string;
     bucket: string;
     expiresInSeconds: number;
-  }>(`/users/${params.id}/photo/presign`, {
+  }>(API_PATHS.userPhotoPresign(params.id), {
     method: "POST",
     body: JSON.stringify({
       filename: params.filename,
@@ -151,7 +193,9 @@ export async function presignUserPhotoUpload(params: {
 }
 
 export async function deleteUser(id: string): Promise<void> {
-  await apiFetch<{ ok: true }>(`/users/${id}`, { method: "DELETE" });
+  await apiFetch<{ ok: true }>(API_PATHS.userById(id), {
+    method: "DELETE",
+  });
 }
 
 export async function listUsers(params?: {
@@ -163,7 +207,7 @@ export async function listUsers(params?: {
   if (params?.offset != null) qs.set("offset", String(params.offset));
 
   const res = await apiFetch<{ ok: true; users: UserRecord[] }>(
-    `/users?${qs.toString()}`,
+    `${API_PATHS.users}?${qs.toString()}`,
   );
   return res.users;
 }

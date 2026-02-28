@@ -1,6 +1,9 @@
 import {
   DeleteObjectCommand,
+  DeleteObjectsCommand,
   GetObjectCommand,
+  HeadObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -102,4 +105,79 @@ export async function deleteObject(params: { key: string }): Promise<void> {
     Key: params.key,
   });
   await client.send(command);
+}
+
+export async function deleteObjects(params: { keys: string[] }): Promise<void> {
+  const { client, bucket } = getS3Client();
+  const keys = params.keys.filter(Boolean);
+  if (keys.length === 0) return;
+
+  // S3 DeleteObjects supports up to 1000 keys per call.
+  for (let i = 0; i < keys.length; i += 1000) {
+    const chunk = keys.slice(i, i + 1000);
+    await client.send(
+      new DeleteObjectsCommand({
+        Bucket: bucket,
+        Delete: {
+          Objects: chunk.map((Key) => ({ Key })),
+          Quiet: true,
+        },
+      }),
+    );
+  }
+}
+
+export async function headObject(params: {
+  key: string;
+}): Promise<{ key: string; sizeBytes: number; etag: string | null }> {
+  const { client, bucket } = getS3Client();
+  const res = await client.send(
+    new HeadObjectCommand({
+      Bucket: bucket,
+      Key: params.key,
+    }),
+  );
+
+  const size = typeof res.ContentLength === "number" ? res.ContentLength : 0;
+  return {
+    key: params.key,
+    sizeBytes: Number.isFinite(size) && size >= 0 ? size : 0,
+    etag: typeof res.ETag === "string" ? res.ETag : null,
+  };
+}
+
+export async function getPrefixUsage(params: {
+  prefix: string;
+}): Promise<{ prefix: string; totalBytes: number; objectCount: number }> {
+  const { client, bucket } = getS3Client();
+
+  const prefix = params.prefix.startsWith("/")
+    ? params.prefix.slice(1)
+    : params.prefix;
+
+  let totalBytes = 0;
+  let objectCount = 0;
+  let continuationToken: string | undefined;
+
+  do {
+    const res = await client.send(
+      new ListObjectsV2Command({
+        Bucket: bucket,
+        Prefix: prefix,
+        ContinuationToken: continuationToken,
+      }),
+    );
+
+    const contents = res.Contents ?? [];
+    for (const obj of contents) {
+      if (typeof obj.Size === "number" && Number.isFinite(obj.Size)) {
+        totalBytes += obj.Size;
+      }
+      objectCount += 1;
+    }
+
+    continuationToken = res.IsTruncated ? res.NextContinuationToken : undefined;
+  } while (continuationToken);
+
+  return { prefix, totalBytes, objectCount };
 }

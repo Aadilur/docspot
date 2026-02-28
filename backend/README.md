@@ -66,8 +66,10 @@ These are the user-facing endpoints (practical profile flow):
 
 - `GET /me` (auth) — get or create the current user record
 - `PATCH /me` (auth) — update editable fields
-- `POST /me/photo/presign` (auth) — presign profile photo upload
+- `POST /me/photo/presign` (auth) — presign profile photo upload (expects `sizeBytes`)
+- `POST /me/photo/confirm` (auth) — confirm profile photo upload (updates storage accounting + `photoKey`)
 - `GET /me/photo` (auth) — redirect to signed S3 GET URL
+- `GET /me/photo/url` (auth) — JSON signed URL for `<img>` usage
 
 ## Users API (admin-only)
 
@@ -87,6 +89,7 @@ These endpoints are restricted (require auth + admin):
   - Body: `{ "filename": "avatar.png", "contentType": "image/png" }`
   - Response: `{ ok, url, key, bucket, expiresInSeconds }`
   - Then do a `PUT` to `url` with the image bytes and the same `Content-Type`.
+  - Note: `key` is a stable avatar key with an image extension (example: `users/<id>/avatar/profile.png`).
 - `PATCH /users/:id`
   - Set `{ "photoKey": "<returned key>" }` to attach the uploaded photo to the user.
   - You can also set `{ "photoKey": null }` to remove the custom photo.

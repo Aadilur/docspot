@@ -3,114 +3,9 @@ import { useTranslation } from "react-i18next";
 import Footer from "../components/Footer";
 import Header from "../components/Header";
 import { API_BASE_URL } from "../shared/api/http";
+import { API_ENDPOINTS } from "../shared/api/endpoints";
 
 type AuthLevel = "public" | "auth" | "admin";
-
-type Endpoint = {
-  method: string;
-  path: string;
-  auth: AuthLevel;
-  description: string;
-};
-
-const ENDPOINTS: Endpoint[] = [
-  { method: "GET", path: "/", auth: "public", description: "Liveness" },
-  {
-    method: "GET",
-    path: "/health",
-    auth: "public",
-    description: "Service health",
-  },
-  {
-    method: "GET",
-    path: "/health/db",
-    auth: "public",
-    description: "Database connectivity",
-  },
-  {
-    method: "GET",
-    path: "/health/storage",
-    auth: "public",
-    description: "Storage config status",
-  },
-
-  {
-    method: "POST",
-    path: "/uploads/presign",
-    auth: "auth",
-    description: "Presign generic upload",
-  },
-
-  {
-    method: "GET",
-    path: "/me",
-    auth: "auth",
-    description: "Get or create current user",
-  },
-  {
-    method: "PATCH",
-    path: "/me",
-    auth: "auth",
-    description: "Update current user",
-  },
-  {
-    method: "POST",
-    path: "/me/photo/presign",
-    auth: "auth",
-    description: "Presign profile photo upload",
-  },
-  {
-    method: "GET",
-    path: "/me/photo",
-    auth: "auth",
-    description: "Redirect to signed photo URL",
-  },
-
-  { method: "GET", path: "/users", auth: "admin", description: "List users" },
-  {
-    method: "GET",
-    path: "/users/:id",
-    auth: "admin",
-    description: "Get user by id",
-  },
-  {
-    method: "GET",
-    path: "/users/by-provider",
-    auth: "admin",
-    description: "Find user by provider identity",
-  },
-  { method: "POST", path: "/users", auth: "admin", description: "Create user" },
-  {
-    method: "POST",
-    path: "/users/upsert",
-    auth: "admin",
-    description: "Upsert user",
-  },
-  {
-    method: "PATCH",
-    path: "/users/:id",
-    auth: "admin",
-    description: "Update user",
-  },
-  {
-    method: "DELETE",
-    path: "/users/:id",
-    auth: "admin",
-    description: "Delete user",
-  },
-  {
-    method: "POST",
-    path: "/users/:id/photo/presign",
-    auth: "admin",
-    description: "Presign user photo upload",
-  },
-  {
-    method: "GET",
-    path: "/users/:id/photo",
-    auth: "admin",
-    description: "Redirect to signed user photo URL",
-  },
-];
 
 function authBadgeClasses(level: AuthLevel): string {
   if (level === "public") {
@@ -148,7 +43,7 @@ export default function EndpointsPage() {
           </div>
 
           <div className="divide-y divide-zinc-200/70 dark:divide-zinc-800/70">
-            {ENDPOINTS.map((ep) => (
+            {API_ENDPOINTS.map((ep) => (
               <div
                 key={`${ep.method}:${ep.path}`}
                 className="grid grid-cols-[92px,1fr,110px] gap-3 px-5 py-3 text-sm"

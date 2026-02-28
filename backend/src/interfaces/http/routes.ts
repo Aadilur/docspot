@@ -15,9 +15,20 @@ import {
   type UserRecord,
 } from "../../infrastructure/db/users";
 import {
+  applyObjectDeletes,
+  applyPrefixDeletes,
+  cancelUploadReservations,
+  confirmUpload,
+  getUserStorageUsage,
+  reserveUpload,
+} from "../../infrastructure/db/storage";
+import {
   createPresignedGetUrl,
   createPresignedPutUrl,
   deleteObject,
+  deleteObjects,
+  getPrefixUsage,
+  headObject,
 } from "../../infrastructure/storage/s3";
 import {
   requireAdmin,
@@ -129,21 +140,82 @@ export function createHttpRouter(): Router {
       typeof req.body?.contentType === "string"
         ? req.body.contentType
         : "application/octet-stream";
+    const sizeBytesRaw = req.body?.sizeBytes;
+    const sizeBytes =
+      typeof sizeBytesRaw === "number" ? Math.trunc(sizeBytesRaw) : NaN;
+    const path = typeof req.body?.path === "string" ? req.body.path : "";
 
     if (filename.length > 200) {
       badRequest(res, "filename is too long");
       return;
     }
+    if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) {
+      badRequest(res, "sizeBytes must be a positive number");
+      return;
+    }
 
-    const now = new Date();
-    const ymd = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-${String(now.getUTCDate()).padStart(2, "0")}`;
-    const safeName = sanitizeFilename(filename);
-    const key = `uploads/${ymd}/${crypto.randomUUID()}-${safeName}`;
+    let reservedKey: string | null = null;
 
     try {
-      const presign = await createPresignedPutUrl({ key, contentType });
-      res.json({ ok: true, ...presign });
+      const me = await ensureMe(req);
+
+      let driveKey: string;
+      try {
+        driveKey = buildUserDriveKey({
+          userId: me.id,
+          filename,
+          path,
+        });
+      } catch (e) {
+        badRequest(res, toErrorMessage(e));
+        return;
+      }
+
+      reservedKey = driveKey;
+
+      try {
+        const reservation = await reserveUpload({
+          userId: me.id,
+          key: driveKey,
+          expectedSizeBytes: sizeBytes,
+        });
+
+        const presign = await createPresignedPutUrl({
+          key: driveKey,
+          contentType,
+        });
+
+        res.json({
+          ok: true,
+          ...presign,
+          warning: reservation.warning,
+          usage: reservation.usage,
+          reservationExpiresAt: reservation.expiresAt,
+        });
+      } catch (e) {
+        const msg = toErrorMessage(e);
+        if (msg === "HARD_CAP_EXCEEDED") {
+          const usage = await getUserStorageUsage(me.id);
+          res
+            .status(413)
+            .json({ ok: false, error: "storage hard cap exceeded", usage });
+          return;
+        }
+        throw e;
+      }
     } catch (err) {
+      // If we reserved bytes but failed to presign, release the reservation.
+      if (reservedKey) {
+        try {
+          const me = await ensureMe(req);
+          await cancelUploadReservations({
+            userId: me.id,
+            keys: [reservedKey],
+          });
+        } catch {
+          // ignore
+        }
+      }
       unavailable(res, err);
     }
   });
@@ -191,6 +263,22 @@ export function createHttpRouter(): Router {
           } catch {
             // Best-effort cleanup; don't fail the user update.
           }
+
+          try {
+            await cancelUploadReservations({ userId: me.id, keys: [oldKey] });
+            await applyObjectDeletes({ userId: me.id, keys: [oldKey] });
+          } catch {
+            // Best-effort accounting cleanup.
+          }
+        }
+
+        if (!newKey && oldKey && oldKey.startsWith(prefix)) {
+          try {
+            await cancelUploadReservations({ userId: me.id, keys: [oldKey] });
+            await applyObjectDeletes({ userId: me.id, keys: [oldKey] });
+          } catch {
+            // Best-effort accounting cleanup.
+          }
         }
       }
 
@@ -207,6 +295,9 @@ export function createHttpRouter(): Router {
       typeof req.body?.contentType === "string"
         ? req.body.contentType
         : "application/octet-stream";
+    const sizeBytesRaw = req.body?.sizeBytes;
+    const sizeBytes =
+      typeof sizeBytesRaw === "number" ? Math.trunc(sizeBytesRaw) : NaN;
 
     if (!contentType.startsWith("image/")) {
       badRequest(res, "contentType must be image/*");
@@ -218,16 +309,135 @@ export function createHttpRouter(): Router {
       return;
     }
 
+    if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) {
+      badRequest(res, "sizeBytes must be a positive number");
+      return;
+    }
+
+    let reservedKey: string | null = null;
+
     try {
       const me = await ensureMe(req);
-      const key = `users/${me.id}/avatar/profile`;
+      const key = buildUserAvatarKey({
+        userId: me.id,
+        filename,
+        contentType,
+      });
+
+      reservedKey = key;
+
+      const reservation = await reserveUpload({
+        userId: me.id,
+        key,
+        expectedSizeBytes: sizeBytes,
+      });
+
       const presign = await createPresignedPutUrl({
         key,
         contentType,
         expiresInSeconds: 60,
       });
-      res.json({ ok: true, ...presign });
+      res.json({
+        ok: true,
+        ...presign,
+        warning: reservation.warning,
+        usage: reservation.usage,
+        reservationExpiresAt: reservation.expiresAt,
+      });
     } catch (err) {
+      if (reservedKey) {
+        try {
+          const me = await ensureMe(req);
+          await cancelUploadReservations({
+            userId: me.id,
+            keys: [reservedKey],
+          });
+        } catch {
+          // ignore
+        }
+      }
+      unavailable(res, err);
+    }
+  });
+
+  router.post("/me/photo/confirm", requireFirebaseAuth, async (req, res) => {
+    const key = typeof req.body?.key === "string" ? String(req.body.key) : "";
+    if (!key) {
+      badRequest(res, "key is required");
+      return;
+    }
+
+    try {
+      const me = await ensureMe(req);
+
+      const beforePhoto = await getUserPhotoById(me.id);
+
+      if (!isValidUserAvatarKey({ userId: me.id, key })) {
+        badRequest(res, "invalid key");
+        return;
+      }
+
+      const info = await headObject({ key });
+      const result = await confirmUpload({
+        userId: me.id,
+        key,
+        actualSizeBytes: info.sizeBytes,
+        etag: info.etag,
+      });
+
+      const updated = await updateUser(me.id, { photoKey: key });
+
+      // Best-effort cleanup: if the avatar extension changed (png -> jpg, etc),
+      // delete older avatar objects so we don't leak storage.
+      try {
+        const oldKey = beforePhoto?.photoKey ?? null;
+        const keysToDelete = new Set<string>();
+        for (const k of listUserAvatarVariantKeys(me.id)) keysToDelete.add(k);
+        if (oldKey) keysToDelete.add(oldKey);
+        keysToDelete.delete(key);
+
+        const deleteKeys = Array.from(keysToDelete).filter(
+          (k) =>
+            typeof k === "string" && k.startsWith(`users/${me.id}/avatar/`),
+        );
+        if (deleteKeys.length > 0) {
+          await cancelUploadReservations({ userId: me.id, keys: deleteKeys });
+          await applyObjectDeletes({ userId: me.id, keys: deleteKeys });
+          try {
+            await deleteObjects({ keys: deleteKeys });
+          } catch {
+            // Best-effort S3 cleanup; DB state is the source of truth.
+          }
+        }
+      } catch {
+        // Best-effort cleanup; do not fail confirm.
+      }
+
+      res.json({
+        ok: true,
+        user: toMeUser(updated ?? me),
+        object: info,
+        usage: result.usage,
+        warning: result.warning,
+      });
+    } catch (err) {
+      const msg = toErrorMessage(err);
+      if (msg === "HARD_CAP_EXCEEDED") {
+        try {
+          await deleteObject({ key });
+        } catch {
+          // ignore
+        }
+
+        try {
+          const me = await ensureMe(req);
+          await cancelUploadReservations({ userId: me.id, keys: [key] });
+        } catch {
+          // ignore
+        }
+        res.status(413).json({ ok: false, error: "storage hard cap exceeded" });
+        return;
+      }
       unavailable(res, err);
     }
   });
@@ -285,6 +495,266 @@ export function createHttpRouter(): Router {
       res.status(404).json({ ok: false, error: "no photo" });
     } catch (err) {
       badRequest(res, toErrorMessage(err));
+    }
+  });
+
+  router.get("/me/storage", requireFirebaseAuth, async (req, res) => {
+    try {
+      const me = await ensureMe(req);
+      const usage = await getUserStorageUsage(me.id);
+      res.json({ ok: true, usage });
+    } catch (err) {
+      unavailable(res, err);
+    }
+  });
+
+  router.post("/me/storage/presign", requireFirebaseAuth, async (req, res) => {
+    const filename =
+      typeof req.body?.filename === "string" ? req.body.filename : "upload";
+    const contentType =
+      typeof req.body?.contentType === "string"
+        ? req.body.contentType
+        : "application/octet-stream";
+    const sizeBytesRaw = req.body?.sizeBytes;
+    const sizeBytes =
+      typeof sizeBytesRaw === "number" ? Math.trunc(sizeBytesRaw) : NaN;
+    const path = typeof req.body?.path === "string" ? req.body.path : "";
+
+    if (filename.length > 200) {
+      badRequest(res, "filename is too long");
+      return;
+    }
+    if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) {
+      badRequest(res, "sizeBytes must be a positive number");
+      return;
+    }
+
+    let reservedKey: string | null = null;
+
+    try {
+      const me = await ensureMe(req);
+
+      let driveKey: string;
+      try {
+        driveKey = buildUserDriveKey({
+          userId: me.id,
+          filename,
+          path,
+        });
+      } catch (e) {
+        badRequest(res, toErrorMessage(e));
+        return;
+      }
+
+      reservedKey = driveKey;
+
+      try {
+        const reservation = await reserveUpload({
+          userId: me.id,
+          key: driveKey,
+          expectedSizeBytes: sizeBytes,
+        });
+
+        const presign = await createPresignedPutUrl({
+          key: driveKey,
+          contentType,
+        });
+
+        res.json({
+          ok: true,
+          ...presign,
+          warning: reservation.warning,
+          usage: reservation.usage,
+          reservationExpiresAt: reservation.expiresAt,
+        });
+      } catch (e) {
+        const msg = toErrorMessage(e);
+        if (msg === "HARD_CAP_EXCEEDED") {
+          const usage = await getUserStorageUsage(me.id);
+          res
+            .status(413)
+            .json({ ok: false, error: "storage hard cap exceeded", usage });
+          return;
+        }
+        throw e;
+      }
+    } catch (err) {
+      if (reservedKey) {
+        try {
+          const me = await ensureMe(req);
+          await cancelUploadReservations({
+            userId: me.id,
+            keys: [reservedKey],
+          });
+        } catch {
+          // ignore
+        }
+      }
+      unavailable(res, err);
+    }
+  });
+
+  router.post("/me/storage/confirm", requireFirebaseAuth, async (req, res) => {
+    const key = typeof req.body?.key === "string" ? req.body.key : "";
+    if (!key) {
+      badRequest(res, "key is required");
+      return;
+    }
+
+    try {
+      const me = await ensureMe(req);
+      try {
+        assertKeyInUserDrive({ userId: me.id, key });
+      } catch (e) {
+        badRequest(res, toErrorMessage(e));
+        return;
+      }
+
+      const info = await headObject({ key });
+      const result = await confirmUpload({
+        userId: me.id,
+        key,
+        actualSizeBytes: info.sizeBytes,
+        etag: info.etag,
+      });
+
+      res.json({
+        ok: true,
+        object: info,
+        usage: result.usage,
+        warning: result.warning,
+      });
+    } catch (err) {
+      const msg = toErrorMessage(err);
+      if (msg === "HARD_CAP_EXCEEDED") {
+        // Best-effort cleanup: the object was uploaded but can't be counted.
+        try {
+          await deleteObject({ key });
+        } catch {
+          // ignore
+        }
+        res.status(413).json({ ok: false, error: "storage hard cap exceeded" });
+        return;
+      }
+      if (msg === "invalid key") {
+        badRequest(res, msg);
+        return;
+      }
+      unavailable(res, err);
+    }
+  });
+
+  router.post("/me/storage/delete", requireFirebaseAuth, async (req, res) => {
+    const keys = Array.isArray(req.body?.keys)
+      ? (req.body.keys as unknown[]).filter((k) => typeof k === "string")
+      : [];
+
+    try {
+      const me = await ensureMe(req);
+      const driveKeys = keys.map(String);
+      try {
+        for (const key of driveKeys)
+          assertKeyInUserDrive({ userId: me.id, key });
+      } catch (e) {
+        badRequest(res, toErrorMessage(e));
+        return;
+      }
+
+      await deleteObjects({ keys: driveKeys });
+      await cancelUploadReservations({ userId: me.id, keys: driveKeys });
+      const usage = await applyObjectDeletes({
+        userId: me.id,
+        keys: driveKeys,
+      });
+      res.json({ ok: true, usage });
+    } catch (err) {
+      unavailable(res, err);
+    }
+  });
+
+  router.post(
+    "/me/storage/delete-prefix",
+    requireFirebaseAuth,
+    async (req, res) => {
+      const rawPrefix =
+        typeof req.body?.prefix === "string" ? req.body.prefix : "";
+      const prefix = rawPrefix.trim();
+      const limitRaw = req.body?.limit;
+      const limit =
+        typeof limitRaw === "number" ? Math.trunc(limitRaw) : undefined;
+
+      if (!prefix) {
+        badRequest(res, "prefix is required");
+        return;
+      }
+
+      if (!/^[a-zA-Z0-9._\-\/]+$/.test(prefix) || prefix.includes("..")) {
+        badRequest(res, "prefix must be a simple relative path");
+        return;
+      }
+
+      try {
+        const me = await ensureMe(req);
+        const normalized = prefix.replace(/^\/+/, "");
+        const suffix = normalized.endsWith("/") ? normalized : `${normalized}/`;
+        const fullPrefix = `users/${me.id}/drive/${suffix}`;
+
+        const result = await applyPrefixDeletes({
+          userId: me.id,
+          prefix: fullPrefix,
+          limit,
+        });
+
+        await cancelUploadReservations({ userId: me.id, keys: result.keys });
+
+        try {
+          await deleteObjects({ keys: result.keys });
+        } catch {
+          // Best-effort S3 cleanup; DB state is the source of truth.
+        }
+
+        res.json({
+          ok: true,
+          deleted: result.keys.length,
+          hasMore: result.hasMore,
+          usage: result.usage,
+        });
+      } catch (err) {
+        unavailable(res, err);
+      }
+    },
+  );
+
+  router.get("/me/storage/usage", requireFirebaseAuth, async (req, res) => {
+    try {
+      const me = await ensureMe(req);
+
+      const rawFolder =
+        typeof req.query?.folder === "string" ? String(req.query.folder) : "";
+      const folder = rawFolder.trim();
+
+      // Folder is relative to the user's root prefix.
+      // Example: folder=documents/  => users/<id>/documents/
+      if (
+        folder &&
+        (!/^[a-zA-Z0-9_\-\/]+$/.test(folder) || folder.includes(".."))
+      ) {
+        badRequest(res, "folder must be a simple relative path");
+        return;
+      }
+
+      const normalizedFolder = folder.replace(/^\/+/, "");
+      const suffix = normalizedFolder
+        ? normalizedFolder.endsWith("/")
+          ? normalizedFolder
+          : `${normalizedFolder}/`
+        : "";
+
+      const prefix = `users/${me.id}/${suffix}`;
+      const usage = await getPrefixUsage({ prefix });
+      res.json({ ok: true, ...usage });
+    } catch (err) {
+      unavailable(res, err);
     }
   });
 
@@ -440,6 +910,43 @@ export function createHttpRouter(): Router {
             } catch {
               // Best-effort cleanup; don't fail the admin update.
             }
+
+            try {
+              await cancelUploadReservations({
+                userId: req.params.id,
+                keys: [oldKey],
+              });
+              await applyObjectDeletes({
+                userId: req.params.id,
+                keys: [oldKey],
+              });
+            } catch {
+              // Best-effort accounting cleanup.
+            }
+          }
+
+          // Best-effort cleanup for extension changes (profile.png vs profile.jpg).
+          try {
+            const deleteKeys = listUserAvatarVariantKeys(req.params.id).filter(
+              (k) => k !== newKey,
+            );
+            if (deleteKeys.length > 0) {
+              await cancelUploadReservations({
+                userId: req.params.id,
+                keys: deleteKeys,
+              });
+              await applyObjectDeletes({
+                userId: req.params.id,
+                keys: deleteKeys,
+              });
+              try {
+                await deleteObjects({ keys: deleteKeys });
+              } catch {
+                // Best-effort S3 cleanup; DB state is the source of truth.
+              }
+            }
+          } catch {
+            // ignore
           }
         }
         res.json({ ok: true, user });
@@ -483,7 +990,11 @@ export function createHttpRouter(): Router {
         return;
       }
 
-      const key = `users/${req.params.id}/avatar/profile`;
+      const key = buildUserAvatarKey({
+        userId: req.params.id,
+        filename,
+        contentType,
+      });
 
       try {
         const presign = await createPresignedPutUrl({
@@ -559,6 +1070,97 @@ function sanitizeFilename(name: string): string {
   const trimmed = name.trim();
   const base = trimmed.length > 0 ? trimmed : "upload";
   return base.replace(/[^a-zA-Z0-9._-]+/g, "-");
+}
+
+function inferImageExt(params: {
+  filename: string;
+  contentType: string;
+}): string | null {
+  const allowed = new Set(["png", "jpg", "jpeg", "webp", "gif", "avif", "svg"]);
+
+  const filename = (params.filename || "").trim().toLowerCase();
+  const dot = filename.lastIndexOf(".");
+  if (dot > 0 && dot < filename.length - 1) {
+    const ext = filename.slice(dot + 1).replace(/[^a-z0-9]+/g, "");
+    if (allowed.has(ext)) return ext === "jpeg" ? "jpg" : ext;
+  }
+
+  const ct = (params.contentType || "").trim().toLowerCase().split(";")[0];
+  if (!ct.startsWith("image/")) return null;
+
+  const subtype = ct.slice("image/".length);
+  if (subtype === "jpeg") return "jpg";
+  if (subtype === "svg+xml") return "svg";
+  const normalized = subtype.replace(/[^a-z0-9]+/g, "");
+  if (allowed.has(normalized)) return normalized;
+
+  return null;
+}
+
+function buildUserAvatarKey(params: {
+  userId: string;
+  filename: string;
+  contentType: string;
+}): string {
+  const ext = inferImageExt({
+    filename: params.filename,
+    contentType: params.contentType,
+  });
+  return `users/${params.userId}/avatar/profile${ext ? `.${ext}` : ""}`;
+}
+
+function isValidUserAvatarKey(params: {
+  userId: string;
+  key: string;
+}): boolean {
+  const base = `users/${params.userId}/avatar/profile`;
+  if (params.key === base) return true; // legacy, no extension
+  if (!params.key.startsWith(`${base}.`)) return false;
+  const ext = params.key.slice(`${base}.`.length).toLowerCase();
+  if (!/^[a-z0-9]{1,8}$/.test(ext)) return false;
+  return ["png", "jpg", "jpeg", "webp", "gif", "avif", "svg"].includes(ext);
+}
+
+function listUserAvatarVariantKeys(userId: string): string[] {
+  const base = `users/${userId}/avatar/profile`;
+  return [
+    base,
+    `${base}.png`,
+    `${base}.jpg`,
+    `${base}.jpeg`,
+    `${base}.webp`,
+    `${base}.gif`,
+    `${base}.avif`,
+    `${base}.svg`,
+  ];
+}
+
+function buildUserDriveKey(params: {
+  userId: string;
+  filename: string;
+  path?: string;
+}): string {
+  const rawPath = (params.path ?? "").trim();
+  if (rawPath) {
+    if (!/^[a-zA-Z0-9._\-\/]+$/.test(rawPath) || rawPath.includes("..")) {
+      throw new Error("path must be a simple relative path");
+    }
+    const normalized = rawPath.replace(/^\/+/, "");
+    if (normalized.endsWith("/")) throw new Error("path must be a file path");
+    return `users/${params.userId}/drive/${normalized}`;
+  }
+
+  const now = new Date();
+  const ymd = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-${String(now.getUTCDate()).padStart(2, "0")}`;
+  const safeName = sanitizeFilename(params.filename);
+  return `users/${params.userId}/drive/${ymd}/${crypto.randomUUID()}-${safeName}`;
+}
+
+function assertKeyInUserDrive(params: { userId: string; key: string }): void {
+  const expectedPrefix = `users/${params.userId}/drive/`;
+  if (!params.key.startsWith(expectedPrefix) || params.key.includes("..")) {
+    throw new Error("invalid key");
+  }
 }
 
 function toErrorMessage(err: unknown): string {

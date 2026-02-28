@@ -1,18 +1,14 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import { LogOut, Moon, Sun, UserRound } from "lucide-react";
 
 import { setLanguage } from "../shared/i18n";
+import { getMe } from "../shared/api/users";
 import { signInWithGoogle, signOutUser } from "../shared/firebase/auth";
 import { useAuthState } from "../shared/firebase/useAuthState";
 import { useTheme } from "../shared/theme/useTheme";
-
-function truncate(value: string, max = 22) {
-  if (value.length <= max) return value;
-  return `${value.slice(0, Math.max(0, max - 1))}…`;
-}
 
 export default function Header() {
   const { t, i18n } = useTranslation();
@@ -21,11 +17,6 @@ export default function Header() {
 
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-
-  const identity = useMemo(() => {
-    if (!user) return null;
-    return user.email ?? user.displayName ?? user.uid;
-  }, [user]);
 
   const canAuth = configured && !loading;
 
@@ -119,10 +110,7 @@ export default function Header() {
               <div className="pointer-events-none absolute right-0 mt-2 w-64 translate-y-1 scale-[0.98] rounded-2xl border border-zinc-200 bg-white p-3 opacity-0 shadow-lg transition duration-200 ease-out motion-reduce:transition-none dark:border-zinc-800 dark:bg-zinc-950 group-open:pointer-events-auto group-open:translate-y-0 group-open:scale-100 group-open:opacity-100">
                 <div className="px-1 pb-2">
                   <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                    {user.displayName ?? t("account")}
-                  </div>
-                  <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                    {truncate(identity ?? "", 32)}
+                    {t("account")}
                   </div>
                 </div>
 
@@ -165,6 +153,8 @@ export default function Header() {
                 setActionError(null);
                 try {
                   await signInWithGoogle();
+                  // Auth succeeded; immediately sync/load server profile.
+                  await getMe();
                 } catch (e) {
                   setActionError(e instanceof Error ? e.message : String(e));
                 } finally {
