@@ -26,10 +26,28 @@ import {
   StoredFile,
   upsertPrescription,
 } from "../shared/storage/prescriptions";
+import { compressImageFile } from "../shared/images/compress";
 
 const MAX_FILES = 10;
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 const MAX_AUDIO_SECONDS = 30;
+
+async function preparePickedFile(file: File): Promise<File> {
+  if (!file.type.startsWith("image/") || file.type === "image/svg+xml")
+    return file;
+  try {
+    const prepared = await compressImageFile(file, {
+      maxWidth: 2000,
+      maxHeight: 2000,
+      outputType: file.type === "image/png" ? "image/png" : "image/jpeg",
+      quality: 0.82,
+      keepIfSmallerThanBytes: 500 * 1024,
+    });
+    return prepared.file;
+  } catch {
+    return file;
+  }
+}
 
 function generateId(prefix: string) {
   const rand = Math.random().toString(16).slice(2);
@@ -552,7 +570,14 @@ function AddEditPrescriptionSheet({
       return;
     }
 
-    const tooLarge = pickedArray.find((f) => f.size > MAX_FILE_SIZE_BYTES);
+    if (currentCount + pickedArray.length > MAX_FILES) {
+      setFormError(t("fileCountError", { max: MAX_FILES }));
+      return;
+    }
+
+    const preparedFiles = await Promise.all(pickedArray.map(preparePickedFile));
+
+    const tooLarge = preparedFiles.find((f) => f.size > MAX_FILE_SIZE_BYTES);
     if (tooLarge) {
       setFormError(
         t("fileTooLargeError", { maxMb: bytesToMb(MAX_FILE_SIZE_BYTES) }),
@@ -560,12 +585,7 @@ function AddEditPrescriptionSheet({
       return;
     }
 
-    if (currentCount + pickedArray.length > MAX_FILES) {
-      setFormError(t("fileCountError", { max: MAX_FILES }));
-      return;
-    }
-
-    const next: StoredFile[] = pickedArray.map((f) => ({
+    const next: StoredFile[] = preparedFiles.map((f) => ({
       id: generateId("file"),
       name: f.name,
       type: f.type,

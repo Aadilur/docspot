@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
@@ -9,16 +9,38 @@ import { getMe } from "../shared/api/users";
 import { signInWithGoogle, signOutUser } from "../shared/firebase/auth";
 import { useAuthState } from "../shared/firebase/useAuthState";
 import { useTheme } from "../shared/theme/useTheme";
+import { useUploads } from "../shared/uploads/useUploads";
+
+function formatEtaSeconds(seconds: number | null): string | null {
+  if (seconds === null || !Number.isFinite(seconds) || seconds < 0) return null;
+  const s = Math.round(seconds);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${m}m ${r.toString().padStart(2, "0")}s`;
+}
 
 export default function Header() {
   const { t, i18n } = useTranslation();
   const { theme, toggle } = useTheme();
   const { configured, loading, user, error } = useAuthState();
+  const tasks = useUploads();
 
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const canAuth = configured && !loading;
+
+  const activeTask = useMemo(() => {
+    return (
+      tasks.find((x) => x.state === "uploading" || x.state === "finalizing") ??
+      tasks.find((x) => x.state === "error") ??
+      null
+    );
+  }, [tasks]);
+
+  const etaLabel = formatEtaSeconds(activeTask?.progress.etaSeconds ?? null);
+  const percent = activeTask?.progress.percent ?? 0;
 
   return (
     <header className="sticky top-0 z-10 border-b border-zinc-200/70 bg-white/80 backdrop-blur dark:border-zinc-800/70 dark:bg-zinc-950/60">
@@ -175,6 +197,45 @@ export default function Header() {
         <div className="mx-auto w-full max-w-5xl px-5 pb-3">
           <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200">
             {actionError ?? error}
+          </div>
+        </div>
+      )}
+
+      {activeTask && (
+        <div className="mx-auto w-full max-w-5xl px-5 pb-3">
+          <div className="rounded-xl border border-zinc-200/70 bg-white/70 px-4 py-3 text-xs text-zinc-700 shadow-sm backdrop-blur-sm dark:border-zinc-800/70 dark:bg-zinc-950/40 dark:text-zinc-200">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="truncate font-semibold">
+                  {activeTask.state === "finalizing"
+                    ? t("uploadFinalizing")
+                    : activeTask.state === "error"
+                      ? t("uploadFailed")
+                      : t("uploadInProgress")}
+                  {activeTask.label ? `: ${activeTask.label}` : ""}
+                </div>
+                {activeTask.state === "error" && activeTask.errorMessage && (
+                  <div className="mt-0.5 truncate text-[11px] text-red-700 dark:text-red-200">
+                    {activeTask.errorMessage}
+                  </div>
+                )}
+              </div>
+
+              <div className="shrink-0 tabular-nums text-[11px] text-zinc-500 dark:text-zinc-400">
+                {activeTask.state === "uploading" && etaLabel
+                  ? t("uploadEta", { value: etaLabel })
+                  : ""}
+              </div>
+            </div>
+
+            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
+              <div
+                className="h-full rounded-full bg-brand-600 transition-[width] duration-200 ease-out motion-reduce:transition-none"
+                style={{
+                  width: `${Math.max(0, Math.min(100, Math.round(percent * 100)))}%`,
+                }}
+              />
+            </div>
           </div>
         </div>
       )}

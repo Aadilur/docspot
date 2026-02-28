@@ -29,6 +29,19 @@ export const API_PATHS = {
   meStorageDeletePrefix: "/me/storage/delete-prefix",
   meStorageUsage: "/me/storage/usage",
 
+  mePrescriptionGroups: "/me/prescription-groups",
+  mePrescriptionGroupById: (id: string) => `/me/prescription-groups/${id}`,
+  mePrescriptionGroupReports: (id: string) =>
+    `/me/prescription-groups/${id}/reports`,
+  mePrescriptionGroupReportById: (id: string, reportId: string) =>
+    `/me/prescription-groups/${id}/reports/${reportId}`,
+  mePrescriptionReportAttachments: (id: string, reportId: string) =>
+    `/me/prescription-groups/${id}/reports/${reportId}/attachments`,
+  mePrescriptionGroupShare: (id: string) =>
+    `/me/prescription-groups/${id}/share`,
+
+  sharePrescriptionByToken: (token: string) => `/share/prescriptions/${token}`,
+
   users: "/users",
   usersByProvider: "/users/by-provider",
   usersUpsert: "/users/upsert",
@@ -136,6 +149,67 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
     path: API_PATHS.meStorageDeletePrefix,
     auth: "auth",
     description: "Delete a folder/prefix (batched)",
+  },
+
+  {
+    method: "GET",
+    path: API_PATHS.mePrescriptionGroups,
+    auth: "auth",
+    description: "List prescription groups",
+  },
+  {
+    method: "POST",
+    path: API_PATHS.mePrescriptionGroups,
+    auth: "auth",
+    description: "Create prescription group with first report",
+  },
+  {
+    method: "GET",
+    path: "/me/prescription-groups/:id",
+    auth: "auth",
+    description: "Get prescription group details",
+  },
+  {
+    method: "PATCH",
+    path: "/me/prescription-groups/:id",
+    auth: "auth",
+    description: "Update prescription group title",
+  },
+  {
+    method: "DELETE",
+    path: "/me/prescription-groups/:id",
+    auth: "auth",
+    description: "Delete prescription group (and attachments)",
+  },
+  {
+    method: "POST",
+    path: "/me/prescription-groups/:id/reports",
+    auth: "auth",
+    description: "Create prescription report",
+  },
+  {
+    method: "PATCH",
+    path: "/me/prescription-groups/:id/reports/:reportId",
+    auth: "auth",
+    description: "Update prescription report",
+  },
+  {
+    method: "POST",
+    path: "/me/prescription-groups/:id/reports/:reportId/attachments",
+    auth: "auth",
+    description: "Attach confirmed drive object to report",
+  },
+  {
+    method: "POST",
+    path: "/me/prescription-groups/:id/share",
+    auth: "auth",
+    description: "Create share link for group",
+  },
+  {
+    method: "GET",
+    path: "/share/prescriptions/:token",
+    auth: "public",
+    description: "Public read-only shared prescription group",
   },
 
   {

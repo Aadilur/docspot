@@ -18,7 +18,15 @@ export async function apiFetch<T>(
   path: string,
   init?: RequestInit,
 ): Promise<T> {
-  const url = `${API_BASE_URL}${path.startsWith("/") ? "" : "/"}${path}`;
+  const method = (init?.method ?? "GET").toUpperCase();
+
+  // Build URL and aggressively bypass caches.
+  // - `cache: "no-store"` disables the browser HTTP cache for this request.
+  // - Cache-busting query param helps bypass intermediary caches/CDNs.
+  let url = `${API_BASE_URL}${path.startsWith("/") ? "" : "/"}${path}`;
+  if (method === "GET") {
+    url += `${url.includes("?") ? "&" : "?"}_ts=${Date.now()}`;
+  }
 
   let idToken: string | null = null;
   if (isFirebaseConfigured()) {
@@ -32,8 +40,12 @@ export async function apiFetch<T>(
 
   const res = await fetch(url, {
     ...init,
+    cache: "no-store",
     headers: {
       "Content-Type": "application/json",
+      "Cache-Control": "no-store, no-cache, max-age=0",
+      Pragma: "no-cache",
+      Expires: "0",
       ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
       ...(init?.headers ?? {}),
     },

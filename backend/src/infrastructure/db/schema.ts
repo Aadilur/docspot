@@ -90,5 +90,91 @@ export async function ensureSchema(): Promise<void> {
     "create index if not exists storage_reservations_expires_idx on storage_reservations(expires_at);",
   );
 
+  await pg.query(`
+    create table if not exists prescription_groups (
+      id uuid primary key,
+      user_id uuid not null references users(id) on delete cascade,
+      title text,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+  `);
+  await pg.query(
+    "create index if not exists prescription_groups_user_idx on prescription_groups(user_id, updated_at desc);",
+  );
+
+  await pg.query(`
+    create table if not exists prescription_reports (
+      id uuid primary key,
+      group_id uuid not null references prescription_groups(id) on delete cascade,
+      user_id uuid not null references users(id) on delete cascade,
+      title text not null,
+      issue_date date,
+      next_appointment date,
+      doctor text,
+      text_note text,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+  `);
+  await pg.query(
+    "create index if not exists prescription_reports_group_idx on prescription_reports(group_id, created_at desc);",
+  );
+  await pg.query(
+    "create index if not exists prescription_reports_user_idx on prescription_reports(user_id, updated_at desc);",
+  );
+
+  await pg.query(`
+    create table if not exists prescription_attachments (
+      id uuid primary key,
+      report_id uuid not null references prescription_reports(id) on delete cascade,
+      user_id uuid not null references users(id) on delete cascade,
+      key text not null,
+      filename text,
+      content_type text,
+      size_bytes bigint not null default 0,
+      kind text not null default 'file',
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now(),
+      unique (report_id, key)
+    );
+  `);
+
+  // Backward-compatible migration.
+  await pg.query(
+    "alter table prescription_attachments add column if not exists size_bytes bigint;",
+  );
+  await pg.query(
+    "update prescription_attachments set size_bytes = 0 where size_bytes is null;",
+  );
+  await pg.query(
+    "alter table prescription_attachments alter column size_bytes set default 0;",
+  );
+  await pg.query(
+    "alter table prescription_attachments alter column size_bytes set not null;",
+  );
+  await pg.query(
+    "create index if not exists prescription_attachments_report_idx on prescription_attachments(report_id, created_at desc);",
+  );
+
+  await pg.query(`
+    create table if not exists prescription_share_links (
+      token text primary key,
+      group_id uuid not null references prescription_groups(id) on delete cascade,
+      created_by_user_id uuid not null references users(id) on delete cascade,
+      expires_at timestamptz not null,
+      created_at timestamptz not null default now()
+    );
+  `);
+  await pg.query(
+    "create index if not exists prescription_share_links_group_idx on prescription_share_links(group_id, created_at desc);",
+  );
+  await pg.query(
+    "create index if not exists prescription_share_links_user_idx on prescription_share_links(created_by_user_id, created_at desc);",
+  );
+  await pg.query(
+    "create index if not exists prescription_share_links_expires_idx on prescription_share_links(expires_at);",
+  );
+
   ensured = true;
 }

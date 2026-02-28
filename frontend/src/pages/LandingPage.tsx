@@ -33,7 +33,7 @@ export default function LandingPage() {
     <div className="min-h-dvh bg-gradient-to-b from-zinc-50 via-white to-white dark:from-zinc-950 dark:via-zinc-950 dark:to-zinc-900">
       <Header />
 
-      <main className="relative mx-auto w-full max-w-5xl px-5 pb-12 pt-8">
+      <main className="relative mx-auto w-full max-w-5xl px-4 pb-12 pt-6 sm:px-5 sm:pt-8">
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-56 bg-gradient-to-b from-brand-100/40 via-transparent to-transparent dark:from-brand-500/10"
@@ -154,6 +154,56 @@ export default function LandingPage() {
                 {t("privacyBody")}
               </p>
             </div>
+          </div>
+        </section>
+
+        <section id="testimonials" className="mt-10 scroll-mt-24">
+          <h2 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+            {t("testimonialsTitle")}
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm text-zinc-600 dark:text-zinc-300">
+            {t("testimonialsBody")}
+          </p>
+
+          <div className="mt-6 grid gap-4 sm:grid-cols-3">
+            {[1, 2, 3].map((n) => (
+              <figure
+                key={n}
+                className="rounded-2xl border border-zinc-200/70 bg-white/80 p-5 shadow-sm backdrop-blur-sm dark:border-zinc-800/70 dark:bg-zinc-950/60"
+              >
+                <blockquote className="text-sm text-zinc-700 dark:text-zinc-200">
+                  “{t(`testimonial${n}Quote` as any)}”
+                </blockquote>
+                <figcaption className="mt-3 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                  — {t(`testimonial${n}Name` as any)}
+                </figcaption>
+              </figure>
+            ))}
+          </div>
+        </section>
+
+        <section id="faq" className="mt-10 scroll-mt-24">
+          <h2 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+            {t("faqTitle")}
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm text-zinc-600 dark:text-zinc-300">
+            {t("faqBody")}
+          </p>
+
+          <div className="mt-6 grid gap-3">
+            {[1, 2, 3].map((n) => (
+              <details
+                key={n}
+                className="group rounded-2xl border border-zinc-200/70 bg-white p-5 shadow-sm dark:border-zinc-800/70 dark:bg-zinc-950"
+              >
+                <summary className="cursor-pointer list-none select-none text-sm font-semibold text-zinc-900 dark:text-zinc-50 [&::-webkit-details-marker]:hidden">
+                  {t(`faqQ${n}` as any)}
+                </summary>
+                <div className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">
+                  {t(`faqA${n}` as any)}
+                </div>
+              </details>
+            ))}
           </div>
         </section>
       </main>

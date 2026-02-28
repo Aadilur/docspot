@@ -31,6 +31,19 @@ import {
   headObject,
 } from "../../infrastructure/storage/s3";
 import {
+  addAttachment,
+  createGroupWithFirstReport,
+  createReport,
+  createShareLink,
+  deleteGroupRow,
+  getGroupAttachmentKeys,
+  getGroupDetails,
+  getSharedGroupByToken,
+  listGroups,
+  patchGroup,
+  patchReport,
+} from "../../infrastructure/db/prescriptions";
+import {
   requireAdmin,
   requireFirebaseAuth,
   type AuthContext,
@@ -38,6 +51,10 @@ import {
 
 export function createHttpRouter(): Router {
   const router = Router();
+
+  const MAX_SINGLE_FILE_BYTES = 10 * 1024 * 1024;
+  const SHARE_LINKS_PER_24H_LIMIT = 10;
+  const ATTACHMENT_URL_EXPIRES_SECONDS = 60 * 10;
 
   const badRequest = (res: any, error: string) =>
     res.status(400).json({ ok: false, error });
@@ -153,6 +170,10 @@ export function createHttpRouter(): Router {
       badRequest(res, "sizeBytes must be a positive number");
       return;
     }
+    if (sizeBytes > MAX_SINGLE_FILE_BYTES) {
+      badRequest(res, "file is too large (max 10MB)");
+      return;
+    }
 
     let reservedKey: string | null = null;
 
@@ -229,6 +250,440 @@ export function createHttpRouter(): Router {
         res.status(401).json({ ok: false, error: "Unauthorized" });
         return;
       }
+      unavailable(res, err);
+    }
+  });
+
+  router.get(
+    "/me/prescription-groups",
+    requireFirebaseAuth,
+    async (req, res) => {
+      try {
+        const me = await ensureMe(req);
+        const limit = parseBoundedInt(
+          getQueryString(req.query?.limit),
+          50,
+          1,
+          100,
+        );
+        const offset = parseBoundedInt(
+          getQueryString(req.query?.offset),
+          0,
+          0,
+          10_000,
+        );
+
+        const groups = await listGroups({ userId: me.id, limit, offset });
+        res.json({ ok: true, groups });
+      } catch (err) {
+        unavailable(res, err);
+      }
+    },
+  );
+
+  router.post(
+    "/me/prescription-groups",
+    requireFirebaseAuth,
+    async (req, res) => {
+      const report = req.body?.report;
+      const title = typeof report?.title === "string" ? report.title : "";
+
+      if (!title || title.trim().length === 0) {
+        badRequest(res, "title is required");
+        return;
+      }
+
+      try {
+        const me = await ensureMe(req);
+        const created = await createGroupWithFirstReport({
+          userId: me.id,
+          report: {
+            title,
+            issueDate:
+              typeof report?.issueDate === "string" ? report.issueDate : null,
+            nextAppointment:
+              typeof report?.nextAppointment === "string"
+                ? report.nextAppointment
+                : null,
+            doctor: typeof report?.doctor === "string" ? report.doctor : null,
+            textNote:
+              typeof report?.textNote === "string" ? report.textNote : null,
+          },
+          groupTitle:
+            typeof req.body?.groupTitle === "string"
+              ? req.body.groupTitle
+              : null,
+        });
+
+        res.json({ ok: true, group: created.group, report: created.report });
+      } catch (err) {
+        badRequest(res, toErrorMessage(err));
+      }
+    },
+  );
+
+  router.get(
+    "/me/prescription-groups/:id",
+    requireFirebaseAuth,
+    async (req, res) => {
+      try {
+        const me = await ensureMe(req);
+        const details = await getGroupDetails({
+          userId: me.id,
+          groupId: req.params.id,
+        });
+        if (!details) {
+          notFound(res);
+          return;
+        }
+
+        const reports = await Promise.all(
+          details.reports.map(async (r) => {
+            const attachments = await Promise.all(
+              r.attachments.map(async (a) => {
+                // Ensure keys are inside the user drive; defense-in-depth.
+                try {
+                  assertKeyInUserDrive({ userId: me.id, key: a.key });
+                } catch {
+                  return { ...a, url: null, urlExpiresInSeconds: null };
+                }
+
+                try {
+                  const signed = await createPresignedGetUrl({
+                    key: a.key,
+                    expiresInSeconds: ATTACHMENT_URL_EXPIRES_SECONDS,
+                  });
+                  return {
+                    ...a,
+                    url: signed.url,
+                    urlExpiresInSeconds: signed.expiresInSeconds,
+                  };
+                } catch {
+                  return { ...a, url: null, urlExpiresInSeconds: null };
+                }
+              }),
+            );
+
+            return { ...r, attachments };
+          }),
+        );
+
+        res.json({ ok: true, group: details.group, reports });
+      } catch (err) {
+        unavailable(res, err);
+      }
+    },
+  );
+
+  router.patch(
+    "/me/prescription-groups/:id",
+    requireFirebaseAuth,
+    async (req, res) => {
+      const title =
+        req.body?.title === null
+          ? null
+          : typeof req.body?.title === "string"
+            ? req.body.title
+            : undefined;
+
+      if (title === undefined) {
+        badRequest(res, "title is required (string or null)");
+        return;
+      }
+
+      try {
+        const me = await ensureMe(req);
+        const updated = await patchGroup({
+          userId: me.id,
+          groupId: req.params.id,
+          title,
+        });
+        if (!updated) {
+          notFound(res);
+          return;
+        }
+        res.json({ ok: true, group: updated });
+      } catch (err) {
+        badRequest(res, toErrorMessage(err));
+      }
+    },
+  );
+
+  router.post(
+    "/me/prescription-groups/:id/reports",
+    requireFirebaseAuth,
+    async (req, res) => {
+      const title = typeof req.body?.title === "string" ? req.body.title : "";
+      if (!title || title.trim().length === 0) {
+        badRequest(res, "title is required");
+        return;
+      }
+
+      try {
+        const me = await ensureMe(req);
+        const report = await createReport({
+          userId: me.id,
+          groupId: req.params.id,
+          title,
+          issueDate:
+            typeof req.body?.issueDate === "string" ? req.body.issueDate : null,
+          nextAppointment:
+            typeof req.body?.nextAppointment === "string"
+              ? req.body.nextAppointment
+              : null,
+          doctor: typeof req.body?.doctor === "string" ? req.body.doctor : null,
+          textNote:
+            typeof req.body?.textNote === "string" ? req.body.textNote : null,
+        });
+        res.json({ ok: true, report });
+      } catch (err) {
+        badRequest(res, toErrorMessage(err));
+      }
+    },
+  );
+
+  router.patch(
+    "/me/prescription-groups/:id/reports/:reportId",
+    requireFirebaseAuth,
+    async (req, res) => {
+      try {
+        const me = await ensureMe(req);
+        const updated = await patchReport({
+          userId: me.id,
+          groupId: req.params.id,
+          reportId: req.params.reportId,
+          patch: {
+            title:
+              typeof req.body?.title === "string" ? req.body.title : undefined,
+            issueDate:
+              req.body?.issueDate === null
+                ? null
+                : typeof req.body?.issueDate === "string"
+                  ? req.body.issueDate
+                  : undefined,
+            nextAppointment:
+              req.body?.nextAppointment === null
+                ? null
+                : typeof req.body?.nextAppointment === "string"
+                  ? req.body.nextAppointment
+                  : undefined,
+            doctor:
+              req.body?.doctor === null
+                ? null
+                : typeof req.body?.doctor === "string"
+                  ? req.body.doctor
+                  : undefined,
+            textNote:
+              req.body?.textNote === null
+                ? null
+                : typeof req.body?.textNote === "string"
+                  ? req.body.textNote
+                  : undefined,
+          },
+        });
+
+        if (!updated) {
+          notFound(res);
+          return;
+        }
+
+        res.json({ ok: true, report: updated });
+      } catch (err) {
+        badRequest(res, toErrorMessage(err));
+      }
+    },
+  );
+
+  router.post(
+    "/me/prescription-groups/:id/reports/:reportId/attachments",
+    requireFirebaseAuth,
+    async (req, res) => {
+      const key = typeof req.body?.key === "string" ? req.body.key : "";
+      if (!key) {
+        badRequest(res, "key is required");
+        return;
+      }
+
+      const kind = req.body?.kind === "audio" ? "audio" : "file";
+      const filename =
+        typeof req.body?.filename === "string" ? req.body.filename : null;
+      const contentType =
+        typeof req.body?.contentType === "string" ? req.body.contentType : null;
+
+      try {
+        const me = await ensureMe(req);
+        try {
+          assertKeyInUserDrive({ userId: me.id, key });
+        } catch (e) {
+          badRequest(res, toErrorMessage(e));
+          return;
+        }
+
+        const attachment = await addAttachment({
+          userId: me.id,
+          groupId: req.params.id,
+          reportId: req.params.reportId,
+          key,
+          filename,
+          contentType,
+          kind,
+        });
+
+        let url: string | null = null;
+        let urlExpiresInSeconds: number | null = null;
+        try {
+          const signed = await createPresignedGetUrl({
+            key,
+            expiresInSeconds: ATTACHMENT_URL_EXPIRES_SECONDS,
+          });
+          url = signed.url;
+          urlExpiresInSeconds = signed.expiresInSeconds;
+        } catch {
+          // ignore
+        }
+
+        res.json({
+          ok: true,
+          attachment: { ...attachment, url, urlExpiresInSeconds },
+        });
+      } catch (err) {
+        badRequest(res, toErrorMessage(err));
+      }
+    },
+  );
+
+  router.delete(
+    "/me/prescription-groups/:id",
+    requireFirebaseAuth,
+    async (req, res) => {
+      try {
+        const me = await ensureMe(req);
+        const keys = await getGroupAttachmentKeys({
+          userId: me.id,
+          groupId: req.params.id,
+        });
+
+        // Delete objects first; only then update accounting and remove DB rows.
+        if (keys.length > 0) {
+          await deleteObjects({ keys });
+          await cancelUploadReservations({ userId: me.id, keys });
+          await applyObjectDeletes({ userId: me.id, keys });
+        }
+
+        const deleted = await deleteGroupRow({
+          userId: me.id,
+          groupId: req.params.id,
+        });
+        if (!deleted) {
+          notFound(res);
+          return;
+        }
+
+        const usage = await getUserStorageUsage(me.id);
+        res.json({ ok: true, usage });
+      } catch (err) {
+        unavailable(res, err);
+      }
+    },
+  );
+
+  router.post(
+    "/me/prescription-groups/:id/share",
+    requireFirebaseAuth,
+    async (req, res) => {
+      const ttlSecondsRaw = req.body?.ttlSeconds;
+      const ttlSeconds =
+        typeof ttlSecondsRaw === "number" ? Math.trunc(ttlSecondsRaw) : NaN;
+
+      if (!Number.isFinite(ttlSeconds) || ttlSeconds <= 0) {
+        badRequest(res, "ttlSeconds must be a positive number");
+        return;
+      }
+
+      try {
+        const me = await ensureMe(req);
+        const link = await createShareLink({
+          userId: me.id,
+          groupId: req.params.id,
+          ttlSeconds,
+          dailyLimit: SHARE_LINKS_PER_24H_LIMIT,
+        });
+        res.json({
+          ok: true,
+          token: link.token,
+          expiresAt: link.expiresAt,
+          sharePath: `/share/prescriptions/${link.token}`,
+          limitPer24h: SHARE_LINKS_PER_24H_LIMIT,
+        });
+      } catch (err) {
+        const msg = toErrorMessage(err);
+        if (msg === "SHARE_LIMIT_EXCEEDED") {
+          res.status(429).json({
+            ok: false,
+            error: "share limit exceeded",
+            limitPer24h: SHARE_LINKS_PER_24H_LIMIT,
+          });
+          return;
+        }
+        badRequest(res, msg);
+      }
+    },
+  );
+
+  // Public read-only share endpoint.
+  router.get("/share/prescriptions/:token", async (req, res) => {
+    const token = typeof req.params.token === "string" ? req.params.token : "";
+    if (!token) {
+      notFound(res);
+      return;
+    }
+
+    try {
+      const shared = await getSharedGroupByToken({ token });
+      if (!shared) {
+        notFound(res);
+        return;
+      }
+
+      const remainingSeconds = Math.max(
+        0,
+        Math.floor((new Date(shared.expiresAt).getTime() - Date.now()) / 1000),
+      );
+      const expiresInSeconds = Math.max(
+        30,
+        Math.min(ATTACHMENT_URL_EXPIRES_SECONDS, remainingSeconds || 30),
+      );
+
+      const reports = await Promise.all(
+        shared.reports.map(async (r) => {
+          const attachments = await Promise.all(
+            r.attachments.map(async (a) => {
+              try {
+                const signed = await createPresignedGetUrl({
+                  key: a.key,
+                  expiresInSeconds,
+                });
+                return {
+                  ...a,
+                  url: signed.url,
+                  urlExpiresInSeconds: signed.expiresInSeconds,
+                };
+              } catch {
+                return { ...a, url: null, urlExpiresInSeconds: null };
+              }
+            }),
+          );
+          return { ...r, attachments };
+        }),
+      );
+
+      res.json({
+        ok: true,
+        group: shared.group,
+        reports,
+        expiresAt: shared.expiresAt,
+      });
+    } catch (err) {
       unavailable(res, err);
     }
   });
@@ -311,6 +766,10 @@ export function createHttpRouter(): Router {
 
     if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) {
       badRequest(res, "sizeBytes must be a positive number");
+      return;
+    }
+    if (sizeBytes > MAX_SINGLE_FILE_BYTES) {
+      badRequest(res, "file is too large (max 10MB)");
       return;
     }
 
@@ -456,7 +915,7 @@ export function createHttpRouter(): Router {
           key: photo.photoKey,
           expiresInSeconds: 60,
         });
-        res.setHeader("Cache-Control", "private, max-age=60");
+        res.setHeader("Cache-Control", "no-store");
         res.redirect(302, signed.url);
         return;
       }
@@ -481,13 +940,13 @@ export function createHttpRouter(): Router {
           key: photo.photoKey,
           expiresInSeconds: 60,
         });
-        res.setHeader("Cache-Control", "private, max-age=60");
+        res.setHeader("Cache-Control", "no-store");
         res.json({ ok: true, url: signed.url, expiresInSeconds: 60 });
         return;
       }
 
       if (photo.photoUrl && /^https?:\/\//i.test(photo.photoUrl)) {
-        res.setHeader("Cache-Control", "private, max-age=60");
+        res.setHeader("Cache-Control", "no-store");
         res.json({ ok: true, url: photo.photoUrl, expiresInSeconds: 60 });
         return;
       }
@@ -526,6 +985,10 @@ export function createHttpRouter(): Router {
     }
     if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) {
       badRequest(res, "sizeBytes must be a positive number");
+      return;
+    }
+    if (sizeBytes > MAX_SINGLE_FILE_BYTES) {
+      badRequest(res, "file is too large (max 10MB)");
       return;
     }
 
@@ -1026,13 +1489,13 @@ export function createHttpRouter(): Router {
             key: photo.photoKey,
             expiresInSeconds: 60,
           });
-          res.setHeader("Cache-Control", "private, max-age=60");
+          res.setHeader("Cache-Control", "no-store");
           res.redirect(302, signed.url);
           return;
         }
 
         if (photo.photoUrl && /^https?:\/\//i.test(photo.photoUrl)) {
-          res.setHeader("Cache-Control", "private, max-age=300");
+          res.setHeader("Cache-Control", "no-store");
           res.redirect(302, photo.photoUrl);
           return;
         }

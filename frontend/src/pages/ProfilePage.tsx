@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Footer from "../components/Footer";
@@ -14,6 +14,8 @@ import {
   type UserRecord,
 } from "../shared/api/users";
 import { useAuthState } from "../shared/firebase/useAuthState";
+import { compressImageFile } from "../shared/images/compress";
+import { uploadStore } from "../shared/uploads/store";
 
 function formatBytes(value: number): string {
   if (!Number.isFinite(value) || value <= 0) return "0 B";
@@ -42,6 +44,8 @@ export default function ProfilePage() {
   const { t } = useTranslation();
   const { configured, loading, user } = useAuthState();
 
+  const mountedRef = useRef(true);
+
   const [serverOk, setServerOk] = useState<boolean | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -53,6 +57,27 @@ export default function ProfilePage() {
   const [photoSrc, setPhotoSrc] = useState<string | null>(null);
   const [loadingPhoto, setLoadingPhoto] = useState(false);
   const [displayNameDraft, setDisplayNameDraft] = useState("");
+  const [photoQuality, setPhotoQuality] = useState<number>(() => {
+    const raw =
+      typeof window !== "undefined"
+        ? window.localStorage.getItem("docspot:photoQuality")
+        : null;
+    const parsed = raw ? Number(raw) : NaN;
+    if (Number.isFinite(parsed) && parsed >= 0.5 && parsed <= 0.95)
+      return parsed;
+    return 0.85;
+  });
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem("docspot:photoQuality", String(photoQuality));
+  }, [photoQuality]);
 
   useEffect(() => {
     let cancelled = false;
@@ -172,43 +197,58 @@ export default function ProfilePage() {
       return;
     }
 
-    const maxBytes = 5 * 1024 * 1024;
-    if (file.size > maxBytes) {
+    const maxUploadBytes = 10 * 1024 * 1024;
+    const maxInputBytes = 25 * 1024 * 1024;
+    if (file.size > maxInputBytes) {
       setError(t("profilePhotoTooLarge"));
       return;
     }
 
-    await runAction(async () => {
-      try {
-        const contentType = file.type || "image/png";
-        const presign = await presignMyPhotoUpload({
-          filename: file.name || "avatar.png",
-          contentType,
-          sizeBytes: file.size,
-        });
+    setError(null);
+    setMessage(null);
 
-        const putRes = await fetch(presign.url, {
-          method: "PUT",
-          headers: { "Content-Type": contentType },
-          body: file,
-        });
-        if (!putRes.ok) {
-          throw new Error(
-            `${t("profilePhotoUploadFailed")} (${putRes.status})`,
-          );
-        }
+    try {
+      const prepared = await compressImageFile(file, {
+        maxWidth: 512,
+        maxHeight: 512,
+        // Keep png to avoid breaking transparency; otherwise, prefer jpeg.
+        outputType: file.type === "image/png" ? "image/png" : "image/jpeg",
+        quality: photoQuality,
+        keepIfSmallerThanBytes: 350 * 1024,
+      });
 
-        const updated = await confirmMyPhotoUpload({ key: presign.key });
-        setRecord(updated);
-        setMessage(t("profilePhotoUpdated"));
-      } catch (e) {
-        if (isLikelyCorsNetworkError(e)) {
-          setError(t("profilePhotoUploadCors"));
-          return;
-        }
-        setError(e instanceof Error ? e.message : String(e));
+      if (prepared.file.size > maxUploadBytes) {
+        setError(t("profilePhotoTooLarge"));
+        return;
       }
-    });
+
+      const contentType = prepared.contentType || "image/jpeg";
+      const presign = await presignMyPhotoUpload({
+        filename: prepared.filename || "avatar.jpg",
+        contentType,
+        sizeBytes: prepared.file.size,
+      });
+
+      uploadStore.startPut({
+        label: t("profilePhotoTitle"),
+        url: presign.url,
+        body: prepared.file,
+        contentType,
+        onFinalize: async () => {
+          const updated = await confirmMyPhotoUpload({ key: presign.key });
+          if (mountedRef.current) {
+            setRecord(updated);
+            setMessage(t("profilePhotoUpdated"));
+          }
+        },
+      });
+    } catch (e) {
+      if (isLikelyCorsNetworkError(e)) {
+        setError(t("profilePhotoUploadCors"));
+        return;
+      }
+      setError(e instanceof Error ? e.message : String(e));
+    }
   }
 
   const serverBadge =
@@ -480,6 +520,28 @@ export default function ProfilePage() {
                   {t("remove")}
                 </button>
               </div>
+
+              <label className="grid max-w-sm gap-2">
+                <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">
+                  {t("profilePhotoQuality")}: {Math.round(photoQuality * 100)}%
+                </span>
+                <input
+                  type="range"
+                  min={50}
+                  max={95}
+                  step={1}
+                  value={Math.round(photoQuality * 100)}
+                  disabled={!record}
+                  onChange={(e) => {
+                    const next = Number(e.target.value);
+                    setPhotoQuality(Math.max(0.5, Math.min(0.95, next / 100)));
+                  }}
+                  className="w-full accent-brand-600"
+                />
+                <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                  {t("profilePhotoQualityHint")}
+                </div>
+              </label>
 
               <div className="text-xs text-zinc-500 dark:text-zinc-400">
                 {t("profilePhotoBackedByStorage")}

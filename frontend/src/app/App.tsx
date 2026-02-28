@@ -6,7 +6,9 @@ import EndpointsPage from "../pages/EndpointsPage";
 import LandingPage from "../pages/LandingPage";
 import InvoicePage from "../pages/InvoicePage";
 import OtherDocPage from "../pages/OtherDocPage";
-import PrescriptionPage from "../pages/PrescriptionPage";
+import PrescriptionGroupsPage from "../pages/PrescriptionGroupsPage";
+import PrescriptionGroupDetailsPage from "../pages/PrescriptionGroupDetailsPage";
+import SharedPrescriptionGroupPage from "../pages/SharedPrescriptionGroupPage";
 import ProfilePage from "../pages/ProfilePage";
 
 export default function App() {
@@ -18,7 +20,15 @@ export default function App() {
         <Route path="/contact" element={<ContactPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/endpoints" element={<EndpointsPage />} />
-        <Route path="/prescription" element={<PrescriptionPage />} />
+        <Route path="/prescription" element={<PrescriptionGroupsPage />} />
+        <Route
+          path="/prescription/:groupId"
+          element={<PrescriptionGroupDetailsPage />}
+        />
+        <Route
+          path="/share/prescriptions/:token"
+          element={<SharedPrescriptionGroupPage />}
+        />
         <Route path="/invoice" element={<InvoicePage />} />
         <Route path="/other-doc" element={<OtherDocPage />} />
         <Route path="*" element={<LandingPage />} />
