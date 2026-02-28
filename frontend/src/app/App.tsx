@@ -15,6 +15,7 @@ import PrescriptionGroupDetailsPage from "../pages/PrescriptionGroupDetailsPage"
 import SharedPrescriptionGroupPage from "../pages/SharedPrescriptionGroupPage";
 import PrivacyPolicyPage from "../pages/PrivacyPolicyPage";
 import ProfilePage from "../pages/ProfilePage";
+import PricingPage from "../pages/PricingPage";
 import RefundPolicyPage from "../pages/RefundPolicyPage";
 import TermsPage from "../pages/TermsPage";
 
@@ -25,6 +26,7 @@ export default function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/contact" element={<ContactPage />} />
+        <Route path="/pricing" element={<PricingPage />} />
         <Route path="/terms-and-conditions" element={<TermsPage />} />
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
         <Route path="/refund-policy" element={<RefundPolicyPage />} />

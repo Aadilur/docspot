@@ -6,6 +6,7 @@ import { FileText, Pill, Receipt, X } from "lucide-react";
 
 import Footer from "../components/Footer";
 import Header from "../components/Header";
+import PricingSection from "../components/PricingSection";
 import { getCmsBannersCached } from "../shared/api/cms";
 
 type CmsBanner = {
@@ -206,35 +207,9 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section id="account" className="mt-10 scroll-mt-24">
-          <h2 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-            {t("planTitle")}
-          </h2>
-          <p className="mt-2 max-w-2xl text-sm text-zinc-600 dark:text-zinc-300">
-            {t("planBody")}
-          </p>
+        <PricingSection />
 
-          <div className="mt-6 grid gap-4 sm:grid-cols-2">
-            <div className="rounded-2xl border border-zinc-200/70 bg-white p-5 shadow-sm dark:border-zinc-800/70 dark:bg-zinc-950">
-              <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                {t("freePlanTitle")}
-              </h3>
-              <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">
-                {t("freePlanBody")}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-zinc-200/70 bg-white p-5 shadow-sm dark:border-zinc-800/70 dark:bg-zinc-950">
-              <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                {t("privacyTitle")}
-              </h3>
-              <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">
-                {t("privacyBody")}
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section id="testimonials" className="mt-10 scroll-mt-24">
+        <section id="testimonials" className="mt-12 scroll-mt-24">
           <h2 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
             {t("testimonialsTitle")}
           </h2>
