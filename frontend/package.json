@@ -10,6 +10,7 @@
     "start": "sh -c 'test -d dist || npm run build && serve -s dist -l tcp://0.0.0.0:${PORT:-3000}'"
   },
   "dependencies": {
+    "@revenuecat/purchases-js": "^1.26.3",
     "audio-recorder-polyfill": "^0.4.1",
     "firebase": "^10.14.1",
     "i18next": "^23.0.0",
