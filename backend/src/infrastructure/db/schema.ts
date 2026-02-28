@@ -176,5 +176,151 @@ export async function ensureSchema(): Promise<void> {
     "create index if not exists prescription_share_links_expires_idx on prescription_share_links(expires_at);",
   );
 
+  // Invoice / important documents (same data model as prescriptions).
+  await pg.query(`
+    create table if not exists invoice_groups (
+      id uuid primary key,
+      user_id uuid not null references users(id) on delete cascade,
+      title text,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+  `);
+  await pg.query(
+    "create index if not exists invoice_groups_user_idx on invoice_groups(user_id, updated_at desc);",
+  );
+
+  await pg.query(`
+    create table if not exists invoice_reports (
+      id uuid primary key,
+      group_id uuid not null references invoice_groups(id) on delete cascade,
+      user_id uuid not null references users(id) on delete cascade,
+      title text not null,
+      issue_date date,
+      next_appointment date,
+      doctor text,
+      text_note text,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+  `);
+  await pg.query(
+    "create index if not exists invoice_reports_group_idx on invoice_reports(group_id, created_at desc);",
+  );
+  await pg.query(
+    "create index if not exists invoice_reports_user_idx on invoice_reports(user_id, updated_at desc);",
+  );
+
+  await pg.query(`
+    create table if not exists invoice_attachments (
+      id uuid primary key,
+      report_id uuid not null references invoice_reports(id) on delete cascade,
+      user_id uuid not null references users(id) on delete cascade,
+      key text not null,
+      filename text,
+      content_type text,
+      size_bytes bigint not null default 0,
+      kind text not null default 'file',
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now(),
+      unique (report_id, key)
+    );
+  `);
+  await pg.query(
+    "create index if not exists invoice_attachments_report_idx on invoice_attachments(report_id, created_at desc);",
+  );
+
+  await pg.query(`
+    create table if not exists invoice_share_links (
+      token text primary key,
+      group_id uuid not null references invoice_groups(id) on delete cascade,
+      created_by_user_id uuid not null references users(id) on delete cascade,
+      expires_at timestamptz not null,
+      created_at timestamptz not null default now()
+    );
+  `);
+  await pg.query(
+    "create index if not exists invoice_share_links_group_idx on invoice_share_links(group_id, created_at desc);",
+  );
+  await pg.query(
+    "create index if not exists invoice_share_links_user_idx on invoice_share_links(created_by_user_id, created_at desc);",
+  );
+  await pg.query(
+    "create index if not exists invoice_share_links_expires_idx on invoice_share_links(expires_at);",
+  );
+
+  // Object tracker (same underlying model; UI can show fewer fields).
+  await pg.query(`
+    create table if not exists object_groups (
+      id uuid primary key,
+      user_id uuid not null references users(id) on delete cascade,
+      title text,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+  `);
+  await pg.query(
+    "create index if not exists object_groups_user_idx on object_groups(user_id, updated_at desc);",
+  );
+
+  await pg.query(`
+    create table if not exists object_reports (
+      id uuid primary key,
+      group_id uuid not null references object_groups(id) on delete cascade,
+      user_id uuid not null references users(id) on delete cascade,
+      title text not null,
+      issue_date date,
+      next_appointment date,
+      doctor text,
+      text_note text,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+  `);
+  await pg.query(
+    "create index if not exists object_reports_group_idx on object_reports(group_id, created_at desc);",
+  );
+  await pg.query(
+    "create index if not exists object_reports_user_idx on object_reports(user_id, updated_at desc);",
+  );
+
+  await pg.query(`
+    create table if not exists object_attachments (
+      id uuid primary key,
+      report_id uuid not null references object_reports(id) on delete cascade,
+      user_id uuid not null references users(id) on delete cascade,
+      key text not null,
+      filename text,
+      content_type text,
+      size_bytes bigint not null default 0,
+      kind text not null default 'file',
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now(),
+      unique (report_id, key)
+    );
+  `);
+  await pg.query(
+    "create index if not exists object_attachments_report_idx on object_attachments(report_id, created_at desc);",
+  );
+
+  await pg.query(`
+    create table if not exists object_share_links (
+      token text primary key,
+      group_id uuid not null references object_groups(id) on delete cascade,
+      created_by_user_id uuid not null references users(id) on delete cascade,
+      expires_at timestamptz not null,
+      created_at timestamptz not null default now()
+    );
+  `);
+  await pg.query(
+    "create index if not exists object_share_links_group_idx on object_share_links(group_id, created_at desc);",
+  );
+  await pg.query(
+    "create index if not exists object_share_links_user_idx on object_share_links(created_by_user_id, created_at desc);",
+  );
+  await pg.query(
+    "create index if not exists object_share_links_expires_idx on object_share_links(expires_at);",
+  );
+
   ensured = true;
 }

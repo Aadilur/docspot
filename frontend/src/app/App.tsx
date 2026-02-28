@@ -5,7 +5,11 @@ import ContactPage from "../pages/ContactPage";
 import EndpointsPage from "../pages/EndpointsPage";
 import LandingPage from "../pages/LandingPage";
 import InvoicePage from "../pages/InvoicePage";
+import InvoiceGroupDetailsPage from "../pages/InvoiceGroupDetailsPage";
+import SharedInvoiceGroupPage from "../pages/SharedInvoiceGroupPage";
 import OtherDocPage from "../pages/OtherDocPage";
+import ObjectGroupDetailsPage from "../pages/ObjectGroupDetailsPage";
+import SharedObjectGroupPage from "../pages/SharedObjectGroupPage";
 import PrescriptionGroupsPage from "../pages/PrescriptionGroupsPage";
 import PrescriptionGroupDetailsPage from "../pages/PrescriptionGroupDetailsPage";
 import SharedPrescriptionGroupPage from "../pages/SharedPrescriptionGroupPage";
@@ -30,7 +34,20 @@ export default function App() {
           element={<SharedPrescriptionGroupPage />}
         />
         <Route path="/invoice" element={<InvoicePage />} />
+        <Route path="/invoice/:groupId" element={<InvoiceGroupDetailsPage />} />
+        <Route
+          path="/share/invoices/:token"
+          element={<SharedInvoiceGroupPage />}
+        />
         <Route path="/other-doc" element={<OtherDocPage />} />
+        <Route
+          path="/other-doc/:groupId"
+          element={<ObjectGroupDetailsPage />}
+        />
+        <Route
+          path="/share/objects/:token"
+          element={<SharedObjectGroupPage />}
+        />
         <Route path="*" element={<LandingPage />} />
       </Routes>
     </BrowserRouter>

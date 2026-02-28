@@ -49,6 +49,9 @@ import {
   type AuthContext,
 } from "./middleware/firebaseAuth";
 
+import { registerInvoiceRoutes } from "./routes/invoices";
+import { registerObjectRoutes } from "./routes/objects";
+
 export function createHttpRouter(): Router {
   const router = Router();
 
@@ -686,6 +689,36 @@ export function createHttpRouter(): Router {
     } catch (err) {
       unavailable(res, err);
     }
+  });
+
+  registerInvoiceRoutes({
+    router,
+    requireFirebaseAuth,
+    ensureMe,
+    parseBoundedInt,
+    getQueryString,
+    badRequest,
+    notFound,
+    unavailable,
+    assertKeyInUserDrive,
+    toErrorMessage,
+    ATTACHMENT_URL_EXPIRES_SECONDS,
+    SHARE_LINKS_PER_24H_LIMIT,
+  });
+
+  registerObjectRoutes({
+    router,
+    requireFirebaseAuth,
+    ensureMe,
+    parseBoundedInt,
+    getQueryString,
+    badRequest,
+    notFound,
+    unavailable,
+    assertKeyInUserDrive,
+    toErrorMessage,
+    ATTACHMENT_URL_EXPIRES_SECONDS,
+    SHARE_LINKS_PER_24H_LIMIT,
   });
 
   router.patch("/me", requireFirebaseAuth, async (req, res) => {

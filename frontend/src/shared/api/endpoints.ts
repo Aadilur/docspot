@@ -42,6 +42,26 @@ export const API_PATHS = {
 
   sharePrescriptionByToken: (token: string) => `/share/prescriptions/${token}`,
 
+  meInvoiceGroups: "/me/invoice-groups",
+  meInvoiceGroupById: (id: string) => `/me/invoice-groups/${id}`,
+  meInvoiceGroupReports: (id: string) => `/me/invoice-groups/${id}/reports`,
+  meInvoiceGroupReportById: (id: string, reportId: string) =>
+    `/me/invoice-groups/${id}/reports/${reportId}`,
+  meInvoiceReportAttachments: (id: string, reportId: string) =>
+    `/me/invoice-groups/${id}/reports/${reportId}/attachments`,
+  meInvoiceGroupShare: (id: string) => `/me/invoice-groups/${id}/share`,
+  shareInvoiceByToken: (token: string) => `/share/invoices/${token}`,
+
+  meObjectGroups: "/me/object-groups",
+  meObjectGroupById: (id: string) => `/me/object-groups/${id}`,
+  meObjectGroupReports: (id: string) => `/me/object-groups/${id}/reports`,
+  meObjectGroupReportById: (id: string, reportId: string) =>
+    `/me/object-groups/${id}/reports/${reportId}`,
+  meObjectReportAttachments: (id: string, reportId: string) =>
+    `/me/object-groups/${id}/reports/${reportId}/attachments`,
+  meObjectGroupShare: (id: string) => `/me/object-groups/${id}/share`,
+  shareObjectByToken: (token: string) => `/share/objects/${token}`,
+
   users: "/users",
   usersByProvider: "/users/by-provider",
   usersUpsert: "/users/upsert",
@@ -210,6 +230,128 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
     path: "/share/prescriptions/:token",
     auth: "public",
     description: "Public read-only shared prescription group",
+  },
+
+  {
+    method: "GET",
+    path: API_PATHS.meInvoiceGroups,
+    auth: "auth",
+    description: "List invoice groups",
+  },
+  {
+    method: "POST",
+    path: API_PATHS.meInvoiceGroups,
+    auth: "auth",
+    description: "Create invoice group with first report",
+  },
+  {
+    method: "GET",
+    path: "/me/invoice-groups/:id",
+    auth: "auth",
+    description: "Get invoice group details",
+  },
+  {
+    method: "PATCH",
+    path: "/me/invoice-groups/:id",
+    auth: "auth",
+    description: "Update invoice group title",
+  },
+  {
+    method: "DELETE",
+    path: "/me/invoice-groups/:id",
+    auth: "auth",
+    description: "Delete invoice group (and attachments)",
+  },
+  {
+    method: "POST",
+    path: "/me/invoice-groups/:id/reports",
+    auth: "auth",
+    description: "Create invoice report",
+  },
+  {
+    method: "PATCH",
+    path: "/me/invoice-groups/:id/reports/:reportId",
+    auth: "auth",
+    description: "Update invoice report",
+  },
+  {
+    method: "POST",
+    path: "/me/invoice-groups/:id/reports/:reportId/attachments",
+    auth: "auth",
+    description: "Attach confirmed drive object to invoice report",
+  },
+  {
+    method: "POST",
+    path: "/me/invoice-groups/:id/share",
+    auth: "auth",
+    description: "Create share link for invoice group",
+  },
+  {
+    method: "GET",
+    path: "/share/invoices/:token",
+    auth: "public",
+    description: "Public read-only shared invoice group",
+  },
+
+  {
+    method: "GET",
+    path: API_PATHS.meObjectGroups,
+    auth: "auth",
+    description: "List object tracking groups",
+  },
+  {
+    method: "POST",
+    path: API_PATHS.meObjectGroups,
+    auth: "auth",
+    description: "Create object tracking group with first report",
+  },
+  {
+    method: "GET",
+    path: "/me/object-groups/:id",
+    auth: "auth",
+    description: "Get object tracking group details",
+  },
+  {
+    method: "PATCH",
+    path: "/me/object-groups/:id",
+    auth: "auth",
+    description: "Update object tracking group title",
+  },
+  {
+    method: "DELETE",
+    path: "/me/object-groups/:id",
+    auth: "auth",
+    description: "Delete object tracking group (and attachments)",
+  },
+  {
+    method: "POST",
+    path: "/me/object-groups/:id/reports",
+    auth: "auth",
+    description: "Create object tracking report",
+  },
+  {
+    method: "PATCH",
+    path: "/me/object-groups/:id/reports/:reportId",
+    auth: "auth",
+    description: "Update object tracking report",
+  },
+  {
+    method: "POST",
+    path: "/me/object-groups/:id/reports/:reportId/attachments",
+    auth: "auth",
+    description: "Attach confirmed drive object to object tracking report",
+  },
+  {
+    method: "POST",
+    path: "/me/object-groups/:id/share",
+    auth: "auth",
+    description: "Create share link for object tracking group",
+  },
+  {
+    method: "GET",
+    path: "/share/objects/:token",
+    auth: "public",
+    description: "Public read-only shared object tracking group",
   },
 
   {
