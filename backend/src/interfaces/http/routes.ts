@@ -3,6 +3,7 @@ import { Router } from "express";
 
 import { getConfig, getS3MissingKeys } from "../../infrastructure/config/env";
 import { pingDatabase } from "../../infrastructure/db/postgres";
+import { isRedisConfigured, pingRedis } from "../../infrastructure/redis/redis";
 import {
   createUser,
   deleteUser,
@@ -128,6 +129,20 @@ export function createHttpRouter(): Router {
   router.get("/health/db", async (_req, res) => {
     try {
       await pingDatabase();
+      res.json({ ok: true });
+    } catch (err) {
+      unavailable(res, err);
+    }
+  });
+
+  router.get("/health/redis", async (_req, res) => {
+    if (!isRedisConfigured()) {
+      res.status(503).json({ ok: false, error: "Redis is not configured." });
+      return;
+    }
+
+    try {
+      await pingRedis();
       res.json({ ok: true });
     } catch (err) {
       unavailable(res, err);

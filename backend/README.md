@@ -60,6 +60,19 @@ Authenticated requests must include:
 
 - `Authorization: Bearer <FIREBASE_ID_TOKEN>`
 
+### Cache (Redis)
+
+Optional, but useful for caching, rate limiting, and queues.
+
+Set:
+
+- `REDIS_URL` — full connection string
+- `REDIS_KEY_PREFIX` — optional key prefix (default: `docspot:`)
+
+Health check:
+
+- `GET /health/redis` (returns 200 if Redis is reachable, 503 otherwise)
+
 ## Me API (current user)
 
 These are the user-facing endpoints (practical profile flow):

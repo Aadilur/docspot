@@ -20,7 +20,8 @@
     "express": "^4.19.0",
     "express-formidable": "^1.2.0",
     "firebase-admin": "^12.6.0",
-    "pg": "^8.13.1"
+    "pg": "^8.13.1",
+    "redis": "^5.11.0"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.10",

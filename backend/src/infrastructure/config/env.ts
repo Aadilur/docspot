@@ -26,12 +26,19 @@ export type AppConfig = {
   port: number;
   databaseUrl?: string;
   s3?: S3Config;
+  redis?: {
+    url: string;
+    keyPrefix: string;
+  };
 };
 
 export function getConfig(): AppConfig {
   const port = Number(readEnvString("PORT") ?? 3001);
 
   const databaseUrl = readEnvString("DATABASE_URL");
+
+  const redisUrl = readEnvString("REDIS_URL");
+  const redisKeyPrefix = readEnvString("REDIS_KEY_PREFIX") ?? "docspot:";
 
   const s3Endpoint = readEnvString("S3_ENDPOINT");
   const s3Region = readEnvString("S3_REGION") ?? "auto";
@@ -52,7 +59,14 @@ export function getConfig(): AppConfig {
     };
   }
 
-  return { port, databaseUrl, s3 };
+  const redis = redisUrl
+    ? {
+        url: redisUrl,
+        keyPrefix: redisKeyPrefix,
+      }
+    : undefined;
+
+  return { port, databaseUrl, s3, redis };
 }
 
 export function getS3MissingKeys(): string[] {
