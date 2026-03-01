@@ -17,7 +17,7 @@ Railway needs a server process. The frontend uses a static server:
 
 - `frontend/package.json`
   - `build`: `tsc -b && vite build`
-  - `start`: `serve -s dist -l $PORT`
+  - `start`: builds if needed, then `serve -s dist -l tcp://0.0.0.0:$PORT`
 
 ### Backend must listen on PORT
 
@@ -32,6 +32,11 @@ Make sure you do **not** commit secrets. The root `.gitignore` should ignore:
 - `node_modules/`
 - `frontend/dist/`, `backend/dist/`
 - `.env`, `.env.*` (but keep `.env.example` files)
+
+This repo includes:
+
+- `backend/.env.example`
+- `frontend/.env.example`
 
 ---
 

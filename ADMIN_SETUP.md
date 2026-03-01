@@ -47,7 +47,7 @@ export FIREBASE_SERVICE_ACCOUNT_JSON='{"type":"service_account",...}'
 node -e "
 const admin = require('firebase-admin');
 admin.initializeApp({ credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON)) });
-const uid = process.argv[1];
+const uid = process.argv[process.argv.length - 1];
 admin.auth().setCustomUserClaims(uid, { admin: true }).then(() => {
   console.log('Set admin claim for', uid);
   process.exit(0);

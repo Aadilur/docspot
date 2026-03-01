@@ -1,10 +1,11 @@
-# DocSpot Backend (skeleton)
+# DocSpot Backend
 
 Node.js + Express starter with a clean-architecture-friendly folder layout.
 
 ## Run
 
-- Dev: `npm run dev`
+- Dev (from `backend/`): `npm run dev`
+- Dev (from repo root): `npm run dev:backend`
 - Health: `GET /health`
 
 ## Base URL
@@ -43,8 +44,10 @@ Health check:
 Presign endpoint (to test uploads):
 
 - `POST /uploads/presign` (auth required)
-  - Body: `{ "filename": "test.pdf", "contentType": "application/pdf" }`
-  - Response: `{ ok, url, key, bucket, expiresInSeconds }`
+  - Body: `{ "filename": "test.pdf", "contentType": "application/pdf", "sizeBytes": 12345, "path": "documents/test.pdf" }`
+    - `sizeBytes` is required (used for quota/accounting)
+    - `path` is optional (relative path inside the user drive)
+  - Response: `{ ok, url, key, bucket, expiresInSeconds, usage, warning, reservationExpiresAt }`
   - Then do a `PUT` to the returned `url` with the file bytes and the same `Content-Type`.
 
 ### Auth (Firebase)
@@ -54,7 +57,11 @@ This backend verifies Firebase ID tokens (JWTs) via Firebase Admin SDK.
 Set:
 
 - `FIREBASE_SERVICE_ACCOUNT_JSON` — service account JSON (as a single-line string)
-- `ADMIN_UIDS` — comma-separated Firebase `uid`s allowed to call admin-only endpoints
+
+Admin-only access is allowed if either:
+
+- the Firebase ID token has an admin claim (preferred): `admin: true` (or `role: "admin"` / `roles: ["admin"]`), or
+- `ADMIN_UIDS` contains your Firebase `uid` (bootstrap/back-compat)
 
 Authenticated requests must include:
 
@@ -72,6 +79,19 @@ Set:
 Health check:
 
 - `GET /health/redis` (returns 200 if Redis is reachable, 503 otherwise)
+
+## CMS (public)
+
+- `GET /cms/banners`
+- `GET /cms/logo`
+
+## Document groups (auth)
+
+- Prescriptions: `/me/prescription-groups/*` and `/share/prescriptions/:token`
+- Invoices: `/me/invoice-groups/*` and `/share/invoices/:token`
+- Other documents/objects: `/me/object-groups/*` and `/share/objects/:token`
+
+See `src/interfaces/http/ENDPOINTS.md` for the full route list.
 
 ## Me API (current user)
 

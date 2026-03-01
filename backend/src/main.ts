@@ -15,7 +15,48 @@ dotenv.config();
 
 async function bootstrap() {
   const app = express();
-  app.use(cors());
+  const corsOriginRaw = (process.env.CORS_ORIGIN || "").trim();
+  if (!corsOriginRaw) {
+    app.use(cors());
+  } else {
+    const allowed = corsOriginRaw
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    app.use(
+      cors({
+        origin: (origin, cb) => {
+          // Allow non-browser clients (curl, server-to-server, etc.)
+          if (!origin) return cb(null, true);
+
+          // Check for exact matches or wildcard patterns
+          for (const pattern of allowed) {
+            // Global wildcard
+            if (pattern === "*") return cb(null, true);
+
+            // Exact match
+            if (pattern === origin) return cb(null, true);
+
+            // Wildcard subdomain pattern (*.example.com)
+            if (pattern.startsWith("*.")) {
+              const domain = pattern.slice(2); // Remove "*."
+              // Match: https://anything.docspot.app or https://deep.nested.docspot.app
+              if (
+                origin.endsWith(`.${domain}`) ||
+                origin === `https://${domain}` ||
+                origin === `http://${domain}`
+              ) {
+                return cb(null, true);
+              }
+            }
+          }
+
+          return cb(null, false);
+        },
+      }),
+    );
+  }
   app.use(express.json());
   app.use(cookieParser());
 
