@@ -3,13 +3,16 @@ import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import {
+  Calendar,
   ChevronRight,
+  FileText,
   Pause,
   Plus,
   Upload,
   Mic,
   Trash2,
   Info,
+  X,
 } from "lucide-react";
 
 import Footer from "../components/Footer";
@@ -130,6 +133,26 @@ export default function InvoicePage() {
     maxSeconds: DEFAULT_MAX_AUDIO_SECONDS,
   });
 
+  const beginRecordChecked = () => {
+    setCreateSheetError(null);
+
+    const hasSelectedAudioFile = files.some((f) =>
+      f.file.type?.startsWith("audio/"),
+    );
+    if (hasSelectedAudioFile) {
+      setCreateSheetError(t("audioCountError"));
+      return;
+    }
+
+    const willAddNewNote = !voice.note;
+    if (willAddNewNote && files.length + 1 > MAX_FILES) {
+      setCreateSheetError(t("fileCountError", { max: MAX_FILES }));
+      return;
+    }
+
+    void voice.beginRecord();
+  };
+
   const canUse = configured && !authLoading && !!user;
 
   const sorted = useMemo(() => {
@@ -168,11 +191,22 @@ export default function InvoicePage() {
       const preparedFiles = await Promise.all(
         files.map((x) => preparePickedFile(x.file)),
       );
-      const tooMany = preparedFiles.length > MAX_FILES;
-      if (tooMany) {
+
+      const voiceCount = voice.note ? 1 : 0;
+      const totalAttachments = preparedFiles.length + voiceCount;
+      if (totalAttachments > MAX_FILES) {
         setCreateSheetError(t("fileCountError", { max: MAX_FILES }));
         return;
       }
+
+      const audioAttachments =
+        preparedFiles.filter((f) => f.type?.startsWith("audio/")).length +
+        voiceCount;
+      if (audioAttachments > 1) {
+        setCreateSheetError(t("audioCountError"));
+        return;
+      }
+
       const invalid = preparedFiles.find((f) => !isAllowedUpload(f));
       if (invalid) {
         setCreateSheetError(t("fileTypeError"));
@@ -261,9 +295,40 @@ export default function InvoicePage() {
     e.target.value = "";
     if (picked.length === 0) return;
 
+    setCreateSheetError(null);
+
+    const voiceCount = voice.note ? 1 : 0;
+    const total = files.length + picked.length + voiceCount;
+    if (total > MAX_FILES) {
+      setCreateSheetError(t("fileCountError", { max: MAX_FILES }));
+      return;
+    }
+
+    const audioTotal =
+      files.filter((x) => x.file.type?.startsWith("audio/")).length +
+      picked.filter((x) => x.type?.startsWith("audio/")).length +
+      voiceCount;
+    if (audioTotal > 1) {
+      setCreateSheetError(t("audioCountError"));
+      return;
+    }
+
+    const invalid = picked.find((f) => !isAllowedUpload(f));
+    if (invalid) {
+      setCreateSheetError(t("fileTypeError"));
+      return;
+    }
+
+    const prepared = await Promise.all(picked.map(preparePickedFile));
+    const tooLarge = prepared.find((f) => f.size > MAX_FILE_SIZE_BYTES);
+    if (tooLarge) {
+      setCreateSheetError(t("fileTooLargeError", { maxMb: 10 }));
+      return;
+    }
+
     setFiles((prev) => {
       const next = [...prev];
-      for (const file of picked) {
+      for (const file of prepared) {
         next.push({ id: newLocalId(), file });
       }
       return next;
@@ -403,117 +468,148 @@ export default function InvoicePage() {
               </button>
             </div>
 
-            <div className="px-5 pb-5">
-              {createSheetError ? (
-                <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200">
-                  {createSheetError}
-                </div>
-              ) : null}
-
-              <div className="grid gap-3">
-                <label className="grid gap-1">
-                  <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                    {t("title")}
-                  </span>
-                  <input
-                    value={titleDraft}
-                    onChange={(e) => setTitleDraft(e.target.value)}
-                    className="h-11 rounded-xl border border-zinc-200 bg-white px-3 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-brand-200 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:ring-brand-900"
-                    placeholder={t("invoiceTitlePlaceholder")}
-                  />
-                </label>
-
-                <label className="grid gap-1">
-                  <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                    {t("issueDate")}
-                  </span>
-                  <input
-                    type="date"
-                    value={issueDateDraft}
-                    onChange={(e) => setIssueDateDraft(e.target.value)}
-                    className="h-11 rounded-xl border border-zinc-200 bg-white px-3 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-brand-200 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:ring-brand-900"
-                  />
-                </label>
-
-                <label className="grid gap-1">
-                  <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                    {t("textNote")}
-                  </span>
-                  <textarea
-                    value={textNoteDraft}
-                    onChange={(e) => setTextNoteDraft(e.target.value)}
-                    rows={3}
-                    className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-brand-200 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:ring-brand-900"
-                    placeholder={t("textNotePlaceholder")}
-                  />
-                </label>
-
-                <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                      {t("attachments")}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={pickFiles}
-                      className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-brand-200 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900 dark:focus:ring-brand-900"
-                    >
-                      <Upload className="h-4 w-4" aria-hidden="true" />
-                      {t("addFiles")}
-                    </button>
+            <div className="max-h-[75dvh] overflow-y-auto px-5 pb-28">
+              <div className="grid gap-4">
+                {(createSheetError || null) && (
+                  <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200">
+                    {createSheetError}
                   </div>
+                )}
 
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    multiple
-                    accept="image/*,application/pdf,audio/*"
-                    className="hidden"
-                    onChange={onPickedFiles}
-                  />
+                <div className="grid gap-4 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+                  <label className="grid gap-2">
+                    <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                      {t("titleLabel")}
+                      <span className="text-brand-700 dark:text-brand-300">
+                        {" "}
+                        *
+                      </span>
+                    </span>
+                    <input
+                      value={titleDraft}
+                      onChange={(e) => setTitleDraft(e.target.value)}
+                      placeholder={t("invoiceTitlePlaceholder")}
+                      className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-4 text-sm text-zinc-900 shadow-sm outline-none placeholder:text-zinc-400 focus:border-brand-300 focus:ring-2 focus:ring-brand-200 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-brand-700 dark:focus:ring-brand-900"
+                    />
+                  </label>
 
-                  {files.length === 0 ? (
-                    <div className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
-                      {t("invoiceSheetHint")}
+                  <label className="grid gap-2">
+                    <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                      {t("issueDate")}
+                    </span>
+                    <div className="relative">
+                      <input
+                        type="date"
+                        value={issueDateDraft}
+                        onChange={(e) => setIssueDateDraft(e.target.value)}
+                        className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-4 pr-10 text-sm text-zinc-900 shadow-sm outline-none focus:border-brand-300 focus:ring-2 focus:ring-brand-200 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-brand-700 dark:focus:ring-brand-900"
+                      />
+                      <Calendar
+                        className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400"
+                        aria-hidden="true"
+                      />
                     </div>
-                  ) : (
-                    <div className="mt-3 grid gap-2">
-                      {previewUrls.map((p) => (
-                        <div
-                          key={p.id}
-                          className="rounded-2xl border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950"
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                                {p.name}
-                              </div>
-                              <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                                {p.type || t("unknownType")}
-                              </div>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => removeFile(p.id)}
-                              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-brand-200 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900 dark:focus:ring-brand-900"
-                              aria-label={t("remove")}
-                            >
-                              ×
-                            </button>
-                          </div>
-                          {p.url ? (
-                            <img
-                              src={p.url}
-                              alt={p.name}
-                              className="mt-3 max-h-56 w-full rounded-xl object-contain"
-                              loading="lazy"
-                            />
-                          ) : null}
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  </label>
                 </div>
+
+                <details className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+                  <summary className="cursor-pointer list-none select-none text-sm font-semibold text-zinc-900 dark:text-zinc-50 [&::-webkit-details-marker]:hidden">
+                    {t("attachments")}
+                    <span className="ml-2 text-xs font-normal text-zinc-500 dark:text-zinc-400">
+                      {t("filesSelected", {
+                        count: files.length + (voice.note ? 1 : 0),
+                        max: MAX_FILES,
+                      })}
+                    </span>
+                  </summary>
+
+                  <div className="mt-4 grid gap-2">
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                        {t("filesLabel")}
+                      </span>
+                      <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                        {t("fileLimits", {
+                          maxFiles: MAX_FILES,
+                          maxMb: bytesToMb(MAX_FILE_SIZE_BYTES),
+                        })}
+                      </span>
+                    </div>
+
+                    <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-sm text-zinc-600 dark:text-zinc-300">
+                          {t("selectFiles")}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={pickFiles}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-brand-200 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900 dark:focus:ring-brand-900"
+                        >
+                          <Upload className="h-4 w-4" aria-hidden="true" />
+                          {t("addFiles")}
+                        </button>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          multiple
+                          accept="image/*,application/pdf,audio/*"
+                          className="hidden"
+                          onChange={onPickedFiles}
+                        />
+                      </div>
+
+                      {files.length === 0 ? (
+                        <div className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
+                          {t("invoiceSheetHint")}
+                        </div>
+                      ) : (
+                        <div className="mt-4 grid grid-cols-4 gap-3 sm:grid-cols-5">
+                          {previewUrls.map((p) => (
+                            <div
+                              key={p.id}
+                              className="relative overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950"
+                              title={p.name}
+                            >
+                              {p.type === "application/pdf" ||
+                              p.type.startsWith("audio/") ? (
+                                <div className="flex h-16 items-center justify-center text-zinc-500 dark:text-zinc-400">
+                                  <FileText
+                                    className="h-6 w-6"
+                                    aria-hidden="true"
+                                  />
+                                </div>
+                              ) : p.url ? (
+                                <img
+                                  src={p.url}
+                                  alt={p.name}
+                                  className="h-16 w-full object-cover"
+                                  loading="lazy"
+                                />
+                              ) : (
+                                <div className="flex h-16 items-center justify-center text-zinc-500 dark:text-zinc-400">
+                                  <FileText
+                                    className="h-6 w-6"
+                                    aria-hidden="true"
+                                  />
+                                </div>
+                              )}
+
+                              <button
+                                type="button"
+                                onClick={() => removeFile(p.id)}
+                                aria-label={t("remove")}
+                                className="absolute right-1 top-1 inline-flex h-7 w-7 items-center justify-center rounded-lg border border-zinc-200 bg-white/90 text-zinc-700 hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 dark:border-zinc-800 dark:bg-zinc-950/80 dark:text-zinc-200 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
+                              >
+                                <X className="h-4 w-4" aria-hidden="true" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </details>
 
                 <details className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
                   <summary className="cursor-pointer list-none select-none text-sm font-semibold text-zinc-900 dark:text-zinc-50 [&::-webkit-details-marker]:hidden">
@@ -583,7 +679,7 @@ export default function InvoicePage() {
                             voice.note ? (
                               <button
                                 type="button"
-                                onClick={() => void voice.beginRecord()}
+                                onClick={beginRecordChecked}
                                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-300 disabled:opacity-60 dark:focus:ring-brand-900"
                               >
                                 <Mic className="h-4 w-4" aria-hidden="true" />
@@ -592,7 +688,7 @@ export default function InvoicePage() {
                             ) : (
                               <button
                                 type="button"
-                                onClick={() => void voice.beginRecord()}
+                                onClick={beginRecordChecked}
                                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-300 disabled:opacity-60 dark:focus:ring-brand-900"
                               >
                                 <Mic className="h-4 w-4" aria-hidden="true" />
@@ -638,23 +734,56 @@ export default function InvoicePage() {
                     </div>
                   </div>
                 </details>
-              </div>
 
-              <button
-                type="button"
-                onClick={() => void onCreate()}
-                disabled={!titleDraft.trim() || busyCreate || !canUse}
-                className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 disabled:opacity-60"
-              >
-                {busyCreate
-                  ? t("creating")
-                  : t("createInvoiceAndUpload", {
-                      mb: bytesToMb(
-                        files.reduce((acc, f) => acc + f.file.size, 0) +
-                          (voice.note?.blob.size ?? 0),
-                      ),
-                    })}
-              </button>
+                <details className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+                  <summary className="cursor-pointer list-none select-none text-sm font-semibold text-zinc-900 dark:text-zinc-50 [&::-webkit-details-marker]:hidden">
+                    {t("optionalDetails")}
+                  </summary>
+
+                  <div className="mt-4 grid gap-4">
+                    <label className="grid gap-2">
+                      <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                        {t("textNote")}
+                      </span>
+                      <textarea
+                        value={textNoteDraft}
+                        onChange={(e) => setTextNoteDraft(e.target.value)}
+                        rows={4}
+                        placeholder={t("textNotePlaceholder")}
+                        className="w-full resize-none rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 shadow-sm outline-none placeholder:text-zinc-400 focus:border-brand-300 focus:ring-2 focus:ring-brand-200 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-brand-700 dark:focus:ring-brand-900"
+                      />
+                    </label>
+                  </div>
+                </details>
+              </div>
+            </div>
+
+            <div className="absolute inset-x-0 bottom-0 border-t border-zinc-200 bg-white/90 px-5 py-4 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/80">
+              <div className="flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => setCreateOpen(false)}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-brand-200 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900 dark:focus:ring-brand-900"
+                >
+                  {t("close")}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => void onCreate()}
+                  disabled={!titleDraft.trim() || busyCreate || !canUse}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-300 disabled:opacity-60 dark:focus:ring-brand-900"
+                >
+                  {busyCreate
+                    ? t("creating")
+                    : t("createInvoiceAndUpload", {
+                        mb: bytesToMb(
+                          files.reduce((acc, f) => acc + f.file.size, 0) +
+                            (voice.note?.blob.size ?? 0),
+                        ),
+                      })}
+                </button>
+              </div>
             </div>
           </div>
         </div>

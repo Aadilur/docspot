@@ -134,6 +134,26 @@ export default function PrescriptionGroupsPage() {
     maxSeconds: DEFAULT_MAX_AUDIO_SECONDS,
   });
 
+  const beginRecordChecked = () => {
+    setCreateSheetError(null);
+
+    const hasSelectedAudioFile = files.some((f) =>
+      f.file.type?.startsWith("audio/"),
+    );
+    if (hasSelectedAudioFile) {
+      setCreateSheetError(t("audioCountError"));
+      return;
+    }
+
+    const willAddNewNote = !voice.note;
+    if (willAddNewNote && files.length + 1 > MAX_FILES) {
+      setCreateSheetError(t("fileCountError", { max: MAX_FILES }));
+      return;
+    }
+
+    void voice.beginRecord();
+  };
+
   const canUse = configured && !authLoading && !!user;
 
   const sorted = useMemo(() => {
@@ -172,11 +192,22 @@ export default function PrescriptionGroupsPage() {
       const preparedFiles = await Promise.all(
         files.map((x) => preparePickedFile(x.file)),
       );
-      const tooMany = preparedFiles.length > MAX_FILES;
-      if (tooMany) {
+
+      const voiceCount = voice.note ? 1 : 0;
+      const totalAttachments = preparedFiles.length + voiceCount;
+      if (totalAttachments > MAX_FILES) {
         setCreateSheetError(t("fileCountError", { max: MAX_FILES }));
         return;
       }
+
+      const audioAttachments =
+        preparedFiles.filter((f) => f.type?.startsWith("audio/")).length +
+        voiceCount;
+      if (audioAttachments > 1) {
+        setCreateSheetError(t("audioCountError"));
+        return;
+      }
+
       const invalid = preparedFiles.find((f) => !isAllowedUpload(f));
       if (invalid) {
         setCreateSheetError(t("fileTypeError"));
@@ -265,9 +296,19 @@ export default function PrescriptionGroupsPage() {
     setCreateSheetError(null);
 
     const pickedArray = Array.from(picked);
-    const total = files.length + pickedArray.length;
+    const voiceCount = voice.note ? 1 : 0;
+    const total = files.length + pickedArray.length + voiceCount;
     if (total > MAX_FILES) {
       setCreateSheetError(t("fileCountError", { max: MAX_FILES }));
+      return;
+    }
+
+    const audioTotal =
+      files.filter((x) => x.file.type?.startsWith("audio/")).length +
+      pickedArray.filter((x) => x.type?.startsWith("audio/")).length +
+      voiceCount;
+    if (audioTotal > 1) {
+      setCreateSheetError(t("audioCountError"));
       return;
     }
 
@@ -470,7 +511,7 @@ export default function PrescriptionGroupsPage() {
                     {t("attachments")}
                     <span className="ml-2 text-xs font-normal text-zinc-500 dark:text-zinc-400">
                       {t("filesSelected", {
-                        count: files.length,
+                        count: files.length + (voice.note ? 1 : 0),
                         max: MAX_FILES,
                       })}
                     </span>
@@ -625,7 +666,7 @@ export default function PrescriptionGroupsPage() {
                             voice.note ? (
                               <button
                                 type="button"
-                                onClick={() => void voice.beginRecord()}
+                                onClick={beginRecordChecked}
                                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-300 disabled:opacity-60 dark:focus:ring-brand-900"
                               >
                                 <Mic className="h-4 w-4" aria-hidden="true" />
@@ -634,7 +675,7 @@ export default function PrescriptionGroupsPage() {
                             ) : (
                               <button
                                 type="button"
-                                onClick={() => void voice.beginRecord()}
+                                onClick={beginRecordChecked}
                                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-300 disabled:opacity-60 dark:focus:ring-brand-900"
                               >
                                 <Mic className="h-4 w-4" aria-hidden="true" />

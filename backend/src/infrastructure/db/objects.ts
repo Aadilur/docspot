@@ -416,11 +416,43 @@ export async function addAttachment(params: {
   await ensureSchema();
   const pg = getPostgresPool();
 
+  const MAX_ATTACHMENTS_PER_REPORT = 10;
+  const MAX_AUDIO_ATTACHMENTS_PER_REPORT = 1;
+
   const rRes = await pg.query(
     `select id from object_reports where id = $1::uuid and group_id = $2::uuid and user_id = $3::uuid`,
     [params.reportId, params.groupId, params.userId],
   );
   if (rRes.rows.length === 0) throw new Error("Report not found");
+
+  const existsRes = await pg.query(
+    `select * from object_attachments
+     where report_id = $1::uuid and user_id = $2::uuid and key = $3::text
+     limit 1`,
+    [params.reportId, params.userId, params.key],
+  );
+  if (existsRes.rows.length > 0) {
+    return rowToAttachment(existsRes.rows[0]);
+  }
+
+  const limitsRes = await pg.query(
+    `select
+        count(*)::int as cnt,
+        sum(case when kind = 'audio' then 1 else 0 end)::int as audio_cnt
+     from object_attachments
+     where report_id = $1::uuid and user_id = $2::uuid`,
+    [params.reportId, params.userId],
+  );
+
+  const cnt = Number(limitsRes.rows?.[0]?.cnt ?? 0) || 0;
+  const audioCnt = Number(limitsRes.rows?.[0]?.audio_cnt ?? 0) || 0;
+
+  if (cnt >= MAX_ATTACHMENTS_PER_REPORT) {
+    throw new Error("ATTACHMENT_LIMIT_EXCEEDED");
+  }
+  if (params.kind === "audio" && audioCnt >= MAX_AUDIO_ATTACHMENTS_PER_REPORT) {
+    throw new Error("AUDIO_LIMIT_EXCEEDED");
+  }
 
   const oRes = await pg.query(
     `select key, size_bytes from storage_objects where user_id = $1::uuid and key = $2::text and deleted_at is null`,
