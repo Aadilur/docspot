@@ -67,6 +67,8 @@ export function registerReminderRoutes(params: {
     return tz;
   }
 
+  // Best-effort adopt client's timezone when we see it for the first time, to improve out-of-box experience of reminders. We only do this when user's current timezone is still UTC (the default), to avoid overwriting user's explicit choice.
+
   async function bestEffortAdoptClientTimezone(req: any, userId: string) {
     const clientTz = normalizeClientTimezone(
       req?.header?.("X-Client-Timezone"),
