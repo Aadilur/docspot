@@ -20,6 +20,14 @@ export async function apiFetch<T>(
 ): Promise<T> {
   const method = (init?.method ?? "GET").toUpperCase();
 
+  let clientTimezone: string | null = null;
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (typeof tz === "string" && tz.trim()) clientTimezone = tz.trim();
+  } catch {
+    clientTimezone = null;
+  }
+
   // Build URL and aggressively bypass caches.
   // - `cache: "no-store"` disables the browser HTTP cache for this request.
   // - Cache-busting query param helps bypass intermediary caches/CDNs.
@@ -46,6 +54,7 @@ export async function apiFetch<T>(
       "Cache-Control": "no-store, no-cache, max-age=0",
       Pragma: "no-cache",
       Expires: "0",
+      ...(clientTimezone ? { "X-Client-Timezone": clientTimezone } : {}),
       ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
       ...(init?.headers ?? {}),
     },

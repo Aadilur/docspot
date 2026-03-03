@@ -122,13 +122,31 @@ export default function PricingSection() {
               <div className="flex items-start gap-3">
                 <Check className="h-4 w-4 flex-shrink-0 text-brand-600 dark:text-brand-400 mt-0.5" />
                 <span className="text-sm text-zinc-700 dark:text-zinc-200">
-                  {t("pricingFreeMedical")}
+                  {t("pricingFreeFileSize")}
                 </span>
               </div>
               <div className="flex items-start gap-3">
                 <Check className="h-4 w-4 flex-shrink-0 text-brand-600 dark:text-brand-400 mt-0.5" />
                 <span className="text-sm text-zinc-700 dark:text-zinc-200">
-                  {t("pricingFreeShare")}
+                  {t("pricingFreePrescriptions")}
+                </span>
+              </div>
+              <div className="flex items-start gap-3">
+                <Check className="h-4 w-4 flex-shrink-0 text-brand-600 dark:text-brand-400 mt-0.5" />
+                <span className="text-sm text-zinc-700 dark:text-zinc-200">
+                  {t("pricingFreeInvoices")}
+                </span>
+              </div>
+              <div className="flex items-start gap-3">
+                <Check className="h-4 w-4 flex-shrink-0 text-brand-600 dark:text-brand-400 mt-0.5" />
+                <span className="text-sm text-zinc-700 dark:text-zinc-200">
+                  {t("pricingFreeObjects")}
+                </span>
+              </div>
+              <div className="flex items-start gap-3">
+                <Check className="h-4 w-4 flex-shrink-0 text-brand-600 dark:text-brand-400 mt-0.5" />
+                <span className="text-sm text-zinc-700 dark:text-zinc-200">
+                  {t("pricingFreeShareLimit")}
                 </span>
               </div>
               <div className="flex items-start gap-3">
@@ -228,7 +246,37 @@ export default function PricingSection() {
               <div className="flex items-start gap-3">
                 <Check className="h-4 w-4 flex-shrink-0 text-brand-600 dark:text-brand-400 mt-0.5" />
                 <span className="text-sm text-zinc-700 dark:text-zinc-200">
-                  {t("pricingProMedical")}
+                  {t("pricingProFileSize")}
+                </span>
+              </div>
+              <div className="flex items-start gap-3">
+                <Check className="h-4 w-4 flex-shrink-0 text-brand-600 dark:text-brand-400 mt-0.5" />
+                <span className="text-sm text-zinc-700 dark:text-zinc-200">
+                  {t("pricingProPrescriptions")}
+                </span>
+              </div>
+              <div className="flex items-start gap-3">
+                <Check className="h-4 w-4 flex-shrink-0 text-brand-600 dark:text-brand-400 mt-0.5" />
+                <span className="text-sm text-zinc-700 dark:text-zinc-200">
+                  {t("pricingProInvoices")}
+                </span>
+              </div>
+              <div className="flex items-start gap-3">
+                <Check className="h-4 w-4 flex-shrink-0 text-brand-600 dark:text-brand-400 mt-0.5" />
+                <span className="text-sm text-zinc-700 dark:text-zinc-200">
+                  {t("pricingProObjects")}
+                </span>
+              </div>
+              <div className="flex items-start gap-3">
+                <Check className="h-4 w-4 flex-shrink-0 text-brand-600 dark:text-brand-400 mt-0.5" />
+                <span className="text-sm text-zinc-700 dark:text-zinc-200">
+                  {t("pricingProShareLimit")}
+                </span>
+              </div>
+              <div className="flex items-start gap-3">
+                <Check className="h-4 w-4 flex-shrink-0 text-brand-600 dark:text-brand-400 mt-0.5" />
+                <span className="text-sm text-zinc-700 dark:text-zinc-200">
+                  {t("pricingProCaregivers")}
                 </span>
               </div>
               <div className="flex items-start gap-3">
@@ -240,37 +288,26 @@ export default function PricingSection() {
               <div className="flex items-start gap-3">
                 <Check className="h-4 w-4 flex-shrink-0 text-brand-600 dark:text-brand-400 mt-0.5" />
                 <span className="text-sm text-zinc-700 dark:text-zinc-200">
-                  {t("pricingProAdvanced")}
-                </span>
-              </div>
-              <div className="flex items-start gap-3">
-                <Check className="h-4 w-4 flex-shrink-0 text-brand-600 dark:text-brand-400 mt-0.5" />
-                <span className="text-sm text-zinc-700 dark:text-zinc-200">
                   {t("pricingProSupport")}
-                </span>
-              </div>
-              <div className="flex items-start gap-3">
-                <Check className="h-4 w-4 flex-shrink-0 text-brand-600 dark:text-brand-400 mt-0.5" />
-                <span className="text-sm text-zinc-700 dark:text-zinc-200">
-                  {t("pricingProVersions")}
                 </span>
               </div>
             </div>
 
-            {user ? (
+            {user && isProTier ? (
               <Link
-                to="/pricing"
+                to="/profile"
                 className="mt-6 inline-flex items-center justify-center rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-300 dark:focus:ring-brand-900"
               >
-                {isProTier ? t("pricingManage") : t("pricingUpgrade")}
+                {t("pricingManage")}
               </Link>
             ) : (
               <button
-                onClick={() => setAuthModalOpen(true)}
-                disabled={busy}
-                className="mt-6 inline-flex items-center justify-center rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-300 disabled:opacity-50 dark:focus:ring-brand-900"
+                type="button"
+                disabled
+                title={t("pricingComingSoonHint")}
+                className="mt-6 inline-flex items-center justify-center rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm opacity-60"
               >
-                {busy ? t("loading") : t("pricingUpgrade")}
+                {t("pricingComingSoonCta")}
               </button>
             )}
           </div>

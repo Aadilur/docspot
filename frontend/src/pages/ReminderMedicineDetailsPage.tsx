@@ -23,6 +23,8 @@ import {
   listMedicineActivityLogs,
   listMedicineHistory,
   listSchedules,
+  markIntakeSkipped,
+  markIntakeTaken,
   updateMedicine,
   type IntakeEventRecord,
   type MedicineActivityLog,
@@ -175,6 +177,22 @@ export default function ReminderMedicineDetailsPage() {
 
   const [editOpen, setEditOpen] = useState(false);
   const [editBusy, setEditBusy] = useState(false);
+
+  const [intakeBusyById, setIntakeBusyById] = useState<Record<string, boolean>>(
+    {},
+  );
+
+  async function refreshCore() {
+    if (!canUse || !medicineId) return;
+    const [med, up, today] = await Promise.all([
+      getMedicineById(medicineId, patientId),
+      getMedicineUpcoming({ medicineId, daysAhead: 7, limit: 50, patientId }),
+      getTodayTimeline({ patientId }),
+    ]);
+    setMedicine(med);
+    setUpcoming(up);
+    setTodayTimeline(today as any);
+  }
 
   const [draftName, setDraftName] = useState("");
   const [draftDosePerIntake, setDraftDosePerIntake] = useState<string>("");
@@ -338,6 +356,34 @@ export default function ReminderMedicineDetailsPage() {
       cancelled = true;
     };
   }, [canUse, medicineId, patientId]);
+
+  async function onMarkTaken(id: string) {
+    if (!canUse) return;
+    setIntakeBusyById((p) => ({ ...p, [id]: true }));
+    setError(null);
+    try {
+      await markIntakeTaken(id, patientId);
+      await refreshCore();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setIntakeBusyById((p) => ({ ...p, [id]: false }));
+    }
+  }
+
+  async function onMarkSkipped(id: string) {
+    if (!canUse) return;
+    setIntakeBusyById((p) => ({ ...p, [id]: true }));
+    setError(null);
+    try {
+      await markIntakeSkipped({ intakeEventId: id, reason: "", patientId });
+      await refreshCore();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setIntakeBusyById((p) => ({ ...p, [id]: false }));
+    }
+  }
 
   useEffect(() => {
     if (!logsOpen) return;
@@ -737,6 +783,27 @@ export default function ReminderMedicineDetailsPage() {
                     </div>
                     <div className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
                       {formatLocalDate(derived.nextDose.datetimeUtc)}
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void onMarkTaken(derived.nextDose!.id)}
+                        disabled={!!intakeBusyById[derived.nextDose.id]}
+                        className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                      >
+                        <Check className="h-4 w-4" aria-hidden="true" />
+                        {t("Taken")}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void onMarkSkipped(derived.nextDose!.id)}
+                        disabled={!!intakeBusyById[derived.nextDose.id]}
+                        className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 disabled:opacity-60 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900"
+                      >
+                        <X className="h-4 w-4" aria-hidden="true" />
+                        {t("Skip")}
+                      </button>
                     </div>
                   </div>
                 ) : (

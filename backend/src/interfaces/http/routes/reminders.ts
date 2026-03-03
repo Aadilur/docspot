@@ -45,10 +45,52 @@ export function registerReminderRoutes(params: {
     ATTACHMENT_URL_EXPIRES_SECONDS,
   } = params;
 
+  async function bestEffortGenerateUpcoming(params: {
+    userId: string;
+    daysAhead: number;
+  }): Promise<void> {
+    await remindersDb
+      .generateUpcomingIntakeEventsForUser({
+        userId: params.userId,
+        daysAhead: params.daysAhead,
+      })
+      .catch(() => {
+        // ignore
+      });
+  }
+
+  function normalizeClientTimezone(value: unknown): string | null {
+    const tz = typeof value === "string" ? value.trim() : "";
+    if (!tz) return null;
+    const dt = DateTime.utc().setZone(tz);
+    if (!dt.isValid) return null;
+    return tz;
+  }
+
+  async function bestEffortAdoptClientTimezone(req: any, userId: string) {
+    const clientTz = normalizeClientTimezone(
+      req?.header?.("X-Client-Timezone"),
+    );
+    if (!clientTz || clientTz === "UTC") return;
+
+    try {
+      const settings = await remindersDb.getReminderSettings(userId);
+      // Only adopt automatically when the user is still on default timezone.
+      if (settings.timezone !== "UTC") return;
+      await remindersDb.patchReminderSettings({
+        userId,
+        patch: { timezone: clientTz },
+      });
+    } catch {
+      // ignore
+    }
+  }
+
   // Reminder settings (timezone + notification offset + grace period).
   router.get("/me/reminder-settings", requireFirebaseAuth, async (req, res) => {
     try {
       const me = await ensureMe(req);
+      await bestEffortAdoptClientTimezone(req, me.id);
       const settings = await remindersDb.getReminderSettings(me.id);
       res.json({ ok: true, settings });
     } catch (err) {
@@ -260,6 +302,7 @@ export function registerReminderRoutes(params: {
     async (req, res) => {
       try {
         const me = await ensureMe(req);
+        await bestEffortAdoptClientTimezone(req, me.id);
 
         const medicine = await remindersDb.getMedicine({
           userId: me.id,
@@ -288,6 +331,8 @@ export function registerReminderRoutes(params: {
           badRequest(res, "could not determine date range");
           return;
         }
+
+        await bestEffortGenerateUpcoming({ userId: me.id, daysAhead });
 
         const items = await remindersDb.listUpcomingIntakeEventsForMedicine({
           userId: me.id,
@@ -570,6 +615,7 @@ export function registerReminderRoutes(params: {
     async (req, res) => {
       try {
         const me = await ensureMe(req);
+        await bestEffortAdoptClientTimezone(req, me.id);
         // Optional override: ?date=YYYY-MM-DD (in user's timezone)
         const date = getQueryString(req.query?.date);
 
@@ -585,10 +631,18 @@ export function registerReminderRoutes(params: {
           return;
         }
 
-        const items = await remindersDb.getTimelineForLocalDate({
+        let items = await remindersDb.getTimelineForLocalDate({
           userId: me.id,
           localDate,
         });
+
+        if (items.length === 0 && !date) {
+          await bestEffortGenerateUpcoming({ userId: me.id, daysAhead: 7 });
+          items = await remindersDb.getTimelineForLocalDate({
+            userId: me.id,
+            localDate,
+          });
+        }
         res.json({ ok: true, items });
       } catch (err) {
         badRequest(res, toErrorMessage(err));
@@ -602,6 +656,7 @@ export function registerReminderRoutes(params: {
     async (req, res) => {
       try {
         const me = await ensureMe(req);
+        await bestEffortAdoptClientTimezone(req, me.id);
 
         const daysAhead = parseBoundedInt(
           getQueryString(req.query?.daysAhead),
@@ -621,6 +676,8 @@ export function registerReminderRoutes(params: {
           badRequest(res, "could not determine date range");
           return;
         }
+
+        await bestEffortGenerateUpcoming({ userId: me.id, daysAhead });
 
         const items = await remindersDb.listUpcomingIntakeEvents({
           userId: me.id,
@@ -671,6 +728,8 @@ export function registerReminderRoutes(params: {
           badRequest(res, "could not determine date range");
           return;
         }
+
+        await bestEffortGenerateUpcoming({ userId: patientId, daysAhead });
 
         const items = await remindersDb.listUpcomingIntakeEvents({
           userId: patientId,
@@ -1351,6 +1410,8 @@ export function registerReminderRoutes(params: {
           return;
         }
 
+        await bestEffortGenerateUpcoming({ userId: patientId, daysAhead });
+
         const items = await remindersDb.listUpcomingIntakeEventsForMedicine({
           userId: patientId,
           medicineId: req.params.id,
@@ -1512,10 +1573,18 @@ export function registerReminderRoutes(params: {
           return;
         }
 
-        const items = await remindersDb.getTimelineForLocalDate({
+        let items = await remindersDb.getTimelineForLocalDate({
           userId: patientId,
           localDate,
         });
+
+        if (items.length === 0 && !date) {
+          await bestEffortGenerateUpcoming({ userId: patientId, daysAhead: 7 });
+          items = await remindersDb.getTimelineForLocalDate({
+            userId: patientId,
+            localDate,
+          });
+        }
 
         res.json({ ok: true, items });
       } catch (err) {
