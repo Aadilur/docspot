@@ -37,180 +37,90 @@ type CmsBanner = {
   updatedAt: string;
 };
 
-function ProductMockImage({
+function UnsplashImageCard({
+  imageUrl,
+  imageAlt,
+  eyebrow,
   title,
-  subtitle,
+  description,
+  bullets,
+  to,
+  actionLabel,
+  Icon,
+  badge,
 }: {
+  imageUrl: string;
+  imageAlt: string;
+  eyebrow: string;
   title: string;
-  subtitle: string;
+  description: string;
+  bullets: string[];
+  to: string;
+  actionLabel: string;
+  Icon: React.ComponentType<{ className?: string }>;
+  badge?: string;
 }) {
-  const { t } = useTranslation();
-
   return (
-    <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-100/70 via-white to-white shadow-sm ring-1 ring-zinc-200/70 transition-transform duration-300 ease-out hover:-translate-y-0.5 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:from-brand-500/10 dark:via-zinc-950 dark:to-zinc-950 dark:ring-zinc-800/70">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(0,0,0,0.05),transparent_55%)] dark:bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.06),transparent_55%)]" />
+    <Link
+      to={to}
+      className="group overflow-hidden rounded-3xl border border-zinc-200/70 bg-white/80 shadow-sm backdrop-blur-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:border-zinc-800/70 dark:bg-zinc-950/60 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
+      aria-label={title}
+    >
+      <div className="relative">
+        <div className="aspect-[16/10] w-full overflow-hidden bg-zinc-100 dark:bg-zinc-900">
+          <img
+            src={imageUrl}
+            alt={imageAlt}
+            className="h-full w-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.02] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+            loading="lazy"
+            referrerPolicy="no-referrer"
+          />
+        </div>
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 bg-gradient-to-t from-zinc-950/45 via-zinc-950/10 to-transparent dark:from-black/55"
+        />
 
-      <div className="relative p-5 sm:p-6">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-              {title}
-            </div>
-            <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-300">
-              {subtitle}
-            </div>
-          </div>
-          <div className="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-zinc-700 ring-1 ring-zinc-200/70 backdrop-blur dark:bg-zinc-950/40 dark:text-zinc-200 dark:ring-zinc-800/70">
-            <span className="h-1.5 w-1.5 rounded-full bg-brand-600 dark:bg-brand-400" />
-            {t("demoTag", { defaultValue: "Demo" })}
-          </div>
+        <div className="absolute left-4 top-4 flex items-center gap-2">
+          <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold text-white backdrop-blur">
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/15 ring-1 ring-white/20">
+              <Icon className="h-4 w-4" />
+            </span>
+            {eyebrow}
+          </span>
+          {badge ? (
+            <span className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold text-white backdrop-blur">
+              {badge}
+            </span>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="p-5">
+        <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+          {title}
+        </div>
+        <div className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
+          {description}
         </div>
 
-        <svg
-          viewBox="0 0 640 360"
-          className="mt-5 h-auto w-full"
-          role="img"
-          aria-label={title}
-        >
-          <rect
-            x="0"
-            y="0"
-            width="640"
-            height="360"
-            rx="22"
-            className="fill-white/60 stroke-zinc-200/80 dark:fill-zinc-950/30 dark:stroke-zinc-800/80"
-          />
+        <ul className="mt-4 grid gap-2 text-sm text-zinc-600 dark:text-zinc-300">
+          {bullets.slice(0, 3).map((b) => (
+            <li key={b} className="flex items-start gap-2">
+              <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-brand-600/10 text-brand-700 ring-1 ring-brand-500/20 dark:bg-brand-400/10 dark:text-brand-300 dark:ring-brand-400/20">
+                <Check className="h-4 w-4" aria-hidden="true" />
+              </span>
+              <span className="min-w-0">{b}</span>
+            </li>
+          ))}
+        </ul>
 
-          <rect
-            x="24"
-            y="24"
-            width="180"
-            height="26"
-            rx="10"
-            className="fill-zinc-100 stroke-zinc-200 dark:fill-zinc-900/60 dark:stroke-zinc-800"
-          />
-          <rect
-            x="222"
-            y="24"
-            width="110"
-            height="26"
-            rx="10"
-            className="fill-brand-600/10 stroke-brand-500/20 dark:fill-brand-400/10 dark:stroke-brand-400/20"
-          />
-          <rect
-            x="352"
-            y="24"
-            width="110"
-            height="26"
-            rx="10"
-            className="fill-zinc-100 stroke-zinc-200 dark:fill-zinc-900/60 dark:stroke-zinc-800"
-          />
-
-          <rect
-            x="24"
-            y="72"
-            width="592"
-            height="88"
-            rx="18"
-            className="fill-white stroke-zinc-200/80 dark:fill-zinc-950/40 dark:stroke-zinc-800/80"
-          />
-          <rect
-            x="44"
-            y="92"
-            width="220"
-            height="14"
-            rx="7"
-            className="fill-zinc-200 dark:fill-zinc-800"
-          />
-          <rect
-            x="44"
-            y="116"
-            width="320"
-            height="14"
-            rx="7"
-            className="fill-zinc-100 dark:fill-zinc-900"
-          />
-          <rect
-            x="468"
-            y="94"
-            width="128"
-            height="44"
-            rx="14"
-            className="fill-brand-600/10 stroke-brand-500/20 dark:fill-brand-400/10 dark:stroke-brand-400/20"
-          />
-
-          <rect
-            x="24"
-            y="178"
-            width="286"
-            height="158"
-            rx="18"
-            className="fill-white stroke-zinc-200/80 dark:fill-zinc-950/40 dark:stroke-zinc-800/80"
-          />
-          <rect
-            x="44"
-            y="198"
-            width="166"
-            height="14"
-            rx="7"
-            className="fill-zinc-200 dark:fill-zinc-800"
-          />
-          <rect
-            x="44"
-            y="222"
-            width="230"
-            height="14"
-            rx="7"
-            className="fill-zinc-100 dark:fill-zinc-900"
-          />
-          <rect
-            x="44"
-            y="258"
-            width="240"
-            height="58"
-            rx="14"
-            className="fill-zinc-50 stroke-zinc-200/70 dark:fill-zinc-950/30 dark:stroke-zinc-800/70"
-          />
-
-          <rect
-            x="330"
-            y="178"
-            width="286"
-            height="158"
-            rx="18"
-            className="fill-white stroke-zinc-200/80 dark:fill-zinc-950/40 dark:stroke-zinc-800/80"
-          />
-          <rect
-            x="350"
-            y="198"
-            width="166"
-            height="14"
-            rx="7"
-            className="fill-zinc-200 dark:fill-zinc-800"
-          />
-          <rect
-            x="350"
-            y="222"
-            width="230"
-            height="14"
-            rx="7"
-            className="fill-zinc-100 dark:fill-zinc-900"
-          />
-          <circle
-            cx="574"
-            cy="267"
-            r="34"
-            className="fill-brand-600/15 dark:fill-brand-400/15"
-          />
-          <path
-            d="M560 268l10 10 20-26"
-            className="fill-none stroke-brand-700 stroke-[10] dark:stroke-brand-300"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
+        <div className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-brand-700 group-hover:underline dark:text-brand-300">
+          {actionLabel}
+          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        </div>
       </div>
-    </div>
+    </Link>
   );
 }
 
@@ -378,7 +288,7 @@ export default function LandingPage() {
                         className="absolute inset-0 bg-gradient-to-t from-zinc-950/35 via-zinc-950/0 to-transparent dark:from-black/55"
                       />
 
-                      {/* {(banner.title || banner.subtitle) && (
+                      {(banner.title || banner.subtitle) && (
                         <div className="absolute inset-x-0 bottom-0 p-4">
                           {banner.title && (
                             <div className="text-sm font-semibold text-white">
@@ -386,12 +296,12 @@ export default function LandingPage() {
                             </div>
                           )}
                           {banner.subtitle && (
-                            <div className="mt-1 text-xs text-white/85">
+                            <div className="mt-1 text-xs font-semibold text-white/85">
                               {banner.subtitle}
                             </div>
                           )}
                         </div>
-                      )} */}
+                      )}
                     </div>
                   </div>
                 </Wrapper>
@@ -424,6 +334,28 @@ export default function LandingPage() {
               <p className="mt-3 max-w-2xl text-pretty text-zinc-600 dark:text-zinc-300">
                 {t("subtitle")}
               </p>
+
+              <div className="mt-4 grid gap-2 rounded-2xl border border-zinc-200/70 bg-white/70 p-4 text-sm text-zinc-700 shadow-sm backdrop-blur-sm dark:border-zinc-800/70 dark:bg-zinc-950/40 dark:text-zinc-200">
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand-600/10 text-brand-700 ring-1 ring-brand-500/20 dark:bg-brand-400/10 dark:text-brand-300 dark:ring-brand-400/20">
+                    <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                      {t("heroProofTitle", {
+                        defaultValue:
+                          "Everything you store stays private by default.",
+                      })}
+                    </div>
+                    <div className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-300">
+                      {t("heroProofBody", {
+                        defaultValue:
+                          "Prescriptions, invoices, and other docs — organized and easy to find when you need them.",
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
 
               <div className="mt-5 flex flex-wrap gap-2">
                 <span className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white/80 px-3 py-1 text-xs font-semibold text-zinc-800 shadow-sm backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/50 dark:text-zinc-100">
@@ -462,10 +394,146 @@ export default function LandingPage() {
             </div>
 
             <div className="md:pl-2">
-              <ProductMockImage
-                title={t("demoPreviewTitle") as any}
-                subtitle={t("demoPreviewBody") as any}
-              />
+              <div className="overflow-hidden rounded-3xl border border-zinc-200/70 bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-zinc-800/70 dark:bg-zinc-950/40 sm:p-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                      {t("heroQuickStartTitle", {
+                        defaultValue: "Start with one thing",
+                      })}
+                    </div>
+                    <div className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
+                      {t("heroQuickStartBody", {
+                        defaultValue:
+                          "Pick a service — DocSpot keeps everything private and organized.",
+                      })}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setGetStartedOpen(true)}
+                    className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-300 motion-reduce:transition-none dark:focus:ring-brand-900"
+                  >
+                    {t("ctaPrimary")}
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                </div>
+
+                <div className="mt-5 grid grid-cols-2 gap-3">
+                  <Link
+                    to="/prescription"
+                    className="group rounded-2xl border border-zinc-200 bg-white/70 p-4 shadow-sm transition-colors hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none dark:border-zinc-800 dark:bg-zinc-950/40 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
+                    aria-label={t("servicePrescriptionTitle")}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600/10 text-brand-700 ring-1 ring-brand-500/20 dark:bg-brand-400/10 dark:text-brand-300 dark:ring-brand-400/20">
+                        <Pill className="h-5 w-5" aria-hidden="true" />
+                      </div>
+                      {canUseCounts ? (
+                        <span className="rounded-full border border-zinc-200 bg-white px-2 py-1 text-[11px] font-semibold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200">
+                          {serviceCountsLoading
+                            ? t("Loading...", "Loading...")
+                            : formatCountLabel("prescriptions")}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="mt-3 text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                      {t("servicePrescriptionTitle")}
+                    </div>
+                    <div className="mt-1 text-xs font-semibold text-zinc-600 dark:text-zinc-300">
+                      {t("heroQuickPrescription", {
+                        defaultValue: "Store prescriptions",
+                      })}
+                    </div>
+                  </Link>
+
+                  <Link
+                    to="/invoice"
+                    className="group rounded-2xl border border-zinc-200 bg-white/70 p-4 shadow-sm transition-colors hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none dark:border-zinc-800 dark:bg-zinc-950/40 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
+                    aria-label={t("serviceDocumentTitle")}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600/10 text-brand-700 ring-1 ring-brand-500/20 dark:bg-brand-400/10 dark:text-brand-300 dark:ring-brand-400/20">
+                        <Receipt className="h-5 w-5" aria-hidden="true" />
+                      </div>
+                      {canUseCounts ? (
+                        <span className="rounded-full border border-zinc-200 bg-white px-2 py-1 text-[11px] font-semibold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200">
+                          {serviceCountsLoading
+                            ? t("Loading...", "Loading...")
+                            : formatCountLabel("invoices")}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="mt-3 text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                      {t("serviceDocumentTitle")}
+                    </div>
+                    <div className="mt-1 text-xs font-semibold text-zinc-600 dark:text-zinc-300">
+                      {t("heroQuickInvoices", {
+                        defaultValue: "Keep receipts & bills",
+                      })}
+                    </div>
+                  </Link>
+
+                  <Link
+                    to="/other-doc"
+                    className="group rounded-2xl border border-zinc-200 bg-white/70 p-4 shadow-sm transition-colors hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none dark:border-zinc-800 dark:bg-zinc-950/40 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
+                    aria-label={t("serviceOtherTitle")}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600/10 text-brand-700 ring-1 ring-brand-500/20 dark:bg-brand-400/10 dark:text-brand-300 dark:ring-brand-400/20">
+                        <FileText className="h-5 w-5" aria-hidden="true" />
+                      </div>
+                      {canUseCounts ? (
+                        <span className="rounded-full border border-zinc-200 bg-white px-2 py-1 text-[11px] font-semibold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200">
+                          {serviceCountsLoading
+                            ? t("Loading...", "Loading...")
+                            : formatCountLabel("otherDocs")}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="mt-3 text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                      {t("serviceOtherTitle")}
+                    </div>
+                    <div className="mt-1 text-xs font-semibold text-zinc-600 dark:text-zinc-300">
+                      {t("heroQuickOther", {
+                        defaultValue: "Store any document",
+                      })}
+                    </div>
+                  </Link>
+
+                  <Link
+                    to="/reminder"
+                    className="group rounded-2xl border border-zinc-200 bg-white/70 p-4 shadow-sm transition-colors hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none dark:border-zinc-800 dark:bg-zinc-950/40 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
+                    aria-label={t("serviceReminderTitle") as any}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600/10 text-brand-700 ring-1 ring-brand-500/20 dark:bg-brand-400/10 dark:text-brand-300 dark:ring-brand-400/20">
+                        <BellRing className="h-5 w-5" aria-hidden="true" />
+                      </div>
+                      {canUseCounts ? (
+                        <span className="rounded-full border border-zinc-200 bg-white px-2 py-1 text-[11px] font-semibold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200">
+                          {serviceCountsLoading
+                            ? t("Loading...", "Loading...")
+                            : formatCountLabel("reminders")}
+                        </span>
+                      ) : (
+                        <span className="rounded-full border border-zinc-200 bg-white px-2 py-1 text-[11px] font-semibold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200">
+                          {t("availableNow")}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-3 text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                      {t("serviceReminderTitle")}
+                    </div>
+                    <div className="mt-1 text-xs font-semibold text-zinc-600 dark:text-zinc-300">
+                      {t("heroQuickReminders", {
+                        defaultValue: "Medication reminders",
+                      })}
+                    </div>
+                  </Link>
+                </div>
+              </div>
 
               <div className="mt-4 flex flex-wrap items-center gap-2 text-xs font-semibold text-zinc-700 dark:text-zinc-200">
                 <span className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white/70 px-3 py-1 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/40">
@@ -491,6 +559,178 @@ export default function LandingPage() {
                 </span>
               </div>
             </div>
+          </div>
+        </section>
+
+        <section id="at-a-glance" className="mt-10 scroll-mt-24">
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+                {t("atAGlanceTitle", {
+                  defaultValue: "What you can do in DocSpot",
+                })}
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm text-zinc-600 dark:text-zinc-300">
+                {t("atAGlanceBody", {
+                  defaultValue:
+                    "Four focused tools — each one designed to be fast, calm, and easy for families.",
+                })}
+              </p>
+            </div>
+
+            <a
+              href="#services"
+              className="hidden rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 shadow-sm transition-colors hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900 dark:focus:ring-brand-900 sm:inline-flex"
+            >
+              {t("seeAllServices", { defaultValue: "See all services" })}
+            </a>
+          </div>
+
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            <UnsplashImageCard
+              to="/prescription"
+              Icon={Pill}
+              eyebrow={t("servicePrescriptionTitle") as any}
+              title={t("prescriptionShowcaseTitle", {
+                defaultValue: "Prescriptions, organized",
+              })}
+              description={t("prescriptionShowcaseBody", {
+                defaultValue:
+                  "Group prescriptions by person, keep them searchable, and share only when needed.",
+              })}
+              bullets={[
+                t("prescriptionShowcaseB1", {
+                  defaultValue: "Create groups for each family member",
+                }) as any,
+                t("prescriptionShowcaseB2", {
+                  defaultValue: "Attach scans/photos and notes",
+                }) as any,
+                t("prescriptionShowcaseB3", {
+                  defaultValue: "Quick access during appointments",
+                }) as any,
+              ]}
+              actionLabel={t("openPrescriptions", {
+                defaultValue: "Open prescriptions",
+              })}
+              imageAlt={
+                t("prescriptionImageAlt", {
+                  defaultValue: "Medicine and prescription documents",
+                }) as any
+              }
+              imageUrl="https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=1200&q=70"
+            />
+
+            <UnsplashImageCard
+              to="/invoice"
+              Icon={Receipt}
+              eyebrow={t("serviceDocumentTitle") as any}
+              title={t("invoiceShowcaseTitle", {
+                defaultValue: "Invoices you can actually find",
+              })}
+              description={t("invoiceShowcaseBody", {
+                defaultValue:
+                  "Store bills and receipts with clean grouping — helpful for claims, taxes, and reimbursements.",
+              })}
+              bullets={[
+                t("invoiceShowcaseB1", {
+                  defaultValue: "Upload and label invoices fast",
+                }) as any,
+                t("invoiceShowcaseB2", {
+                  defaultValue: "Keep everything grouped and tidy",
+                }) as any,
+                t("invoiceShowcaseB3", {
+                  defaultValue: "Share a group with a secure link",
+                }) as any,
+              ]}
+              actionLabel={t("openInvoices", { defaultValue: "Open invoices" })}
+              imageAlt={
+                t("invoiceImageAlt", {
+                  defaultValue: "Receipts and paperwork on a desk",
+                }) as any
+              }
+              imageUrl="https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?auto=format&fit=crop&w=1200&q=70"
+            />
+
+            <UnsplashImageCard
+              to="/other-doc"
+              Icon={FileText}
+              eyebrow={t("serviceOtherTitle") as any}
+              title={t("otherDocShowcaseTitle", {
+                defaultValue: "All other documents, too",
+              })}
+              description={t("otherDocShowcaseBody", {
+                defaultValue:
+                  "Lab reports, ID scans, referrals — store the documents that don’t fit a template.",
+              })}
+              bullets={[
+                t("otherDocShowcaseB1", {
+                  defaultValue: "Works for any document type",
+                }) as any,
+                t("otherDocShowcaseB2", {
+                  defaultValue: "Simple grouping and naming",
+                }) as any,
+                t("otherDocShowcaseB3", {
+                  defaultValue: "Keep everything in one vault",
+                }) as any,
+              ]}
+              actionLabel={t("openOtherDocs", {
+                defaultValue: "Open other docs",
+              })}
+              imageAlt={
+                t("otherDocsImageAlt", {
+                  defaultValue: "Documents and folders",
+                }) as any
+              }
+              imageUrl="https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&w=1200&q=70"
+            />
+
+            <UnsplashImageCard
+              to="/reminder"
+              Icon={BellRing}
+              eyebrow={t("serviceReminderTitle") as any}
+              badge={t("availableNow") as any}
+              title={t("reminderShowcaseTitle", {
+                defaultValue: "Medication reminders that feel calm",
+              })}
+              description={t("reminderShowcaseBody", {
+                defaultValue:
+                  "Set schedules and track medicines without noisy complexity — built for real life.",
+              })}
+              bullets={[
+                t("reminderShowcaseB1", {
+                  defaultValue: "Set schedules in minutes",
+                }) as any,
+                t("reminderShowcaseB2", {
+                  defaultValue: "See what’s due at a glance",
+                }) as any,
+                t("reminderShowcaseB3", {
+                  defaultValue: "Designed for caregivers",
+                }) as any,
+              ]}
+              actionLabel={t("openReminders", {
+                defaultValue: "Open reminders",
+              })}
+              imageAlt={
+                t("reminderImageAlt", {
+                  defaultValue: "Notification and schedule concept",
+                }) as any
+              }
+              imageUrl="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=1200&q=70"
+            />
+          </div>
+
+          <div className="mt-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+            {t("imagesFootnote", {
+              defaultValue: "Images are from Unsplash (free-to-use).",
+            })}{" "}
+            <a
+              className="underline underline-offset-2 hover:text-zinc-700 dark:hover:text-zinc-200"
+              href="https://unsplash.com"
+              target="_blank"
+              rel="noreferrer"
+            >
+              {t("unsplashLink", { defaultValue: "unsplash.com" })}
+            </a>
           </div>
         </section>
 
@@ -556,10 +796,97 @@ export default function LandingPage() {
               </div>
 
               <div className="md:pl-2">
-                <ProductMockImage
-                  title={t("reminderPreviewTitle") as any}
-                  subtitle={t("reminderPreviewBody") as any}
-                />
+                <div className="overflow-hidden rounded-3xl border border-zinc-200/70 bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-zinc-800/70 dark:bg-zinc-950/40 sm:p-6">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                        {t("reminderExampleTitle", {
+                          defaultValue: "Example schedule",
+                        })}
+                      </div>
+                      <div className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
+                        {t("reminderExampleBody", {
+                          defaultValue:
+                            "Set times, then mark doses taken — simple for caregivers.",
+                        })}
+                      </div>
+                    </div>
+
+                    <span className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-semibold text-zinc-800 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100">
+                      <span className="h-1.5 w-1.5 rounded-full bg-brand-600 dark:bg-brand-400" />
+                      {t("availableNow")}
+                    </span>
+                  </div>
+
+                  <div className="mt-5 grid gap-3">
+                    {[
+                      {
+                        time: t("reminderExampleT1", {
+                          defaultValue: "08:00",
+                        }),
+                        title: t("reminderExampleM1", {
+                          defaultValue: "Vitamin D",
+                        }),
+                        note: t("reminderExampleN1", {
+                          defaultValue: "1 tablet",
+                        }),
+                      },
+                      {
+                        time: t("reminderExampleT2", {
+                          defaultValue: "13:00",
+                        }),
+                        title: t("reminderExampleM2", {
+                          defaultValue: "Antibiotic",
+                        }),
+                        note: t("reminderExampleN2", {
+                          defaultValue: "After lunch",
+                        }),
+                      },
+                      {
+                        time: t("reminderExampleT3", {
+                          defaultValue: "21:00",
+                        }),
+                        title: t("reminderExampleM3", {
+                          defaultValue: "Blood pressure",
+                        }),
+                        note: t("reminderExampleN3", {
+                          defaultValue: "1 capsule",
+                        }),
+                      },
+                    ].map((item) => (
+                      <div
+                        key={`${item.time}-${item.title}`}
+                        className="flex items-start justify-between gap-4 rounded-2xl border border-zinc-200/70 bg-white/70 p-4 shadow-sm dark:border-zinc-800/70 dark:bg-zinc-950/40"
+                      >
+                        <div className="flex items-start gap-3">
+                          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-600/10 text-brand-700 ring-1 ring-brand-500/20 dark:bg-brand-400/10 dark:text-brand-300 dark:ring-brand-400/20">
+                            <BellRing className="h-5 w-5" aria-hidden="true" />
+                          </span>
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                              {item.title}
+                            </div>
+                            <div className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-300">
+                              {item.note}
+                            </div>
+                          </div>
+                        </div>
+
+                        <span className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-xs font-semibold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200">
+                          {item.time}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <Link
+                    to="/reminder"
+                    className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-brand-700 hover:underline dark:text-brand-300"
+                  >
+                    {t("reminderLearnMore")}
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  </Link>
+                </div>
               </div>
             </div>
           </div>
