@@ -3,15 +3,20 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
+import AuthRequiredModal from "./AuthRequiredModal";
+
 import { signInWithGoogle } from "../shared/firebase/auth";
 import { useAuthState } from "../shared/firebase/useAuthState";
 import { getMe, type UserRecord } from "../shared/api/users";
 
 export default function PricingSection() {
   const { t } = useTranslation();
-  const { user } = useAuthState();
+  const { configured, loading, user } = useAuthState();
   const [userRecord, setUserRecord] = useState<UserRecord | null>(null);
   const [busy, setBusy] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+
+  const canAuth = configured && !loading;
 
   useEffect(() => {
     let cancelled = false;
@@ -39,6 +44,8 @@ export default function PricingSection() {
     setBusy(true);
     try {
       await signInWithGoogle();
+      // Auth succeeded; immediately sync/load server profile.
+      await getMe();
     } catch (err) {
       console.error("Login failed:", err);
     } finally {
@@ -51,6 +58,21 @@ export default function PricingSection() {
 
   return (
     <section className="py-12 sm:py-16">
+      <AuthRequiredModal
+        open={authModalOpen}
+        busy={busy}
+        canAuth={canAuth}
+        disabledReason={!configured ? t("firebaseNotConfigured") : undefined}
+        onClose={() => {
+          if (busy) return;
+          setAuthModalOpen(false);
+        }}
+        onContinue={async () => {
+          await handleGetStarted();
+          setAuthModalOpen(false);
+        }}
+      />
+
       <div className="mx-auto w-full max-w-5xl px-4 sm:px-5">
         <div className="text-center">
           <p className="text-xs font-semibold uppercase tracking-widest text-brand-700 dark:text-brand-300">
@@ -132,11 +154,11 @@ export default function PricingSection() {
               </Link>
             ) : (
               <button
-                onClick={handleGetStarted}
+                onClick={() => setAuthModalOpen(true)}
                 disabled={busy}
                 className="mt-6 inline-flex items-center justify-center rounded-xl border border-brand-600 bg-transparent px-4 py-2 text-sm font-semibold text-brand-600 hover:bg-brand-600/5 focus:outline-none focus:ring-2 focus:ring-brand-300 disabled:opacity-50 dark:text-brand-300 dark:hover:bg-brand-400/10 dark:focus:ring-brand-900"
               >
-                {busy ? t("loading") : t("login")}
+                {busy ? t("loading") : t("pricingGetStarted")}
               </button>
             )}
           </div>
@@ -244,11 +266,11 @@ export default function PricingSection() {
               </Link>
             ) : (
               <button
-                onClick={handleGetStarted}
+                onClick={() => setAuthModalOpen(true)}
                 disabled={busy}
                 className="mt-6 inline-flex items-center justify-center rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-300 disabled:opacity-50 dark:focus:ring-brand-900"
               >
-                {busy ? t("loading") : t("login")}
+                {busy ? t("loading") : t("pricingUpgrade")}
               </button>
             )}
           </div>

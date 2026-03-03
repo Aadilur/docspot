@@ -9,6 +9,7 @@ import {
   FileText,
   Pill,
   Receipt,
+  Search,
   ShieldCheck,
   Sparkles,
   Users,
@@ -48,6 +49,7 @@ function UnsplashImageCard({
   actionLabel,
   Icon,
   badge,
+  moreLabel,
 }: {
   imageUrl: string;
   imageAlt: string;
@@ -59,14 +61,11 @@ function UnsplashImageCard({
   actionLabel: string;
   Icon: React.ComponentType<{ className?: string }>;
   badge?: string;
+  moreLabel?: string;
 }) {
   return (
-    <Link
-      to={to}
-      className="group overflow-hidden rounded-3xl border border-zinc-200/70 bg-white/80 shadow-sm backdrop-blur-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:border-zinc-800/70 dark:bg-zinc-950/60 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
-      aria-label={title}
-    >
-      <div className="relative">
+    <article className="group overflow-hidden rounded-3xl bg-white/80 shadow-sm backdrop-blur-sm ring-0 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-white motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:bg-zinc-950/60 dark:hover:bg-zinc-950 sm:border sm:border-zinc-200/70 dark:sm:border-zinc-800/70">
+      <Link to={to} className="relative block" aria-label={title}>
         <div className="aspect-[16/10] w-full overflow-hidden bg-zinc-100 dark:bg-zinc-900">
           <img
             src={imageUrl}
@@ -94,18 +93,18 @@ function UnsplashImageCard({
             </span>
           ) : null}
         </div>
-      </div>
+      </Link>
 
       <div className="p-5">
         <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
           {title}
         </div>
-        <div className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
+        <div className="mt-2 text-xs font-semibold leading-relaxed text-zinc-600 dark:text-zinc-300 sm:text-sm sm:font-normal">
           {description}
         </div>
 
-        <ul className="mt-4 grid gap-2 text-sm text-zinc-600 dark:text-zinc-300">
-          {bullets.slice(0, 3).map((b) => (
+        <ul className="mt-4 hidden gap-2 text-sm text-zinc-600 dark:text-zinc-300 sm:grid">
+          {bullets.slice(0, 2).map((b) => (
             <li key={b} className="flex items-start gap-2">
               <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-brand-600/10 text-brand-700 ring-1 ring-brand-500/20 dark:bg-brand-400/10 dark:text-brand-300 dark:ring-brand-400/20">
                 <Check className="h-4 w-4" aria-hidden="true" />
@@ -115,12 +114,31 @@ function UnsplashImageCard({
           ))}
         </ul>
 
-        <div className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-brand-700 group-hover:underline dark:text-brand-300">
+        <details className="mt-4 rounded-2xl bg-white/50 p-3 ring-1 ring-zinc-200/60 dark:bg-zinc-950/30 dark:ring-zinc-800/60 sm:hidden">
+          <summary className="cursor-pointer list-none select-none text-xs font-semibold text-zinc-900 dark:text-zinc-50 [&::-webkit-details-marker]:hidden">
+            {moreLabel ?? "More details"}
+          </summary>
+          <ul className="mt-3 grid gap-2 text-sm text-zinc-600 dark:text-zinc-300">
+            {bullets.slice(0, 3).map((b) => (
+              <li key={b} className="flex items-start gap-2">
+                <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-brand-600/10 text-brand-700 ring-1 ring-brand-500/20 dark:bg-brand-400/10 dark:text-brand-300 dark:ring-brand-400/20">
+                  <Check className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <span className="min-w-0">{b}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
+
+        <Link
+          to={to}
+          className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-brand-700 hover:underline focus:outline-none focus:ring-2 focus:ring-brand-200 dark:text-brand-300 dark:focus:ring-brand-900"
+        >
           {actionLabel}
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
-        </div>
+        </Link>
       </div>
-    </Link>
+    </article>
   );
 }
 
@@ -321,7 +339,7 @@ export default function LandingPage() {
 
         <section
           id="home"
-          className="relative overflow-hidden rounded-3xl border border-zinc-200/70 bg-white/70 p-6 shadow-sm backdrop-blur-sm dark:border-zinc-800/70 dark:bg-zinc-950/30 sm:p-8"
+          className="relative overflow-hidden rounded-3xl bg-white/70 p-6 shadow-sm backdrop-blur-sm ring-0 dark:bg-zinc-950/30 sm:border sm:border-zinc-200/70 sm:ring-1 sm:ring-zinc-200/60 dark:sm:border-zinc-800/70 dark:sm:ring-zinc-800/60 sm:p-8"
         >
           <div className="grid gap-8 md:grid-cols-2 md:items-center">
             <div>
@@ -335,7 +353,7 @@ export default function LandingPage() {
                 {t("subtitle")}
               </p>
 
-              <div className="mt-4 grid gap-2 rounded-2xl border border-zinc-200/70 bg-white/70 p-4 text-sm text-zinc-700 shadow-sm backdrop-blur-sm dark:border-zinc-800/70 dark:bg-zinc-950/40 dark:text-zinc-200">
+              <div className="mt-4 grid gap-2 rounded-2xl bg-white/70 p-4 text-sm text-zinc-700 shadow-sm backdrop-blur-sm ring-1 ring-zinc-200/60 dark:bg-zinc-950/40 dark:text-zinc-200 dark:ring-zinc-800/60">
                 <div className="flex items-start gap-3">
                   <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand-600/10 text-brand-700 ring-1 ring-brand-500/20 dark:bg-brand-400/10 dark:text-brand-300 dark:ring-brand-400/20">
                     <ShieldCheck className="h-4 w-4" aria-hidden="true" />
@@ -372,17 +390,17 @@ export default function LandingPage() {
                 </span>
               </div>
 
-              <div className="mt-6 flex flex-wrap items-center gap-3">
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
                 <button
                   type="button"
                   onClick={() => setGetStartedOpen(true)}
-                  className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-300 motion-reduce:transition-none dark:focus:ring-brand-900"
+                  className="inline-flex w-full items-center justify-center rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-300 active:translate-y-[1px] motion-reduce:transition-none dark:focus:ring-brand-900 sm:w-auto"
                 >
                   {t("ctaPrimary")}
                 </button>
                 <a
                   href="/about"
-                  className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 shadow-sm transition-colors hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900 dark:focus:ring-brand-900"
+                  className="inline-flex w-full items-center justify-center rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 shadow-sm transition-colors hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-brand-200 active:translate-y-[1px] motion-reduce:transition-none dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900 dark:focus:ring-brand-900 sm:w-auto"
                 >
                   {t("ctaSecondary")}
                 </a>
@@ -394,8 +412,8 @@ export default function LandingPage() {
             </div>
 
             <div className="md:pl-2">
-              <div className="overflow-hidden rounded-3xl border border-zinc-200/70 bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-zinc-800/70 dark:bg-zinc-950/40 sm:p-6">
-                <div className="flex items-start justify-between gap-4">
+              <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-white/70 via-white/50 to-brand-50/50 p-4 shadow-sm ring-0 backdrop-blur-sm dark:from-zinc-950/50 dark:via-zinc-950/35 dark:to-brand-500/10 sm:p-6 sm:ring-1 sm:ring-zinc-200/60 dark:sm:ring-zinc-800/60">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
                       {t("heroQuickStartTitle", {
@@ -413,17 +431,17 @@ export default function LandingPage() {
                   <button
                     type="button"
                     onClick={() => setGetStartedOpen(true)}
-                    className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-300 motion-reduce:transition-none dark:focus:ring-brand-900"
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-300 active:translate-y-[1px] motion-reduce:transition-none dark:focus:ring-brand-900 sm:w-auto"
                   >
                     {t("ctaPrimary")}
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
                   </button>
                 </div>
 
-                <div className="mt-5 grid grid-cols-2 gap-3">
+                <div className="mt-5 grid grid-cols-2 gap-2 sm:gap-3">
                   <Link
                     to="/prescription"
-                    className="group rounded-2xl border border-zinc-200 bg-white/70 p-4 shadow-sm transition-colors hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none dark:border-zinc-800 dark:bg-zinc-950/40 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
+                    className="group rounded-2xl bg-white/50 p-4 ring-0 transition-colors hover:bg-white/80 focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none dark:bg-zinc-950/30 dark:hover:bg-zinc-950/45 dark:focus:ring-brand-900 sm:ring-1 sm:ring-zinc-200/60 sm:hover:ring-zinc-200/80 dark:sm:ring-zinc-800/60 dark:sm:hover:ring-zinc-800/80"
                     aria-label={t("servicePrescriptionTitle")}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -431,7 +449,7 @@ export default function LandingPage() {
                         <Pill className="h-5 w-5" aria-hidden="true" />
                       </div>
                       {canUseCounts ? (
-                        <span className="rounded-full border border-zinc-200 bg-white px-2 py-1 text-[11px] font-semibold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200">
+                        <span className="rounded-full border border-zinc-200/70 bg-white/70 px-2 py-1 text-[11px] font-semibold text-zinc-700 dark:border-zinc-800/70 dark:bg-zinc-950/40 dark:text-zinc-200">
                           {serviceCountsLoading
                             ? t("Loading...", "Loading...")
                             : formatCountLabel("prescriptions")}
@@ -450,7 +468,7 @@ export default function LandingPage() {
 
                   <Link
                     to="/invoice"
-                    className="group rounded-2xl border border-zinc-200 bg-white/70 p-4 shadow-sm transition-colors hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none dark:border-zinc-800 dark:bg-zinc-950/40 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
+                    className="group rounded-2xl bg-white/50 p-4 ring-0 transition-colors hover:bg-white/80 focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none dark:bg-zinc-950/30 dark:hover:bg-zinc-950/45 dark:focus:ring-brand-900 sm:ring-1 sm:ring-zinc-200/60 sm:hover:ring-zinc-200/80 dark:sm:ring-zinc-800/60 dark:sm:hover:ring-zinc-800/80"
                     aria-label={t("serviceDocumentTitle")}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -458,7 +476,7 @@ export default function LandingPage() {
                         <Receipt className="h-5 w-5" aria-hidden="true" />
                       </div>
                       {canUseCounts ? (
-                        <span className="rounded-full border border-zinc-200 bg-white px-2 py-1 text-[11px] font-semibold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200">
+                        <span className="rounded-full border border-zinc-200/70 bg-white/70 px-2 py-1 text-[11px] font-semibold text-zinc-700 dark:border-zinc-800/70 dark:bg-zinc-950/40 dark:text-zinc-200">
                           {serviceCountsLoading
                             ? t("Loading...", "Loading...")
                             : formatCountLabel("invoices")}
@@ -477,15 +495,15 @@ export default function LandingPage() {
 
                   <Link
                     to="/other-doc"
-                    className="group rounded-2xl border border-zinc-200 bg-white/70 p-4 shadow-sm transition-colors hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none dark:border-zinc-800 dark:bg-zinc-950/40 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
+                    className="group rounded-2xl bg-white/50 p-4 ring-0 transition-colors hover:bg-white/80 focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none dark:bg-zinc-950/30 dark:hover:bg-zinc-950/45 dark:focus:ring-brand-900 sm:ring-1 sm:ring-zinc-200/60 sm:hover:ring-zinc-200/80 dark:sm:ring-zinc-800/60 dark:sm:hover:ring-zinc-800/80"
                     aria-label={t("serviceOtherTitle")}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600/10 text-brand-700 ring-1 ring-brand-500/20 dark:bg-brand-400/10 dark:text-brand-300 dark:ring-brand-400/20">
-                        <FileText className="h-5 w-5" aria-hidden="true" />
+                        <Search className="h-5 w-5" aria-hidden="true" />
                       </div>
                       {canUseCounts ? (
-                        <span className="rounded-full border border-zinc-200 bg-white px-2 py-1 text-[11px] font-semibold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200">
+                        <span className="rounded-full border border-zinc-200/70 bg-white/70 px-2 py-1 text-[11px] font-semibold text-zinc-700 dark:border-zinc-800/70 dark:bg-zinc-950/40 dark:text-zinc-200">
                           {serviceCountsLoading
                             ? t("Loading...", "Loading...")
                             : formatCountLabel("otherDocs")}
@@ -497,14 +515,14 @@ export default function LandingPage() {
                     </div>
                     <div className="mt-1 text-xs font-semibold text-zinc-600 dark:text-zinc-300">
                       {t("heroQuickOther", {
-                        defaultValue: "Store any document",
+                        defaultValue: "Track where you kept things",
                       })}
                     </div>
                   </Link>
 
                   <Link
                     to="/reminder"
-                    className="group rounded-2xl border border-zinc-200 bg-white/70 p-4 shadow-sm transition-colors hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none dark:border-zinc-800 dark:bg-zinc-950/40 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
+                    className="group rounded-2xl bg-white/50 p-4 ring-0 transition-colors hover:bg-white/80 focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none dark:bg-zinc-950/30 dark:hover:bg-zinc-950/45 dark:focus:ring-brand-900 sm:ring-1 sm:ring-zinc-200/60 sm:hover:ring-zinc-200/80 dark:sm:ring-zinc-800/60 dark:sm:hover:ring-zinc-800/80"
                     aria-label={t("serviceReminderTitle") as any}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -512,13 +530,13 @@ export default function LandingPage() {
                         <BellRing className="h-5 w-5" aria-hidden="true" />
                       </div>
                       {canUseCounts ? (
-                        <span className="rounded-full border border-zinc-200 bg-white px-2 py-1 text-[11px] font-semibold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200">
+                        <span className="rounded-full border border-zinc-200/70 bg-white/70 px-2 py-1 text-[11px] font-semibold text-zinc-700 dark:border-zinc-800/70 dark:bg-zinc-950/40 dark:text-zinc-200">
                           {serviceCountsLoading
                             ? t("Loading...", "Loading...")
                             : formatCountLabel("reminders")}
                         </span>
                       ) : (
-                        <span className="rounded-full border border-zinc-200 bg-white px-2 py-1 text-[11px] font-semibold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200">
+                        <span className="rounded-full border border-zinc-200/70 bg-white/70 px-2 py-1 text-[11px] font-semibold text-zinc-700 dark:border-zinc-800/70 dark:bg-zinc-950/40 dark:text-zinc-200">
                           {t("availableNow")}
                         </span>
                       )}
@@ -586,10 +604,13 @@ export default function LandingPage() {
             </a>
           </div>
 
-          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          <div className="mt-6 grid gap-4 md:grid-cols-3">
             <UnsplashImageCard
               to="/prescription"
               Icon={Pill}
+              moreLabel={
+                t("moreDetails", { defaultValue: "More details" }) as any
+              }
               eyebrow={t("servicePrescriptionTitle") as any}
               title={t("prescriptionShowcaseTitle", {
                 defaultValue: "Prescriptions, organized",
@@ -617,26 +638,29 @@ export default function LandingPage() {
                   defaultValue: "Medicine and prescription documents",
                 }) as any
               }
-              imageUrl="https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=1200&q=70"
+              imageUrl="https://images.unsplash.com/photo-1587854692152-cbe660dbde88?auto=format&fit=crop&w=1200&q=70"
             />
 
             <UnsplashImageCard
               to="/invoice"
               Icon={Receipt}
+              moreLabel={
+                t("moreDetails", { defaultValue: "More details" }) as any
+              }
               eyebrow={t("serviceDocumentTitle") as any}
               title={t("invoiceShowcaseTitle", {
-                defaultValue: "Invoices you can actually find",
+                defaultValue: "Invoices & documents — together",
               })}
               description={t("invoiceShowcaseBody", {
                 defaultValue:
-                  "Store bills and receipts with clean grouping — helpful for claims, taxes, and reimbursements.",
+                  "Keep bills, receipts, and important PDFs organized — helpful for claims, taxes, and reimbursements.",
               })}
               bullets={[
                 t("invoiceShowcaseB1", {
-                  defaultValue: "Upload and label invoices fast",
+                  defaultValue: "Upload receipts, bills, and PDFs",
                 }) as any,
                 t("invoiceShowcaseB2", {
-                  defaultValue: "Keep everything grouped and tidy",
+                  defaultValue: "Group by provider, year, or purpose",
                 }) as any,
                 t("invoiceShowcaseB3", {
                   defaultValue: "Share a group with a secure link",
@@ -648,75 +672,185 @@ export default function LandingPage() {
                   defaultValue: "Receipts and paperwork on a desk",
                 }) as any
               }
-              imageUrl="https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?auto=format&fit=crop&w=1200&q=70"
+              imageUrl="https://images.unsplash.com/photo-1554224154-22dec7ec8818?auto=format&fit=crop&w=1200&q=70"
             />
 
             <UnsplashImageCard
               to="/other-doc"
-              Icon={FileText}
+              Icon={Search}
+              moreLabel={
+                t("moreDetails", { defaultValue: "More details" }) as any
+              }
               eyebrow={t("serviceOtherTitle") as any}
               title={t("otherDocShowcaseTitle", {
-                defaultValue: "All other documents, too",
+                defaultValue: "Never lose track of objects",
               })}
               description={t("otherDocShowcaseBody", {
                 defaultValue:
-                  "Lab reports, ID scans, referrals — store the documents that don’t fit a template.",
+                  "Track where you kept things (tie, keys, papers) with quick notes, photos, and searchable details.",
               })}
               bullets={[
                 t("otherDocShowcaseB1", {
-                  defaultValue: "Works for any document type",
+                  defaultValue: "Save a location + short description",
                 }) as any,
                 t("otherDocShowcaseB2", {
-                  defaultValue: "Simple grouping and naming",
+                  defaultValue: "Attach photos, receipts, or notes",
                 }) as any,
                 t("otherDocShowcaseB3", {
-                  defaultValue: "Keep everything in one vault",
+                  defaultValue: "Search later in seconds",
                 }) as any,
               ]}
               actionLabel={t("openOtherDocs", {
-                defaultValue: "Open other docs",
+                defaultValue: "Open object tracker",
               })}
               imageAlt={
                 t("otherDocsImageAlt", {
-                  defaultValue: "Documents and folders",
+                  defaultValue: "A person searching for an item",
                 }) as any
               }
-              imageUrl="https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&w=1200&q=70"
+              imageUrl="https://images.unsplash.com/photo-1512436991641-6745cdb1723f?auto=format&fit=crop&w=1200&q=70"
             />
+          </div>
 
-            <UnsplashImageCard
-              to="/reminder"
-              Icon={BellRing}
-              eyebrow={t("serviceReminderTitle") as any}
-              badge={t("availableNow") as any}
-              title={t("reminderShowcaseTitle", {
-                defaultValue: "Medication reminders that feel calm",
-              })}
-              description={t("reminderShowcaseBody", {
-                defaultValue:
-                  "Set schedules and track medicines without noisy complexity — built for real life.",
-              })}
-              bullets={[
-                t("reminderShowcaseB1", {
-                  defaultValue: "Set schedules in minutes",
-                }) as any,
-                t("reminderShowcaseB2", {
-                  defaultValue: "See what’s due at a glance",
-                }) as any,
-                t("reminderShowcaseB3", {
-                  defaultValue: "Designed for caregivers",
-                }) as any,
-              ]}
-              actionLabel={t("openReminders", {
-                defaultValue: "Open reminders",
-              })}
-              imageAlt={
-                t("reminderImageAlt", {
-                  defaultValue: "Notification and schedule concept",
-                }) as any
-              }
-              imageUrl="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=1200&q=70"
-            />
+          <div className="mt-4 overflow-hidden rounded-3xl bg-gradient-to-br from-brand-50 via-white to-white shadow-sm ring-0 dark:from-brand-500/10 dark:via-zinc-950 dark:to-zinc-950 sm:border sm:border-zinc-200/70 sm:ring-1 sm:ring-zinc-200/60 dark:sm:border-zinc-800/70 dark:sm:ring-zinc-800/60">
+            <div className="grid gap-6 p-5 sm:p-6 md:grid-cols-2 md:items-center">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-2 rounded-full border border-zinc-200/70 bg-white/80 px-3 py-1 text-xs font-semibold text-zinc-800 shadow-sm backdrop-blur dark:border-zinc-800/70 dark:bg-zinc-950/40 dark:text-zinc-100">
+                    <BellRing
+                      className="h-4 w-4 text-brand-700 dark:text-brand-300"
+                      aria-hidden="true"
+                    />
+                    {t("availableNow")}
+                  </span>
+                  {canUseCounts ? (
+                    <span className="inline-flex items-center rounded-full border border-zinc-200/70 bg-white/80 px-3 py-1 text-xs font-semibold text-zinc-700 shadow-sm backdrop-blur dark:border-zinc-800/70 dark:bg-zinc-950/40 dark:text-zinc-200">
+                      {serviceCountsLoading
+                        ? t("Loading...", "Loading...")
+                        : formatCountLabel("reminders")}
+                    </span>
+                  ) : null}
+                </div>
+
+                <h3 className="mt-4 text-balance text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-xl">
+                  {t("reminderShowcaseTitle", {
+                    defaultValue: "Medication reminders that feel calm",
+                  })}
+                </h3>
+
+                <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
+                  {t("reminderShowcaseBody", {
+                    defaultValue:
+                      "Set schedules and track medicines without noisy complexity — built for real life.",
+                  })}
+                </p>
+
+                <ul className="mt-4 hidden grid-cols-2 gap-2 text-sm text-zinc-600 dark:text-zinc-300 sm:grid">
+                  {[
+                    t("reminderShowcaseB1", {
+                      defaultValue: "Set schedules in minutes",
+                    }) as any,
+                    t("reminderShowcaseB2", {
+                      defaultValue: "See what’s due at a glance",
+                    }) as any,
+                    t("reminderShowcaseB3", {
+                      defaultValue: "Designed for caregivers",
+                    }) as any,
+                  ]
+                    .slice(0, 4)
+                    .map((b) => (
+                      <li key={b} className="flex items-start gap-2">
+                        <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-brand-600/10 text-brand-700 ring-1 ring-brand-500/20 dark:bg-brand-400/10 dark:text-brand-300 dark:ring-brand-400/20">
+                          <Check className="h-4 w-4" aria-hidden="true" />
+                        </span>
+                        <span className="min-w-0">{b}</span>
+                      </li>
+                    ))}
+                </ul>
+
+                <details className="mt-4 rounded-2xl bg-white/60 p-3 ring-1 ring-zinc-200/60 dark:bg-zinc-950/30 dark:ring-zinc-800/60 sm:hidden">
+                  <summary className="cursor-pointer list-none select-none text-xs font-semibold text-zinc-900 dark:text-zinc-50 [&::-webkit-details-marker]:hidden">
+                    {t("moreDetails", { defaultValue: "More details" })}
+                  </summary>
+                  <ul className="mt-3 grid gap-2 text-sm text-zinc-600 dark:text-zinc-300">
+                    {[
+                      t("reminderShowcaseB1", {
+                        defaultValue: "Set schedules in minutes",
+                      }) as any,
+                      t("reminderShowcaseB2", {
+                        defaultValue: "See what’s due at a glance",
+                      }) as any,
+                      t("reminderShowcaseB3", {
+                        defaultValue: "Designed for caregivers",
+                      }) as any,
+                    ].map((b) => (
+                      <li key={b} className="flex items-start gap-2">
+                        <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-brand-600/10 text-brand-700 ring-1 ring-brand-500/20 dark:bg-brand-400/10 dark:text-brand-300 dark:ring-brand-400/20">
+                          <Check className="h-4 w-4" aria-hidden="true" />
+                        </span>
+                        <span className="min-w-0">{b}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+
+                <div className="mt-5 flex flex-wrap items-center gap-3">
+                  <Link
+                    to="/reminder"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-300 active:translate-y-[1px] motion-reduce:transition-none dark:focus:ring-brand-900"
+                  >
+                    {t("openReminders", { defaultValue: "Open reminders" })}
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => setGetStartedOpen(true)}
+                    className="inline-flex items-center justify-center rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 shadow-sm transition-colors hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-brand-200 active:translate-y-[1px] motion-reduce:transition-none dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900 dark:focus:ring-brand-900"
+                  >
+                    {t("ctaPrimary")}
+                  </button>
+                </div>
+              </div>
+
+              <Link
+                to="/reminder"
+                className="group relative block overflow-hidden rounded-3xl bg-white/60 shadow-sm ring-1 ring-zinc-200/60 transition-colors hover:bg-white/80 focus:outline-none focus:ring-2 focus:ring-brand-200 dark:bg-zinc-950/30 dark:ring-zinc-800/60 dark:hover:bg-zinc-950/45 dark:focus:ring-brand-900"
+                aria-label={
+                  t("openReminders", { defaultValue: "Open reminders" }) as any
+                }
+              >
+                <div className="aspect-[16/10] w-full overflow-hidden bg-zinc-100 dark:bg-zinc-900">
+                  <img
+                    src="https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=1200&q=70"
+                    alt={
+                      t("reminderImageAlt", {
+                        defaultValue: "Notification and schedule concept",
+                      }) as any
+                    }
+                    className="h-full w-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.02] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-0 bg-gradient-to-t from-zinc-950/45 via-zinc-950/10 to-transparent dark:from-black/55"
+                />
+                <div className="absolute bottom-0 left-0 right-0 p-4">
+                  <div className="text-sm font-semibold text-white">
+                    {t("reminderExampleTitle", {
+                      defaultValue: "Example schedule",
+                    })}
+                  </div>
+                  <div className="mt-1 text-xs font-semibold text-white/85">
+                    {t("reminderExampleBody", {
+                      defaultValue:
+                        "Set times, then mark doses taken — simple for caregivers.",
+                    })}
+                  </div>
+                </div>
+              </Link>
+            </div>
           </div>
 
           <div className="mt-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
@@ -796,8 +930,8 @@ export default function LandingPage() {
               </div>
 
               <div className="md:pl-2">
-                <div className="overflow-hidden rounded-3xl border border-zinc-200/70 bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-zinc-800/70 dark:bg-zinc-950/40 sm:p-6">
-                  <div className="flex items-start justify-between gap-4">
+                <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-white/70 via-white/50 to-brand-50/40 p-4 shadow-sm ring-0 backdrop-blur-sm dark:from-zinc-950/50 dark:via-zinc-950/35 dark:to-brand-500/10 sm:p-6 sm:ring-1 sm:ring-zinc-200/60 dark:sm:ring-zinc-800/60">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                     <div>
                       <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
                         {t("reminderExampleTitle", {
@@ -812,13 +946,13 @@ export default function LandingPage() {
                       </div>
                     </div>
 
-                    <span className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-semibold text-zinc-800 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100">
+                    <span className="inline-flex w-fit items-center gap-2 rounded-full border border-zinc-200/70 bg-white/70 px-3 py-1 text-xs font-semibold text-zinc-800 shadow-sm dark:border-zinc-800/70 dark:bg-zinc-950/40 dark:text-zinc-100">
                       <span className="h-1.5 w-1.5 rounded-full bg-brand-600 dark:bg-brand-400" />
                       {t("availableNow")}
                     </span>
                   </div>
 
-                  <div className="mt-5 grid gap-3">
+                  <div className="mt-5 grid gap-2 sm:gap-3">
                     {[
                       {
                         time: t("reminderExampleT1", {
@@ -856,7 +990,7 @@ export default function LandingPage() {
                     ].map((item) => (
                       <div
                         key={`${item.time}-${item.title}`}
-                        className="flex items-start justify-between gap-4 rounded-2xl border border-zinc-200/70 bg-white/70 p-4 shadow-sm dark:border-zinc-800/70 dark:bg-zinc-950/40"
+                        className="flex items-start justify-between gap-4 rounded-2xl bg-white/55 p-4 ring-0 dark:bg-zinc-950/30 sm:ring-1 sm:ring-zinc-200/60 dark:sm:ring-zinc-800/60"
                       >
                         <div className="flex items-start gap-3">
                           <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-600/10 text-brand-700 ring-1 ring-brand-500/20 dark:bg-brand-400/10 dark:text-brand-300 dark:ring-brand-400/20">
@@ -872,7 +1006,7 @@ export default function LandingPage() {
                           </div>
                         </div>
 
-                        <span className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-xs font-semibold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200">
+                        <span className="rounded-full border border-zinc-200/70 bg-white/70 px-2.5 py-1 text-xs font-semibold text-zinc-700 dark:border-zinc-800/70 dark:bg-zinc-950/40 dark:text-zinc-200">
                           {item.time}
                         </span>
                       </div>
@@ -904,7 +1038,7 @@ export default function LandingPage() {
             {[1, 2, 3].map((n) => (
               <li
                 key={n}
-                className="flex items-start gap-4 rounded-2xl border border-zinc-200/70 bg-white/70 p-4 shadow-sm backdrop-blur-sm transition-colors hover:bg-white motion-reduce:transition-none dark:border-zinc-800/70 dark:bg-zinc-950/40 dark:hover:bg-zinc-950"
+                className="flex items-start gap-4 rounded-2xl bg-white/70 p-4 shadow-sm backdrop-blur-sm ring-1 ring-zinc-200/60 transition-colors hover:bg-white motion-reduce:transition-none dark:bg-zinc-950/40 dark:ring-zinc-800/60 dark:hover:bg-zinc-950"
               >
                 <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-600/10 text-sm font-semibold text-brand-700 ring-1 ring-brand-500/20 dark:bg-brand-400/10 dark:text-brand-300 dark:ring-brand-400/20">
                   {n}
@@ -933,7 +1067,7 @@ export default function LandingPage() {
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Link
               to="/prescription"
-              className="group flex flex-col justify-between rounded-2xl border border-zinc-200/70 bg-white/80 p-5 shadow-sm backdrop-blur-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:border-zinc-800/70 dark:bg-zinc-950/60 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
+              className="group flex flex-col justify-between rounded-2xl bg-white/80 p-5 shadow-sm backdrop-blur-sm ring-1 ring-zinc-200/60 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:bg-zinc-950/60 dark:ring-zinc-800/60 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
               aria-label={t("servicePrescriptionTitle")}
             >
               <div className="mb-4 flex items-start justify-between gap-3">
@@ -962,7 +1096,7 @@ export default function LandingPage() {
             </Link>
             <Link
               to="/invoice"
-              className="group flex flex-col justify-between rounded-2xl border border-zinc-200/70 bg-white/80 p-5 shadow-sm backdrop-blur-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:border-zinc-800/70 dark:bg-zinc-950/60 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
+              className="group flex flex-col justify-between rounded-2xl bg-white/80 p-5 shadow-sm backdrop-blur-sm ring-1 ring-zinc-200/60 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:bg-zinc-950/60 dark:ring-zinc-800/60 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
               aria-label={t("serviceDocumentTitle")}
             >
               <div className="mb-4 flex items-start justify-between gap-3">
@@ -991,7 +1125,7 @@ export default function LandingPage() {
             </Link>
             <Link
               to="/other-doc"
-              className="group flex flex-col justify-between rounded-2xl border border-zinc-200/70 bg-white/80 p-5 shadow-sm backdrop-blur-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:border-zinc-800/70 dark:bg-zinc-950/60 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
+              className="group flex flex-col justify-between rounded-2xl bg-white/80 p-5 shadow-sm backdrop-blur-sm ring-1 ring-zinc-200/60 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:bg-zinc-950/60 dark:ring-zinc-800/60 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
               aria-label={t("serviceOtherTitle")}
             >
               <div className="mb-4 flex items-start justify-between gap-3">
@@ -1021,7 +1155,7 @@ export default function LandingPage() {
 
             <Link
               to="/reminder"
-              className="group flex flex-col justify-between rounded-2xl border border-zinc-200/70 bg-white/80 p-5 shadow-sm backdrop-blur-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:border-zinc-800/70 dark:bg-zinc-950/60 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
+              className="group flex flex-col justify-between rounded-2xl bg-white/80 p-5 shadow-sm backdrop-blur-sm ring-1 ring-zinc-200/60 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:bg-zinc-950/60 dark:ring-zinc-800/60 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
               aria-label={t("serviceReminderTitle") as any}
             >
               <div className="mb-4 flex items-center justify-between gap-3">
@@ -1070,7 +1204,7 @@ export default function LandingPage() {
             {[1, 2, 3].map((n) => (
               <figure
                 key={n}
-                className="rounded-2xl border border-zinc-200/70 bg-white/80 p-5 shadow-sm backdrop-blur-sm dark:border-zinc-800/70 dark:bg-zinc-950/60"
+                className="rounded-2xl bg-white/80 p-5 shadow-sm backdrop-blur-sm ring-1 ring-zinc-200/60 dark:bg-zinc-950/60 dark:ring-zinc-800/60"
               >
                 <blockquote className="text-sm text-zinc-700 dark:text-zinc-200">
                   “{t(`testimonial${n}Quote` as any)}”
@@ -1095,7 +1229,7 @@ export default function LandingPage() {
             {[1, 2, 3].map((n) => (
               <details
                 key={n}
-                className="group rounded-2xl border border-zinc-200/70 bg-white p-5 shadow-sm dark:border-zinc-800/70 dark:bg-zinc-950"
+                className="group rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-200/60 dark:bg-zinc-950 dark:ring-zinc-800/60"
               >
                 <summary className="cursor-pointer list-none select-none text-sm font-semibold text-zinc-900 dark:text-zinc-50 [&::-webkit-details-marker]:hidden">
                   {t(`faqQ${n}` as any)}

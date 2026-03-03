@@ -95,11 +95,32 @@ export default function TermsPage() {
                 or in the app. Subscriptions may renew automatically until
                 cancelled.
               </p>
+              <p className="mt-2 text-zinc-600 dark:text-zinc-300">
+                Payments may be processed by a third-party payment provider.
+                Taxes (if applicable) and receipts are handled by the payment
+                provider at checkout.
+              </p>
+              <p className="mt-2 text-zinc-600 dark:text-zinc-300">
+                You can cancel at any time to prevent future renewals. Unless
+                stated otherwise at checkout, cancellation takes effect at the
+                end of the current billing period.
+              </p>
             </div>
 
             <div>
               <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                7) Disclaimers
+                7) Delivery and access
+              </h2>
+              <p className="mt-2 text-zinc-600 dark:text-zinc-300">
+                DocSpot.App is a digital service. If you purchase a paid plan,
+                access to paid features is typically granted shortly after
+                payment is confirmed.
+              </p>
+            </div>
+
+            <div>
+              <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                8) Disclaimers
               </h2>
               <p className="mt-2 text-zinc-600 dark:text-zinc-300">
                 The Service is provided “as is” and “as available.” We do not
@@ -110,7 +131,7 @@ export default function TermsPage() {
 
             <div>
               <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                8) Limitation of liability
+                9) Limitation of liability
               </h2>
               <p className="mt-2 text-zinc-600 dark:text-zinc-300">
                 To the maximum extent permitted by law, DocSpot.App will not be
@@ -121,7 +142,7 @@ export default function TermsPage() {
 
             <div>
               <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                9) Changes
+                10) Changes
               </h2>
               <p className="mt-2 text-zinc-600 dark:text-zinc-300">
                 We may update these Terms from time to time. If changes are
@@ -133,7 +154,7 @@ export default function TermsPage() {
 
             <div>
               <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                10) Contact
+                11) Contact
               </h2>
               <p className="mt-2 text-zinc-600 dark:text-zinc-300">
                 Questions about these Terms? Contact us at{" "}

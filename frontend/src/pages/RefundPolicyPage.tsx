@@ -36,6 +36,12 @@ export default function RefundPolicyPage() {
                 DocSpot.App does not offer refunds for subscription payments.
                 Please review plan details carefully before purchasing.
               </p>
+              <p className="mt-2 text-zinc-600 dark:text-zinc-300">
+                Exceptions may apply if required by law, or in cases of
+                accidental duplicate charges or suspected fraud. If you believe
+                a charge was made in error, contact us as soon as possible so we
+                can review it.
+              </p>
             </div>
 
             <div>
@@ -47,6 +53,9 @@ export default function RefundPolicyPage() {
                 you typically keep access until the end of the current billing
                 period, and you will not be charged for the next renewal.
               </p>
+              <p className="mt-2 text-zinc-600 dark:text-zinc-300">
+                We do not provide prorated refunds for partial billing periods.
+              </p>
             </div>
 
             <div>
@@ -55,8 +64,8 @@ export default function RefundPolicyPage() {
               </h2>
               <ul className="mt-2 list-disc space-y-1 pl-5 text-zinc-600 dark:text-zinc-300">
                 <li>
-                  If a “Manage subscription” option is available in your
-                  profile, use it to open the subscription management page.
+                  If a subscription management option is available in your
+                  profile, use it to open the billing portal.
                 </li>
                 <li>
                   If you cannot access management, email{" "}

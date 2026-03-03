@@ -89,7 +89,7 @@ Health check:
 
 - Prescriptions: `/me/prescription-groups/*` and `/share/prescriptions/:token`
 - Invoices: `/me/invoice-groups/*` and `/share/invoices/:token`
-- Other documents/objects: `/me/object-groups/*` and `/share/objects/:token`
+- Objects (object tracker): `/me/object-groups/*` and `/share/objects/:token`
 
 See `src/interfaces/http/ENDPOINTS.md` for the full route list.
 

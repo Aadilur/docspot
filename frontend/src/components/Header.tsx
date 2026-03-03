@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router-dom";
+import { Link, NavLink } from "react-router-dom";
 
 import { LogOut, Moon, Sun, UserRound } from "lucide-react";
 
@@ -79,21 +79,46 @@ export default function Header() {
         </Link>
 
         <nav className="hidden items-center gap-6 text-sm text-zinc-600 dark:text-zinc-300 sm:flex">
-          <Link to="/" className="hover:text-zinc-900 dark:hover:text-zinc-50">
+          <NavLink
+            to="/"
+            end
+            className={({ isActive }) =>
+              [
+                "transition-colors hover:text-zinc-900 dark:hover:text-zinc-50",
+                isActive
+                  ? "font-semibold text-zinc-900 underline decoration-brand-500/80 underline-offset-8 dark:text-zinc-50"
+                  : "",
+              ].join(" ")
+            }
+          >
             {t("navHome")}
-          </Link>
-          <Link
+          </NavLink>
+          <NavLink
             to="/about"
-            className="hover:text-zinc-900 dark:hover:text-zinc-50"
+            className={({ isActive }) =>
+              [
+                "transition-colors hover:text-zinc-900 dark:hover:text-zinc-50",
+                isActive
+                  ? "font-semibold text-zinc-900 underline decoration-brand-500/80 underline-offset-8 dark:text-zinc-50"
+                  : "",
+              ].join(" ")
+            }
           >
             {t("navAbout")}
-          </Link>
-          <Link
+          </NavLink>
+          <NavLink
             to="/contact"
-            className="hover:text-zinc-900 dark:hover:text-zinc-50"
+            className={({ isActive }) =>
+              [
+                "transition-colors hover:text-zinc-900 dark:hover:text-zinc-50",
+                isActive
+                  ? "font-semibold text-zinc-900 underline decoration-brand-500/80 underline-offset-8 dark:text-zinc-50"
+                  : "",
+              ].join(" ")
+            }
           >
             {t("navContact")}
-          </Link>
+          </NavLink>
         </nav>
 
         <div className="flex items-center gap-3">
