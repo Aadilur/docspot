@@ -86,10 +86,13 @@ function newIdempotencyKey(): string {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-export async function getReminderSettings(): Promise<ReminderSettings> {
-  const res = await apiFetch<{ ok: true; settings: ReminderSettings }>(
-    API_PATHS.meReminderSettings,
-  );
+export async function getReminderSettings(
+  patientId?: string | null,
+): Promise<ReminderSettings> {
+  const path = patientId
+    ? withPatientId(API_PATHS.caregiverReminderSettings, patientId)
+    : API_PATHS.meReminderSettings;
+  const res = await apiFetch<{ ok: true; settings: ReminderSettings }>(path);
   return res.settings;
 }
 
@@ -105,6 +108,7 @@ export async function listMedicines(params?: {
   limit?: number;
   offset?: number;
   includeArchived?: boolean;
+  patientId?: string | null;
 }): Promise<MedicineRecord[]> {
   const qs = new URLSearchParams();
   if (typeof params?.limit === "number") qs.set("limit", String(params.limit));
@@ -112,18 +116,53 @@ export async function listMedicines(params?: {
     qs.set("offset", String(params.offset));
   if (params?.includeArchived) qs.set("includeArchived", "true");
 
+  const basePath = params?.patientId
+    ? withPatientId(API_PATHS.caregiverMedicines, params.patientId)
+    : API_PATHS.meMedicines;
+
   const res = await apiFetch<{ ok: true; medicines: MedicineRecord[] }>(
-    `${API_PATHS.meMedicines}${qs.toString() ? `?${qs.toString()}` : ""}`,
+    `${basePath}${qs.toString() ? `${basePath.includes("?") ? "&" : "?"}${qs.toString()}` : ""}`,
   );
   return res.medicines;
 }
 
 export async function getMedicineById(
   medicineId: string,
+  patientId?: string | null,
 ): Promise<MedicineRecord> {
-  const res = await apiFetch<{ ok: true; medicine: MedicineRecord }>(
-    API_PATHS.meMedicineById(medicineId),
-  );
+  const path = patientId
+    ? withPatientId(API_PATHS.caregiverMedicineById(medicineId), patientId)
+    : API_PATHS.meMedicineById(medicineId);
+  const res = await apiFetch<{ ok: true; medicine: MedicineRecord }>(path);
+  return res.medicine;
+}
+
+export async function updateMedicine(
+  medicineId: string,
+  patch: Partial<
+    Pick<
+      MedicineRecord,
+      | "name"
+      | "type"
+      | "dosePerIntake"
+      | "doseUnit"
+      | "stockTotal"
+      | "stockRemaining"
+      | "lowStockThreshold"
+      | "instructionTag"
+      | "note"
+      | "isActive"
+    >
+  >,
+  patientId?: string | null,
+): Promise<MedicineRecord> {
+  const path = patientId
+    ? withPatientId(API_PATHS.caregiverMedicineById(medicineId), patientId)
+    : API_PATHS.meMedicineById(medicineId);
+  const res = await apiFetch<{ ok: true; medicine: MedicineRecord }>(path, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
   return res.medicine;
 }
 
@@ -139,26 +178,27 @@ export async function createMedicine(payload: {
   note?: string | null;
   photoKey?: string | null;
   voiceNoteKey?: string | null;
+  patientId?: string | null;
 }): Promise<MedicineRecord> {
-  const res = await apiFetch<{ ok: true; medicine: MedicineRecord }>(
-    API_PATHS.meMedicines,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        name: payload.name,
-        type: payload.type,
-        dosePerIntake: payload.dosePerIntake,
-        doseUnit: payload.doseUnit ?? null,
-        stockTotal: payload.stockTotal ?? null,
-        stockRemaining: payload.stockRemaining ?? null,
-        lowStockThreshold: payload.lowStockThreshold ?? undefined,
-        instructionTag: payload.instructionTag ?? "none",
-        note: payload.note ?? null,
-        photoKey: payload.photoKey ?? null,
-        voiceNoteKey: payload.voiceNoteKey ?? null,
-      }),
-    },
-  );
+  const path = payload.patientId
+    ? withPatientId(API_PATHS.caregiverMedicines, payload.patientId)
+    : API_PATHS.meMedicines;
+  const res = await apiFetch<{ ok: true; medicine: MedicineRecord }>(path, {
+    method: "POST",
+    body: JSON.stringify({
+      name: payload.name,
+      type: payload.type,
+      dosePerIntake: payload.dosePerIntake,
+      doseUnit: payload.doseUnit ?? null,
+      stockTotal: payload.stockTotal ?? null,
+      stockRemaining: payload.stockRemaining ?? null,
+      lowStockThreshold: payload.lowStockThreshold ?? undefined,
+      instructionTag: payload.instructionTag ?? "none",
+      note: payload.note ?? null,
+      photoKey: payload.photoKey ?? null,
+      voiceNoteKey: payload.voiceNoteKey ?? null,
+    }),
+  });
 
   return res.medicine;
 }
@@ -168,12 +208,59 @@ export type CaregiverLinkRecord = {
   patientId: string;
   caregiverId: string;
   status: "pending" | "accepted" | "rejected";
+  accessLevel?: "view" | "edit" | "full";
+  caregiverAlias?: string | null;
   createdAt: string;
 };
+
+export type CaregiverRequestItem = {
+  link: CaregiverLinkRecord;
+  patient: {
+    id: string;
+    displayName: string | null;
+    email: string | null;
+    photoUrl: string | null;
+  };
+};
+
+export type CaregiverPatientItem = {
+  link: CaregiverLinkRecord;
+  patient: {
+    id: string;
+    displayName: string | null;
+    email: string | null;
+    photoUrl: string | null;
+  };
+};
+
+export type MedicineActivityLog = {
+  id: string;
+  userId: string;
+  actorUserId: string | null;
+  action: string;
+  entityType: string;
+  entityId: string;
+  metadata: any;
+  createdAt: string;
+  actor?: {
+    id: string;
+    displayName: string | null;
+    email: string | null;
+    photoUrl: string | null;
+  } | null;
+};
+
+function withPatientId(path: string, patientId?: string | null): string {
+  const p = typeof patientId === "string" ? patientId.trim() : "";
+  if (!p) return path;
+  const joiner = path.includes("?") ? "&" : "?";
+  return `${path}${joiner}patientId=${encodeURIComponent(p)}`;
+}
 
 export async function inviteCaregiver(params: {
   caregiverId?: string;
   caregiverContact?: string;
+  accessLevel?: "view" | "edit" | "full";
 }): Promise<CaregiverLinkRecord> {
   const res = await apiFetch<{ ok: true; link: CaregiverLinkRecord }>(
     API_PATHS.meCaregiverInvite,
@@ -183,33 +270,119 @@ export async function inviteCaregiver(params: {
         caregiverId: params.caregiverId ?? null,
         caregiverContact: params.caregiverContact ?? null,
         contact: params.caregiverContact ?? null,
+        accessLevel: params.accessLevel ?? "view",
       }),
     },
   );
   return res.link;
 }
 
+export async function listCaregiverRequests(): Promise<CaregiverRequestItem[]> {
+  const res = await apiFetch<{ ok: true; items: CaregiverRequestItem[] }>(
+    API_PATHS.meCaregiverRequests,
+  );
+  return res.items;
+}
+
+export async function listCaregiverPatients(): Promise<CaregiverPatientItem[]> {
+  const res = await apiFetch<{ ok: true; items: CaregiverPatientItem[] }>(
+    API_PATHS.meCaregiverPatients,
+  );
+  return res.items;
+}
+
+export async function acceptCaregiverInvite(
+  patientId: string,
+): Promise<CaregiverLinkRecord> {
+  const res = await apiFetch<{ ok: true; link: CaregiverLinkRecord }>(
+    API_PATHS.meCaregiverAccept,
+    { method: "POST", body: JSON.stringify({ patientId }) },
+  );
+  return res.link;
+}
+
+export async function rejectCaregiverInvite(
+  patientId: string,
+): Promise<CaregiverLinkRecord> {
+  const res = await apiFetch<{ ok: true; link: CaregiverLinkRecord }>(
+    API_PATHS.meCaregiverReject,
+    { method: "POST", body: JSON.stringify({ patientId }) },
+  );
+  return res.link;
+}
+
+export async function patchCaregiverAlias(params: {
+  patientId: string;
+  alias: string | null;
+}): Promise<CaregiverLinkRecord> {
+  const res = await apiFetch<{ ok: true; link: CaregiverLinkRecord }>(
+    API_PATHS.meCaregiverPatientPatch(params.patientId),
+    { method: "PATCH", body: JSON.stringify({ alias: params.alias }) },
+  );
+  return res.link;
+}
+
+export async function getCaregiverLink(
+  patientId: string,
+): Promise<CaregiverLinkRecord | null> {
+  const res = await apiFetch<{ ok: true; link: CaregiverLinkRecord | null }>(
+    `${API_PATHS.meCaregiverLink}?patientId=${encodeURIComponent(patientId)}`,
+  );
+  return res.link;
+}
+
+export async function listMedicineActivityLogs(params: {
+  medicineId: string;
+  patientId?: string | null;
+  limit?: number;
+  offset?: number;
+}): Promise<{ logs: MedicineActivityLog[]; totalCapped: number }> {
+  const base = params.patientId
+    ? withPatientId(
+        API_PATHS.caregiverMedicineLogs(params.medicineId),
+        params.patientId,
+      )
+    : API_PATHS.meMedicineLogs(params.medicineId);
+  const url = `${base}${base.includes("?") ? "&" : "?"}limit=${encodeURIComponent(
+    String(params.limit ?? 25),
+  )}&offset=${encodeURIComponent(String(params.offset ?? 0))}`;
+
+  const res = await apiFetch<{
+    ok: true;
+    logs: MedicineActivityLog[];
+    totalCapped: number;
+  }>(url);
+  return { logs: res.logs, totalCapped: res.totalCapped };
+}
+
 export async function archiveMedicine(
   medicineId: string,
+  patientId?: string | null,
 ): Promise<MedicineRecord> {
-  const res = await apiFetch<{ ok: true; medicine: MedicineRecord }>(
-    API_PATHS.meMedicineArchive(medicineId),
-    { method: "PATCH", body: JSON.stringify({}) },
-  );
+  const path = patientId
+    ? withPatientId(API_PATHS.caregiverMedicineArchive(medicineId), patientId)
+    : API_PATHS.meMedicineArchive(medicineId);
+  const res = await apiFetch<{ ok: true; medicine: MedicineRecord }>(path, {
+    method: "PATCH",
+    body: JSON.stringify({}),
+  });
   return res.medicine;
 }
 
 export async function listSchedules(
   medicineId: string,
+  patientId?: string | null,
 ): Promise<ScheduleRecord[]> {
-  const res = await apiFetch<{ ok: true; schedules: ScheduleRecord[] }>(
-    API_PATHS.meMedicineSchedules(medicineId),
-  );
+  const path = patientId
+    ? withPatientId(API_PATHS.caregiverMedicineSchedules(medicineId), patientId)
+    : API_PATHS.meMedicineSchedules(medicineId);
+  const res = await apiFetch<{ ok: true; schedules: ScheduleRecord[] }>(path);
   return res.schedules;
 }
 
 export async function createSchedule(params: {
   medicineId: string;
+  patientId?: string | null;
   repeatType: RepeatType;
   intervalValue?: number | null;
   selectedDays?: number[] | null;
@@ -219,34 +392,42 @@ export async function createSchedule(params: {
   endDate?: string | null;
   maxOccurrences?: number | null;
 }): Promise<ScheduleRecord> {
-  const res = await apiFetch<{ ok: true; schedule: ScheduleRecord }>(
-    API_PATHS.meMedicineSchedules(params.medicineId),
-    {
-      method: "POST",
-      body: JSON.stringify({
-        repeatType: params.repeatType,
-        intervalValue: params.intervalValue ?? null,
-        selectedDays: params.selectedDays ?? null,
-        times: params.times,
-        doseByTime: params.doseByTime ?? null,
-        startDate: params.startDate,
-        endDate: params.endDate ?? null,
-        maxOccurrences: params.maxOccurrences ?? null,
-      }),
-    },
-  );
+  const path = params.patientId
+    ? withPatientId(
+        API_PATHS.caregiverMedicineSchedules(params.medicineId),
+        params.patientId,
+      )
+    : API_PATHS.meMedicineSchedules(params.medicineId);
+  const res = await apiFetch<{ ok: true; schedule: ScheduleRecord }>(path, {
+    method: "POST",
+    body: JSON.stringify({
+      repeatType: params.repeatType,
+      intervalValue: params.intervalValue ?? null,
+      selectedDays: params.selectedDays ?? null,
+      times: params.times,
+      doseByTime: params.doseByTime ?? null,
+      startDate: params.startDate,
+      endDate: params.endDate ?? null,
+      maxOccurrences: params.maxOccurrences ?? null,
+    }),
+  });
 
   return res.schedule;
 }
 
 export async function getTodayTimeline(params?: {
   date?: string;
+  patientId?: string | null;
 }): Promise<TimelineItem[]> {
   const qs = new URLSearchParams();
   if (params?.date) qs.set("date", params.date);
 
+  const basePath = params?.patientId
+    ? withPatientId(API_PATHS.caregiverTimelineToday, params.patientId)
+    : API_PATHS.meRemindersTimelineToday;
+
   const res = await apiFetch<{ ok: true; items: TimelineItem[] }>(
-    `${API_PATHS.meRemindersTimelineToday}${qs.toString() ? `?${qs}` : ""}`,
+    `${basePath}${qs.toString() ? `${basePath.includes("?") ? "&" : "?"}${qs}` : ""}`,
   );
   return res.items;
 }
@@ -254,14 +435,19 @@ export async function getTodayTimeline(params?: {
 export async function getUpcomingIntakeEvents(params?: {
   daysAhead?: number;
   limit?: number;
+  patientId?: string | null;
 }): Promise<UpcomingIntakeItem[]> {
   const qs = new URLSearchParams();
   if (typeof params?.daysAhead === "number")
     qs.set("daysAhead", String(params.daysAhead));
   if (typeof params?.limit === "number") qs.set("limit", String(params.limit));
 
+  const basePath = params?.patientId
+    ? withPatientId(API_PATHS.caregiverRemindersUpcoming, params.patientId)
+    : API_PATHS.meRemindersUpcoming;
+
   const res = await apiFetch<{ ok: true; items: UpcomingIntakeItem[] }>(
-    `${API_PATHS.meRemindersUpcoming}${qs.toString() ? `?${qs}` : ""}`,
+    `${basePath}${qs.toString() ? `${basePath.includes("?") ? "&" : "?"}${qs}` : ""}`,
   );
   return res.items;
 }
@@ -270,16 +456,21 @@ export async function getMedicineUpcoming(params: {
   medicineId: string;
   daysAhead?: number;
   limit?: number;
+  patientId?: string | null;
 }): Promise<UpcomingIntakeItem[]> {
   const qs = new URLSearchParams();
   if (typeof params.daysAhead === "number")
     qs.set("daysAhead", String(params.daysAhead));
   if (typeof params.limit === "number") qs.set("limit", String(params.limit));
 
+  const basePath = params.patientId
+    ? withPatientId(
+        API_PATHS.caregiverMedicineUpcoming(params.medicineId),
+        params.patientId,
+      )
+    : API_PATHS.meMedicineUpcoming(params.medicineId);
   const res = await apiFetch<{ ok: true; items: UpcomingIntakeItem[] }>(
-    `${API_PATHS.meMedicineUpcoming(params.medicineId)}${
-      qs.toString() ? `?${qs}` : ""
-    }`,
+    `${basePath}${qs.toString() ? `${basePath.includes("?") ? "&" : "?"}${qs}` : ""}`,
   );
   return res.items;
 }
@@ -289,6 +480,7 @@ export async function listMedicineHistory(params: {
   limit?: number;
   offset?: number;
   days?: number;
+  patientId?: string | null;
 }): Promise<IntakeEventRecord[]> {
   const qs = new URLSearchParams();
   if (typeof params.limit === "number") qs.set("limit", String(params.limit));
@@ -296,23 +488,37 @@ export async function listMedicineHistory(params: {
     qs.set("offset", String(params.offset));
   if (typeof params.days === "number") qs.set("days", String(params.days));
 
+  const basePath = params.patientId
+    ? withPatientId(
+        API_PATHS.caregiverMedicineHistory(params.medicineId),
+        params.patientId,
+      )
+    : API_PATHS.meMedicineHistory(params.medicineId);
+
   const res = await apiFetch<{ ok: true; events: IntakeEventRecord[] }>(
-    `${API_PATHS.meMedicineHistory(params.medicineId)}${
-      qs.toString() ? `?${qs}` : ""
-    }`,
+    `${basePath}${qs.toString() ? `${basePath.includes("?") ? "&" : "?"}${qs}` : ""}`,
   );
   return res.events;
 }
 
-export async function markIntakeTaken(intakeEventId: string): Promise<{
+export async function markIntakeTaken(
+  intakeEventId: string,
+  patientId?: string | null,
+): Promise<{
   event: IntakeEventRecord;
   medicine: MedicineRecord;
 }> {
+  const path = patientId
+    ? withPatientId(
+        API_PATHS.caregiverRemindersIntakeTaken(intakeEventId),
+        patientId,
+      )
+    : API_PATHS.meRemindersIntakeTaken(intakeEventId);
   const res = await apiFetch<{
     ok: true;
     event: IntakeEventRecord;
     medicine: MedicineRecord;
-  }>(API_PATHS.meRemindersIntakeTaken(intakeEventId), {
+  }>(path, {
     method: "PATCH",
     headers: { "Idempotency-Key": newIdempotencyKey() },
     body: JSON.stringify({}),
@@ -324,14 +530,18 @@ export async function markIntakeTaken(intakeEventId: string): Promise<{
 export async function markIntakeSkipped(params: {
   intakeEventId: string;
   reason?: string | null;
+  patientId?: string | null;
 }): Promise<IntakeEventRecord> {
-  const res = await apiFetch<{ ok: true; event: IntakeEventRecord }>(
-    API_PATHS.meRemindersIntakeSkipped(params.intakeEventId),
-    {
-      method: "PATCH",
-      body: JSON.stringify({ reason: params.reason ?? null }),
-    },
-  );
+  const path = params.patientId
+    ? withPatientId(
+        API_PATHS.caregiverRemindersIntakeSkipped(params.intakeEventId),
+        params.patientId,
+      )
+    : API_PATHS.meRemindersIntakeSkipped(params.intakeEventId);
+  const res = await apiFetch<{ ok: true; event: IntakeEventRecord }>(path, {
+    method: "PATCH",
+    body: JSON.stringify({ reason: params.reason ?? null }),
+  });
 
   return res.event;
 }

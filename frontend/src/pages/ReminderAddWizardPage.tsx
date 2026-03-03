@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { Check, ChevronRight, Clock, Plus, X } from "lucide-react";
 
@@ -121,7 +121,17 @@ const WEEK_DAYS: Array<{ i: number; label: string }> = [
 export default function ReminderAddWizardPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const { configured, loading: authLoading, user } = useAuthState();
+
+  const patientId = useMemo(() => {
+    const raw = new URLSearchParams(location.search).get("patientId");
+    return raw && raw.trim() ? raw.trim() : null;
+  }, [location.search]);
+
+  const patientQuery = useMemo(() => {
+    return patientId ? `?patientId=${encodeURIComponent(patientId)}` : "";
+  }, [patientId]);
 
   const canUse = configured && !authLoading && !!user;
 
@@ -174,11 +184,24 @@ export default function ReminderAddWizardPage() {
   const [caregiverContact, setCaregiverContact] = useState("");
   const [caregiverBusy, setCaregiverBusy] = useState(false);
   const [caregiverMessage, setCaregiverMessage] = useState<string | null>(null);
+  const [caregiverAccessLevel, setCaregiverAccessLevel] = useState<
+    "view" | "edit" | "full"
+  >("view");
 
   const swipe = useSwipeBack(() => {
     if (step > 1) setStep((s) => (s - 1) as any);
-    else navigate("/reminder");
+    else navigate(`/reminder${patientQuery}`);
   }, true);
+
+  useEffect(() => {
+    if (!patientId) return;
+    if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
+    setPhotoPreviewUrl(null);
+    setPhotoKey(null);
+    voice.clearNote();
+    setVoiceNoteKey(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patientId]);
 
   useEffect(() => {
     return () => {
@@ -331,6 +354,7 @@ export default function ReminderAddWizardPage() {
   }
 
   async function onPickPhoto(file: File) {
+    if (patientId) return;
     setError(null);
     setCaregiverMessage(null);
     setPhotoUploading(true);
@@ -382,7 +406,10 @@ export default function ReminderAddWizardPage() {
     setCaregiverMessage(null);
     setError(null);
     try {
-      await inviteCaregiver({ caregiverContact: contact });
+      await inviteCaregiver({
+        caregiverContact: contact,
+        accessLevel: caregiverAccessLevel,
+      });
       setCaregiverMessage(t("Invitation sent"));
       setCaregiverContact("");
     } catch (e) {
@@ -405,7 +432,7 @@ export default function ReminderAddWizardPage() {
 
     try {
       let finalVoiceKey = voiceNoteKey;
-      if (voice.note?.blob && !finalVoiceKey) {
+      if (!patientId && voice.note?.blob && !finalVoiceKey) {
         setVoiceUploading(true);
         const contentType = voice.note.blob.type || "audio/wav";
         const filename = contentType.includes("webm")
@@ -441,14 +468,16 @@ export default function ReminderAddWizardPage() {
         stockRemaining: stockRemaining.trim() ? Number(stockRemaining) : null,
         instructionTag,
         note: note.trim() ? note.trim() : null,
-        photoKey,
-        voiceNoteKey: finalVoiceKey,
+        photoKey: patientId ? null : photoKey,
+        voiceNoteKey: patientId ? null : finalVoiceKey,
+        patientId,
       });
 
       const repeatType: RepeatType = frequency;
 
       await createSchedule({
         medicineId: medicine.id,
+        patientId,
         repeatType,
         intervalValue: frequency === "interval" ? intervalDays : null,
         selectedDays: frequency === "weekly" ? selectedWeeklyDays : null,
@@ -461,7 +490,7 @@ export default function ReminderAddWizardPage() {
 
       let timeline: TimelineItem[] = [];
       try {
-        timeline = await getTodayTimeline();
+        timeline = await getTodayTimeline({ patientId });
       } catch {
         timeline = [];
       }
@@ -469,9 +498,14 @@ export default function ReminderAddWizardPage() {
       setSavedOverlayOpen(true);
       await new Promise((r) => window.setTimeout(r, 700));
 
-      navigate("/reminder", {
+      navigate(`/reminder${patientQuery}`, {
         replace: true,
-        state: { created: true, timeline },
+        state: {
+          created: true,
+          createdMedicineId: medicine.id,
+          createdMedicineName: medicine.name,
+          timeline,
+        },
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -514,7 +548,7 @@ export default function ReminderAddWizardPage() {
           <div>
             <div className="flex items-center gap-2">
               <Link
-                to="/reminder"
+                to={`/reminder${patientQuery}`}
                 className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900"
               >
                 {t("Back")}
@@ -566,61 +600,63 @@ export default function ReminderAddWizardPage() {
                 />
               </div>
 
-              <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-semibold">
-                      {t("Photo (optional)")}
+              {!patientId ? (
+                <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold">
+                        {t("Photo (optional)")}
+                      </div>
+                      <div className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
+                        {t("Helps you recognize it quickly")}
+                      </div>
                     </div>
-                    <div className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
-                      {t("Helps you recognize it quickly")}
+                    <div className="h-14 w-14 overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+                      {photoPreviewUrl ? (
+                        <img
+                          src={photoPreviewUrl}
+                          alt=""
+                          className="h-full w-full object-cover"
+                        />
+                      ) : null}
                     </div>
                   </div>
-                  <div className="h-14 w-14 overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
-                    {photoPreviewUrl ? (
-                      <img
-                        src={photoPreviewUrl}
-                        alt=""
-                        className="h-full w-full object-cover"
+
+                  <div className="mt-3 flex items-center gap-2">
+                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900">
+                      <Plus className="h-4 w-4" />
+                      {photoUploading ? t("Uploading...") : t("Add photo")}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={photoUploading}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) void onPickPhoto(f);
+                          e.currentTarget.value = "";
+                        }}
                       />
+                    </label>
+
+                    {photoPreviewUrl ? (
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900"
+                        onClick={() => {
+                          if (photoPreviewUrl)
+                            URL.revokeObjectURL(photoPreviewUrl);
+                          setPhotoPreviewUrl(null);
+                          setPhotoKey(null);
+                        }}
+                      >
+                        <X className="h-4 w-4" />
+                        {t("Remove")}
+                      </button>
                     ) : null}
                   </div>
                 </div>
-
-                <div className="mt-3 flex items-center gap-2">
-                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900">
-                    <Plus className="h-4 w-4" />
-                    {photoUploading ? t("Uploading...") : t("Add photo")}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      disabled={photoUploading}
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (f) void onPickPhoto(f);
-                        e.currentTarget.value = "";
-                      }}
-                    />
-                  </label>
-
-                  {photoPreviewUrl ? (
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900"
-                      onClick={() => {
-                        if (photoPreviewUrl)
-                          URL.revokeObjectURL(photoPreviewUrl);
-                        setPhotoPreviewUrl(null);
-                        setPhotoKey(null);
-                      }}
-                    >
-                      <X className="h-4 w-4" />
-                      {t("Remove")}
-                    </button>
-                  ) : null}
-                </div>
-              </div>
+              ) : null}
 
               <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
                 <div className="text-sm font-semibold">{t("Type")}</div>
@@ -654,8 +690,8 @@ export default function ReminderAddWizardPage() {
           ) : null}
 
           {step === 2 ? (
-            <div className="space-y-4">
-              <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+            <div className="space-y-6">
+              <div className="rounded-2xl bg-zinc-50 p-5 dark:bg-zinc-900/40">
                 <div className="text-sm font-semibold">{t("Dose unit")}</div>
                 <div className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
                   {t("Pick the unit you use (you can also type your own).")}
@@ -703,7 +739,7 @@ export default function ReminderAddWizardPage() {
 
           {step === 2 ? (
             <div className="space-y-4">
-              <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+              <div className="rounded-2xl bg-zinc-50 p-5 dark:bg-zinc-900/40">
                 <div className="text-sm font-semibold">{t("Frequency")}</div>
                 <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {(
@@ -800,7 +836,7 @@ export default function ReminderAddWizardPage() {
                 ) : null}
               </div>
 
-              <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+              <div className="rounded-2xl bg-zinc-50 p-5 dark:bg-zinc-900/40">
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-sm font-semibold">{t("Times")}</div>
@@ -876,7 +912,7 @@ export default function ReminderAddWizardPage() {
                     {times.map((tm) => (
                       <div
                         key={tm}
-                        className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 dark:border-zinc-800 dark:bg-zinc-950"
+                        className="flex items-center gap-2 rounded-xl bg-white px-3 py-2 shadow-sm dark:bg-zinc-950"
                       >
                         <div className="w-16 text-sm font-semibold">{tm}</div>
                         <input
@@ -921,8 +957,8 @@ export default function ReminderAddWizardPage() {
           ) : null}
 
           {step === 2 ? (
-            <div className="space-y-4">
-              <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+            <div className="space-y-6">
+              <div className="rounded-2xl bg-zinc-50 p-5 dark:bg-zinc-900/40">
                 <div className="text-sm font-semibold">{t("Duration")}</div>
 
                 {frequency === "once" ? (
@@ -999,8 +1035,8 @@ export default function ReminderAddWizardPage() {
           ) : null}
 
           {step === 2 ? (
-            <div className="space-y-4">
-              <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+            <div className="space-y-6">
+              <div className="rounded-2xl bg-zinc-50 p-5 dark:bg-zinc-900/40">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <div className="text-sm font-semibold">
@@ -1092,86 +1128,104 @@ export default function ReminderAddWizardPage() {
                       />
                     </div>
 
-                    <div>
-                      <div className="text-sm font-semibold">
-                        {t("Voice note")}
-                      </div>
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        {!voice.recording ? (
-                          <button
-                            type="button"
-                            onClick={() => void voice.beginRecord()}
-                            className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white hover:bg-brand-700"
-                            disabled={voiceUploading}
-                          >
-                            {t("Record")}
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => voice.endRecord()}
-                            className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white hover:bg-red-700"
-                          >
-                            {t("Stop")} ({voice.recordSecondsLeft})
-                          </button>
-                        )}
+                    {!patientId ? (
+                      <div>
+                        <div className="text-sm font-semibold">
+                          {t("Voice note")}
+                        </div>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          {!voice.recording ? (
+                            <button
+                              type="button"
+                              onClick={() => void voice.beginRecord()}
+                              className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white hover:bg-brand-700"
+                              disabled={voiceUploading}
+                            >
+                              {t("Record")}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => voice.endRecord()}
+                              className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white hover:bg-red-700"
+                            >
+                              {t("Stop")} ({voice.recordSecondsLeft})
+                            </button>
+                          )}
 
-                        {voice.note ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              voice.clearNote();
-                              setVoiceNoteKey(null);
-                            }}
-                            className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-3 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900"
-                          >
-                            <X className="h-4 w-4" />
-                            {t("Remove")}
-                          </button>
+                          {voice.note ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                voice.clearNote();
+                                setVoiceNoteKey(null);
+                              }}
+                              className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-3 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900"
+                            >
+                              <X className="h-4 w-4" />
+                              {t("Remove")}
+                            </button>
+                          ) : null}
+                        </div>
+
+                        {voice.audioUrl ? (
+                          <audio
+                            className="mt-3 w-full"
+                            controls
+                            src={voice.audioUrl}
+                          />
+                        ) : null}
+
+                        {voiceUploading ? (
+                          <div className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
+                            {t("Uploading voice note...")}
+                          </div>
                         ) : null}
                       </div>
+                    ) : null}
 
-                      {voice.audioUrl ? (
-                        <audio
-                          className="mt-3 w-full"
-                          controls
-                          src={voice.audioUrl}
-                        />
-                      ) : null}
-
-                      {voiceUploading ? (
-                        <div className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
-                          {t("Uploading voice note...")}
+                    {!patientId ? (
+                      <div>
+                        <div className="text-sm font-semibold">
+                          {t("Caregiver (optional)")}
                         </div>
-                      ) : null}
-                    </div>
-
-                    <div>
-                      <div className="text-sm font-semibold">
-                        {t("Caregiver (optional)")}
-                      </div>
-                      <div className="mt-2 flex gap-2">
-                        <input
-                          value={caregiverContact}
-                          onChange={(e) => setCaregiverContact(e.target.value)}
-                          placeholder={t("Email or phone")}
-                          className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-3 text-base outline-none focus:border-brand-500 dark:border-zinc-800 dark:bg-zinc-950"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => void onInviteCaregiver()}
-                          disabled={!caregiverContact.trim() || caregiverBusy}
-                          className="rounded-xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
-                        >
-                          {caregiverBusy ? t("Sending...") : t("Invite")}
-                        </button>
-                      </div>
-                      {caregiverMessage ? (
-                        <div className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
-                          {caregiverMessage}
+                        <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_160px_auto]">
+                          <input
+                            value={caregiverContact}
+                            onChange={(e) =>
+                              setCaregiverContact(e.target.value)
+                            }
+                            placeholder={t("Email or phone")}
+                            className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-base outline-none focus:border-brand-500 dark:border-zinc-800 dark:bg-zinc-950"
+                          />
+                          <select
+                            value={caregiverAccessLevel}
+                            onChange={(e) =>
+                              setCaregiverAccessLevel(e.target.value as any)
+                            }
+                            className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-base outline-none focus:border-brand-500 dark:border-zinc-800 dark:bg-zinc-950"
+                            aria-label={t("Access")}
+                          >
+                            <option value="view">{t("View")}</option>
+                            <option value="edit">{t("Edit")}</option>
+                            <option value="full">{t("Full")}</option>
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => void onInviteCaregiver()}
+                            disabled={!caregiverContact.trim() || caregiverBusy}
+                            className="rounded-xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+                          >
+                            {caregiverBusy ? t("Sending...") : t("Invite")}
+                          </button>
                         </div>
-                      ) : null}
-                    </div>
+                        {caregiverMessage ? (
+                          <div className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
+                            {caregiverMessage}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
               </div>
@@ -1188,7 +1242,7 @@ export default function ReminderAddWizardPage() {
             className="rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900"
             onClick={() => {
               if (step > 1) setStep((s) => (s - 1) as any);
-              else navigate("/reminder");
+              else navigate(`/reminder${patientQuery}`);
             }}
             disabled={busy}
           >

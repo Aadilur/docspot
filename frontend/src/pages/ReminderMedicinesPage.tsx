@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 import { ArrowLeft, ArrowRight, BellRing, Pill } from "lucide-react";
 
@@ -73,6 +73,16 @@ type MedicineCardModel = {
 export default function ReminderMedicinesPage() {
   const { t } = useTranslation();
   const { configured, loading: authLoading, user } = useAuthState();
+  const location = useLocation();
+
+  const patientId = useMemo(() => {
+    const raw = new URLSearchParams(location.search).get("patientId");
+    return raw && raw.trim() ? raw.trim() : null;
+  }, [location.search]);
+
+  const patientQuery = useMemo(() => {
+    return patientId ? `?patientId=${encodeURIComponent(patientId)}` : "";
+  }, [patientId]);
 
   const canUse = configured && !authLoading && !!user;
 
@@ -102,10 +112,15 @@ export default function ReminderMedicinesPage() {
 
     (async () => {
       const [s, meds, todayItems, up] = await Promise.all([
-        getReminderSettings(),
-        listMedicines({ limit: 100, offset: 0, includeArchived: false }),
-        getTodayTimeline(),
-        getUpcomingIntakeEvents({ daysAhead: 7, limit: 1000 }),
+        getReminderSettings(patientId),
+        listMedicines({
+          limit: 100,
+          offset: 0,
+          includeArchived: false,
+          patientId,
+        }),
+        getTodayTimeline({ patientId }),
+        getUpcomingIntakeEvents({ daysAhead: 7, limit: 1000, patientId }),
       ]);
 
       if (cancelled) return;
@@ -126,7 +141,7 @@ export default function ReminderMedicinesPage() {
     return () => {
       cancelled = true;
     };
-  }, [canUse]);
+  }, [canUse, patientId]);
 
   const models = useMemo((): MedicineCardModel[] => {
     const now = Date.now();
@@ -260,7 +275,7 @@ export default function ReminderMedicinesPage() {
           <div>
             <div className="flex items-center gap-2">
               <Link
-                to="/reminder"
+                to={`/reminder${patientQuery}`}
                 className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900"
               >
                 <ArrowLeft className="h-4 w-4" />
@@ -276,7 +291,7 @@ export default function ReminderMedicinesPage() {
           </div>
 
           <Link
-            to="/reminder/add"
+            to={`/reminder/add${patientQuery}`}
             className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700"
           >
             <BellRing className="h-4 w-4" />
@@ -304,7 +319,7 @@ export default function ReminderMedicinesPage() {
                 {t("Create your first medicine and schedule.")}
               </p>
               <Link
-                to="/reminder/add"
+                to={`/reminder/add${patientQuery}`}
                 className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white hover:bg-brand-700"
               >
                 <Pill className="h-4 w-4" />
@@ -327,7 +342,7 @@ export default function ReminderMedicinesPage() {
                 return (
                   <Link
                     key={m.medicine.id}
-                    to={`/reminder/medicines/${m.medicine.id}`}
+                    to={`/reminder/medicines/${m.medicine.id}${patientQuery}`}
                     className={
                       "group block rounded-2xl border border-zinc-200 bg-white p-4 transition-all hover:-translate-y-0.5 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900 " +
                       (m.disabled ? "opacity-70" : "")

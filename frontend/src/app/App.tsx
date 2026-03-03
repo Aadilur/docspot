@@ -21,6 +21,7 @@ import ReminderPage from "../pages/ReminderPage";
 import ReminderAddWizardPage from "../pages/ReminderAddWizardPage";
 import ReminderMedicinesPage from "../pages/ReminderMedicinesPage";
 import ReminderMedicineDetailsPage from "../pages/ReminderMedicineDetailsPage";
+import ReminderCaregiverPage from "../pages/ReminderCaregiverPage";
 import TermsPage from "../pages/TermsPage";
 
 export default function App() {
@@ -38,6 +39,7 @@ export default function App() {
         <Route path="/endpoints" element={<EndpointsPage />} />
         <Route path="/reminder" element={<ReminderPage />} />
         <Route path="/reminder/add" element={<ReminderAddWizardPage />} />
+        <Route path="/reminder/caregiver" element={<ReminderCaregiverPage />} />
         <Route path="/reminder/medicines" element={<ReminderMedicinesPage />} />
         <Route
           path="/reminder/medicines/:id"

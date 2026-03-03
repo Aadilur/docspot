@@ -82,9 +82,35 @@ export const API_PATHS = {
     `/me/reminders/intake/${id}/skipped`,
   meMedicineHistory: (id: string) => `/me/medicines/${id}/history`,
   meMedicineUpcoming: (id: string) => `/me/medicines/${id}/upcoming`,
+  meMedicineLogs: (id: string) => `/me/medicines/${id}/logs`,
 
   meCaregiverInvite: "/me/caregiver/invite",
   meCaregiverAccept: "/me/caregiver/accept",
+  meCaregiverReject: "/me/caregiver/reject",
+  meCaregiverRequests: "/me/caregiver/requests",
+  meCaregiverPatients: "/me/caregiver/patients",
+  meCaregiverLink: "/me/caregiver/link",
+  meCaregiverPatientPatch: (patientId: string) =>
+    `/me/caregiver/patients/${patientId}`,
+
+  caregiverMedicines: "/caregiver/medicines",
+  caregiverMedicineById: (id: string) => `/caregiver/medicines/${id}`,
+  caregiverMedicineArchive: (id: string) =>
+    `/caregiver/medicines/${id}/archive`,
+  caregiverMedicineSchedules: (id: string) =>
+    `/caregiver/medicines/${id}/schedules`,
+  caregiverMedicineHistory: (id: string) =>
+    `/caregiver/medicines/${id}/history`,
+  caregiverMedicineUpcoming: (id: string) =>
+    `/caregiver/medicines/${id}/upcoming`,
+  caregiverMedicineLogs: (id: string) => `/caregiver/medicines/${id}/logs`,
+  caregiverTimelineToday: "/caregiver/timeline/today",
+  caregiverReminderSettings: "/caregiver/reminder-settings",
+  caregiverRemindersUpcoming: "/caregiver/reminders/upcoming",
+  caregiverRemindersIntakeTaken: (id: string) =>
+    `/caregiver/reminders/intake/${id}/taken`,
+  caregiverRemindersIntakeSkipped: (id: string) =>
+    `/caregiver/reminders/intake/${id}/skipped`,
 } as const;
 
 export const API_ENDPOINTS: ApiEndpoint[] = [

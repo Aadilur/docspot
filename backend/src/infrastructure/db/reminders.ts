@@ -4,6 +4,7 @@ import { DateTime } from "luxon";
 
 import { ensureSchema } from "./schema";
 import { getPostgresPool } from "./postgres";
+import { applyObjectDeletes } from "./storage";
 
 export type MedicineType = "pill" | "syrup" | "injection" | "inhaler" | "other";
 
@@ -83,12 +84,53 @@ export type TimelineItem = IntakeEventRecord & {
 
 export type CaregiverLinkStatus = "pending" | "accepted" | "rejected";
 
+export type CaregiverAccessLevel = "view" | "edit" | "full";
+
 export type CaregiverLinkRecord = {
   id: string;
   patientId: string;
   caregiverId: string;
   status: CaregiverLinkStatus;
+  accessLevel: CaregiverAccessLevel;
+  caregiverAlias: string | null;
   createdAt: string;
+};
+
+export type CaregiverRequestItem = {
+  link: CaregiverLinkRecord;
+  patient: {
+    id: string;
+    displayName: string | null;
+    email: string | null;
+    photoUrl: string | null;
+  };
+};
+
+export type CaregiverPatientItem = {
+  link: CaregiverLinkRecord;
+  patient: {
+    id: string;
+    displayName: string | null;
+    email: string | null;
+    photoUrl: string | null;
+  };
+};
+
+export type AuditLogRecord = {
+  id: string;
+  userId: string;
+  actorUserId: string | null;
+  action: string;
+  entityType: string;
+  entityId: string;
+  metadata: unknown | null;
+  createdAt: string;
+  actor?: {
+    id: string;
+    displayName: string | null;
+    email: string | null;
+    photoUrl: string | null;
+  } | null;
 };
 
 function newUuid(): string {
@@ -282,6 +324,12 @@ function rowToEvent(row: any): IntakeEventRecord {
 }
 
 function rowToCaregiverLink(row: any): CaregiverLinkRecord {
+  const rawLevel =
+    typeof row.access_level === "string" ? row.access_level : "view";
+  const accessLevel: CaregiverAccessLevel =
+    rawLevel === "edit" || rawLevel === "full" || rawLevel === "view"
+      ? rawLevel
+      : "view";
   return {
     id: String(row.id),
     patientId: String(row.patient_id),
@@ -292,7 +340,36 @@ function rowToCaregiverLink(row: any): CaregiverLinkRecord {
       row.status === "pending"
         ? row.status
         : "pending",
+    accessLevel,
+    caregiverAlias:
+      row.caregiver_alias == null ? null : String(row.caregiver_alias),
     createdAt: new Date(row.created_at).toISOString(),
+  };
+}
+
+function rowToAuditLog(row: any): AuditLogRecord {
+  return {
+    id: String(row.id),
+    userId: String(row.user_id),
+    actorUserId: row.actor_user_id == null ? null : String(row.actor_user_id),
+    action: String(row.action),
+    entityType: String(row.entity_type),
+    entityId: String(row.entity_id),
+    metadata: row.metadata ?? null,
+    createdAt: new Date(row.created_at).toISOString(),
+    actor:
+      row.actor_id == null
+        ? null
+        : {
+            id: String(row.actor_id),
+            displayName:
+              row.actor_display_name == null
+                ? null
+                : String(row.actor_display_name),
+            email: row.actor_email == null ? null : String(row.actor_email),
+            photoUrl:
+              row.actor_photo_url == null ? null : String(row.actor_photo_url),
+          },
   };
 }
 
@@ -403,6 +480,7 @@ export async function createMedicine(params: {
   voiceNoteKey?: string | null;
   voiceNoteFilename?: string | null;
   voiceNoteContentType?: string | null;
+  actorUserId?: string | null;
 }): Promise<MedicineRecord> {
   await ensureSchema();
   const pg = getPostgresPool();
@@ -484,6 +562,7 @@ export async function createMedicine(params: {
 
   await insertAuditLog({
     userId: params.userId,
+    actorUserId: params.actorUserId,
     action: "medicine.create",
     entityType: "medicine",
     entityId: id,
@@ -546,6 +625,7 @@ export async function getMedicine(params: {
 export async function archiveMedicine(params: {
   userId: string;
   medicineId: string;
+  actorUserId?: string | null;
 }): Promise<MedicineRecord | null> {
   await ensureSchema();
   const pg = getPostgresPool();
@@ -579,10 +659,161 @@ export async function archiveMedicine(params: {
 
   await insertAuditLog({
     userId: params.userId,
+    actorUserId: params.actorUserId,
     action: "medicine.archive",
     entityType: "medicine",
     entityId: params.medicineId,
     metadata: null,
+  });
+
+  const med = rowToMedicine(result.rows[0]);
+
+  // Free storage when a medicine is deleted/archived.
+  // (The DB row keeps keys, but storage usage should reflect actual active objects.)
+  const keysToDelete = [med.photoKey ?? "", med.voiceNoteKey ?? ""].filter(
+    Boolean,
+  );
+  if (keysToDelete.length > 0) {
+    try {
+      await applyObjectDeletes({ userId: params.userId, keys: keysToDelete });
+    } catch {
+      // Best-effort: do not fail archive if storage cleanup fails.
+    }
+  }
+
+  return med;
+}
+
+export async function patchMedicine(params: {
+  userId: string;
+  medicineId: string;
+  actorUserId?: string | null;
+  patch: {
+    name?: string;
+    type?: MedicineType;
+    dosePerIntake?: number;
+    doseUnit?: string | null;
+    stockTotal?: number | null;
+    stockRemaining?: number | null;
+    lowStockThreshold?: number;
+    instructionTag?: InstructionTag;
+    note?: string | null;
+    isActive?: boolean;
+  };
+}): Promise<MedicineRecord | null> {
+  await ensureSchema();
+  const pg = getPostgresPool();
+
+  const sets: string[] = [];
+  const args: any[] = [params.medicineId, params.userId];
+  let i = 3;
+
+  if (typeof params.patch.name === "string") {
+    const v = params.patch.name.trim();
+    if (!v) throw new Error("name is required");
+    sets.push(`name = $${i}::text`);
+    args.push(v);
+    i++;
+  }
+
+  if (params.patch.type !== undefined) {
+    sets.push(`type = $${i}::text`);
+    args.push(normalizeMedicineType(params.patch.type));
+    i++;
+  }
+
+  if (params.patch.dosePerIntake !== undefined) {
+    const n = Number(params.patch.dosePerIntake);
+    if (!Number.isFinite(n) || n <= 0) throw new Error("dosePerIntake invalid");
+    sets.push(`dose_per_intake = $${i}::numeric`);
+    args.push(n);
+    i++;
+  }
+
+  if (params.patch.doseUnit !== undefined) {
+    const raw = params.patch.doseUnit;
+    const v = raw == null ? null : String(raw).trim();
+    sets.push(`dose_unit = $${i}::text`);
+    args.push(v ? v : null);
+    i++;
+  }
+
+  if (params.patch.stockTotal !== undefined) {
+    const raw = params.patch.stockTotal;
+    const v = raw == null ? null : Number(raw);
+    if (v != null && (!Number.isFinite(v) || v < 0))
+      throw new Error("stockTotal invalid");
+    sets.push(`stock_total = $${i}::numeric`);
+    args.push(v);
+    i++;
+  }
+
+  if (params.patch.stockRemaining !== undefined) {
+    const raw = params.patch.stockRemaining;
+    const v = raw == null ? null : Number(raw);
+    if (v != null && (!Number.isFinite(v) || v < 0))
+      throw new Error("stockRemaining invalid");
+    sets.push(`stock_remaining = $${i}::numeric`);
+    args.push(v);
+    i++;
+  }
+
+  if (params.patch.lowStockThreshold !== undefined) {
+    const n = Number(params.patch.lowStockThreshold);
+    if (!Number.isFinite(n) || n < 0)
+      throw new Error("lowStockThreshold invalid");
+    sets.push(`low_stock_threshold = $${i}::numeric`);
+    args.push(n);
+    i++;
+  }
+
+  if (params.patch.instructionTag !== undefined) {
+    sets.push(`instruction_tag = $${i}::text`);
+    args.push(normalizeInstructionTag(params.patch.instructionTag));
+    i++;
+  }
+
+  if (params.patch.note !== undefined) {
+    const raw = params.patch.note;
+    const v = raw == null ? null : String(raw);
+    sets.push(`note = $${i}::text`);
+    args.push(v);
+    i++;
+  }
+
+  if (params.patch.isActive !== undefined) {
+    sets.push(`is_active = $${i}::boolean`);
+    args.push(Boolean(params.patch.isActive));
+    i++;
+  }
+
+  if (sets.length === 0) {
+    return await getMedicine({
+      userId: params.userId,
+      medicineId: params.medicineId,
+    });
+  }
+
+  const result = await pg.query(
+    `
+      update medicines
+      set ${sets.join(", ")}, updated_at = now()
+      where id = $1::uuid and user_id = $2::uuid
+      returning *;
+    `,
+    args,
+  );
+  if (result.rows.length === 0) return null;
+
+  await insertAuditLog({
+    userId: params.userId,
+    actorUserId: params.actorUserId,
+    action: "medicine.patch",
+    entityType: "medicine",
+    entityId: params.medicineId,
+    metadata: {
+      fields: sets.map((s) => s.split("=")[0]?.trim()).filter(Boolean),
+    },
   });
 
   return rowToMedicine(result.rows[0]);
@@ -590,6 +821,7 @@ export async function archiveMedicine(params: {
 
 export async function createSchedule(params: {
   userId: string;
+  actorUserId?: string | null;
   medicineId: string;
   repeatType: RepeatType;
   intervalValue?: number | null;
@@ -700,10 +932,20 @@ export async function createSchedule(params: {
 
   await insertAuditLog({
     userId: params.userId,
+    actorUserId: params.actorUserId,
     action: "schedule.create",
     entityType: "schedule",
     entityId: id,
     metadata: { medicineId: params.medicineId, repeatType },
+  });
+
+  await insertAuditLog({
+    userId: params.userId,
+    actorUserId: params.actorUserId,
+    action: "medicine.schedule_create",
+    entityType: "medicine",
+    entityId: params.medicineId,
+    metadata: { scheduleId: id, repeatType, times },
   });
 
   // Best-effort: pre-generate upcoming events right away.
@@ -827,6 +1069,7 @@ export async function listMedicineHistory(params: {
 
 async function insertAuditLog(params: {
   userId: string;
+  actorUserId?: string | null;
   action: string;
   entityType:
     | "medicine"
@@ -840,20 +1083,98 @@ async function insertAuditLog(params: {
   await ensureSchema();
   const pg = getPostgresPool();
 
+  const actorId =
+    params.actorUserId === undefined ? params.userId : params.actorUserId;
+
   await pg.query(
     `
-      insert into audit_logs (id, user_id, action, entity_type, entity_id, metadata, created_at)
-      values ($1::uuid, $2::uuid, $3::text, $4::text, $5::text, $6::jsonb, now());
+      insert into audit_logs (id, user_id, actor_user_id, action, entity_type, entity_id, metadata, created_at)
+      values ($1::uuid, $2::uuid, $3::uuid, $4::text, $5::text, $6::text, $7::jsonb, now());
     `,
     [
       newUuid(),
       params.userId,
+      actorId,
       params.action,
       params.entityType,
       params.entityId,
       params.metadata == null ? null : JSON.stringify(params.metadata),
     ],
   );
+
+  // Enforce per-medicine log cap (keep newest 100).
+  if (params.entityType === "medicine") {
+    await pg.query(
+      `
+        delete from audit_logs
+        where id in (
+          select id
+          from audit_logs
+          where user_id = $1::uuid
+            and entity_type = 'medicine'
+            and entity_id = $2::text
+          order by created_at desc
+          offset 100
+        );
+      `,
+      [params.userId, params.entityId],
+    );
+  }
+}
+
+export async function listMedicineActivityLogs(params: {
+  userId: string;
+  medicineId: string;
+  limit: number;
+  offset: number;
+}): Promise<{ logs: AuditLogRecord[]; totalCapped: number }> {
+  await ensureSchema();
+  const pg = getPostgresPool();
+
+  const limit = clampInt(
+    Number.isFinite(params.limit) ? params.limit : 25,
+    1,
+    50,
+  );
+  const offset = clampInt(
+    Number.isFinite(params.offset) ? params.offset : 0,
+    0,
+    100,
+  );
+
+  const rows = await pg.query(
+    `
+      select
+        l.*, 
+        a.id as actor_id,
+        a.display_name as actor_display_name,
+        a.email as actor_email,
+        a.photo_url as actor_photo_url
+      from audit_logs l
+      left join users a on a.id = l.actor_user_id
+      where l.user_id = $1::uuid
+        and l.entity_type = 'medicine'
+        and l.entity_id = $2::text
+      order by l.created_at desc
+      limit $3::int offset $4::int;
+    `,
+    [params.userId, params.medicineId, limit, offset],
+  );
+
+  // total is capped at 100 by pruning, but count defensively.
+  const countRes = await pg.query(
+    `
+      select count(*)::int as n
+      from audit_logs
+      where user_id = $1::uuid and entity_type = 'medicine' and entity_id = $2::text;
+    `,
+    [params.userId, params.medicineId],
+  );
+
+  return {
+    logs: (rows.rows ?? []).map(rowToAuditLog),
+    totalCapped: clampInt(Number(countRes.rows?.[0]?.n ?? 0), 0, 100),
+  };
 }
 
 async function tryConsumeIdempotencyKey(params: {
@@ -915,6 +1236,7 @@ export async function markIntakeEventTaken(params: {
   userId: string;
   intakeEventId: string;
   idempotencyKey?: string | null;
+  actorUserId?: string | null;
 }): Promise<{
   event: IntakeEventRecord;
   medicine: MedicineRecord;
@@ -1054,12 +1376,15 @@ export async function markIntakeEventTaken(params: {
 
         await client.query(
           `
-            insert into audit_logs (id, user_id, action, entity_type, entity_id, metadata, created_at)
-            values ($1::uuid, $2::uuid, 'medicine.stock_update', 'medicine', $3::text, $4::jsonb, now());
+            insert into audit_logs (id, user_id, actor_user_id, action, entity_type, entity_id, metadata, created_at)
+            values ($1::uuid, $2::uuid, $3::uuid, 'medicine.stock_update', 'medicine', $4::text, $5::jsonb, now());
           `,
           [
             newUuid(),
             params.userId,
+            params.actorUserId === undefined
+              ? params.userId
+              : params.actorUserId,
             String(eventRow.medicine_id),
             JSON.stringify({
               previous: stockRemaining,
@@ -1069,19 +1394,70 @@ export async function markIntakeEventTaken(params: {
             }),
           ],
         );
+
+        // Cap per-medicine logs to newest 100.
+        await client.query(
+          `
+            delete from audit_logs
+            where id in (
+              select id
+              from audit_logs
+              where user_id = $1::uuid
+                and entity_type = 'medicine'
+                and entity_id = $2::text
+              order by created_at desc
+              offset 100
+            );
+          `,
+          [params.userId, String(eventRow.medicine_id)],
+        );
       }
 
       await client.query(
         `
-          insert into audit_logs (id, user_id, action, entity_type, entity_id, metadata, created_at)
-          values ($1::uuid, $2::uuid, 'intake_event.taken', 'intake_event', $3::text, $4::jsonb, now());
+          insert into audit_logs (id, user_id, actor_user_id, action, entity_type, entity_id, metadata, created_at)
+          values ($1::uuid, $2::uuid, $3::uuid, 'intake_event.taken', 'intake_event', $4::text, $5::jsonb, now());
         `,
         [
           newUuid(),
           params.userId,
+          params.actorUserId === undefined ? params.userId : params.actorUserId,
           params.intakeEventId,
           JSON.stringify({ statusFrom: currentStatus }),
         ],
+      );
+
+      await client.query(
+        `
+          insert into audit_logs (id, user_id, actor_user_id, action, entity_type, entity_id, metadata, created_at)
+          values ($1::uuid, $2::uuid, $3::uuid, 'medicine.intake_taken', 'medicine', $4::text, $5::jsonb, now());
+        `,
+        [
+          newUuid(),
+          params.userId,
+          params.actorUserId === undefined ? params.userId : params.actorUserId,
+          String(eventRow.medicine_id),
+          JSON.stringify({
+            intakeEventId: params.intakeEventId,
+            statusFrom: currentStatus,
+          }),
+        ],
+      );
+
+      await client.query(
+        `
+          delete from audit_logs
+          where id in (
+            select id
+            from audit_logs
+            where user_id = $1::uuid
+              and entity_type = 'medicine'
+              and entity_id = $2::text
+            order by created_at desc
+            offset 100
+          );
+        `,
+        [params.userId, String(eventRow.medicine_id)],
       );
 
       const refreshedEventRes = await client.query(
@@ -1280,6 +1656,7 @@ export async function markIntakeEventSkipped(params: {
   userId: string;
   intakeEventId: string;
   reason?: string | null;
+  actorUserId?: string | null;
 }): Promise<IntakeEventRecord> {
   await ensureSchema();
   const pg = getPostgresPool();
@@ -1302,13 +1679,24 @@ export async function markIntakeEventSkipped(params: {
 
   await insertAuditLog({
     userId: params.userId,
+    actorUserId: params.actorUserId,
     action: "intake_event.skipped",
     entityType: "intake_event",
     entityId: params.intakeEventId,
     metadata: { reason },
   });
 
-  return rowToEvent(result.rows[0]);
+  const event = rowToEvent(result.rows[0]);
+  await insertAuditLog({
+    userId: params.userId,
+    actorUserId: params.actorUserId,
+    action: "medicine.intake_skipped",
+    entityType: "medicine",
+    entityId: event.medicineId,
+    metadata: { intakeEventId: params.intakeEventId, reason },
+  });
+
+  return event;
 }
 
 function shouldCreateEventForLocalDate(params: {
@@ -1686,6 +2074,7 @@ export async function runMissedDoseTick(params?: {
 export async function inviteCaregiver(params: {
   patientId: string;
   caregiverId: string;
+  accessLevel?: CaregiverAccessLevel | null;
 }): Promise<CaregiverLinkRecord> {
   await ensureSchema();
   const pg = getPostgresPool();
@@ -1695,20 +2084,66 @@ export async function inviteCaregiver(params: {
   }
 
   const id = newUuid();
+  const levelRaw = params.accessLevel ?? "view";
+  const accessLevel: CaregiverAccessLevel =
+    levelRaw === "edit" || levelRaw === "full" || levelRaw === "view"
+      ? levelRaw
+      : "view";
   const result = await pg.query(
     `
       insert into caregiver_links (id, patient_id, caregiver_id, status, created_at)
       values ($1::uuid, $2::uuid, $3::uuid, 'pending', now())
       on conflict (patient_id, caregiver_id)
-      do update set status = 'pending'
+      do update set status = 'pending', access_level = $4::text
       returning *;
     `,
-    [id, params.patientId, params.caregiverId],
+    [id, params.patientId, params.caregiverId, accessLevel],
+  );
+
+  // Ensure access level is set for both new and existing rows.
+  await pg.query(
+    `
+      update caregiver_links
+      set access_level = $3::text
+      where patient_id = $1::uuid and caregiver_id = $2::uuid;
+    `,
+    [params.patientId, params.caregiverId, accessLevel],
   );
 
   await insertAuditLog({
     userId: params.patientId,
+    actorUserId: params.patientId,
     action: "caregiver.invite",
+    entityType: "caregiver_link",
+    entityId: String(result.rows[0].id),
+    metadata: { caregiverId: params.caregiverId, accessLevel },
+  });
+
+  return rowToCaregiverLink(result.rows[0]);
+}
+
+export async function rejectCaregiverInvite(params: {
+  caregiverId: string;
+  patientId: string;
+}): Promise<CaregiverLinkRecord> {
+  await ensureSchema();
+  const pg = getPostgresPool();
+
+  const result = await pg.query(
+    `
+      update caregiver_links
+      set status = 'rejected'
+      where patient_id = $1::uuid and caregiver_id = $2::uuid
+      returning *;
+    `,
+    [params.patientId, params.caregiverId],
+  );
+  if (result.rows.length === 0) throw new Error("invite not found");
+
+  await insertAuditLog({
+    userId: params.patientId,
+    actorUserId: params.caregiverId,
+    action: "caregiver.reject",
     entityType: "caregiver_link",
     entityId: String(result.rows[0].id),
     metadata: { caregiverId: params.caregiverId },
@@ -1738,6 +2173,7 @@ export async function acceptCaregiverInvite(params: {
 
   await insertAuditLog({
     userId: params.patientId,
+    actorUserId: params.caregiverId,
     action: "caregiver.accept",
     entityType: "caregiver_link",
     entityId: String(result.rows[0].id),
@@ -1747,16 +2183,135 @@ export async function acceptCaregiverInvite(params: {
   return rowToCaregiverLink(result.rows[0]);
 }
 
-export async function requireCaregiverAccess(params: {
+export async function listCaregiverRequests(params: {
   caregiverId: string;
-  patientId: string;
-}): Promise<void> {
+}): Promise<CaregiverRequestItem[]> {
   await ensureSchema();
   const pg = getPostgresPool();
 
   const res = await pg.query(
     `
-      select 1 as ok
+      select
+        cl.*, 
+        u.id as patient_user_id,
+        u.display_name as patient_display_name,
+        u.email as patient_email,
+        u.photo_url as patient_photo_url
+      from caregiver_links cl
+      join users u on u.id = cl.patient_id
+      where cl.caregiver_id = $1::uuid
+        and cl.status = 'pending'
+      order by cl.created_at desc
+      limit 200;
+    `,
+    [params.caregiverId],
+  );
+
+  return (res.rows ?? []).map((r: any) => ({
+    link: rowToCaregiverLink(r),
+    patient: {
+      id: String(r.patient_user_id),
+      displayName:
+        r.patient_display_name == null ? null : String(r.patient_display_name),
+      email: r.patient_email == null ? null : String(r.patient_email),
+      photoUrl:
+        r.patient_photo_url == null ? null : String(r.patient_photo_url),
+    },
+  }));
+}
+
+export async function listCaregiverPatients(params: {
+  caregiverId: string;
+}): Promise<CaregiverPatientItem[]> {
+  await ensureSchema();
+  const pg = getPostgresPool();
+
+  const res = await pg.query(
+    `
+      select
+        cl.*, 
+        u.id as patient_user_id,
+        u.display_name as patient_display_name,
+        u.email as patient_email,
+        u.photo_url as patient_photo_url
+      from caregiver_links cl
+      join users u on u.id = cl.patient_id
+      where cl.caregiver_id = $1::uuid
+        and cl.status = 'accepted'
+      order by cl.created_at desc
+      limit 200;
+    `,
+    [params.caregiverId],
+  );
+
+  return (res.rows ?? []).map((r: any) => ({
+    link: rowToCaregiverLink(r),
+    patient: {
+      id: String(r.patient_user_id),
+      displayName:
+        r.patient_display_name == null ? null : String(r.patient_display_name),
+      email: r.patient_email == null ? null : String(r.patient_email),
+      photoUrl:
+        r.patient_photo_url == null ? null : String(r.patient_photo_url),
+    },
+  }));
+}
+
+export async function patchCaregiverAlias(params: {
+  caregiverId: string;
+  patientId: string;
+  alias: string | null;
+}): Promise<CaregiverLinkRecord> {
+  await ensureSchema();
+  const pg = getPostgresPool();
+
+  const a = params.alias == null ? null : String(params.alias).trim();
+  const alias = a ? a.slice(0, 80) : null;
+
+  const res = await pg.query(
+    `
+      update caregiver_links
+      set caregiver_alias = $3::text
+      where caregiver_id = $1::uuid
+        and patient_id = $2::uuid
+        and status = 'accepted'
+      returning *;
+    `,
+    [params.caregiverId, params.patientId, alias],
+  );
+  if (res.rows.length === 0) throw new Error("link not found");
+  return rowToCaregiverLink(res.rows[0]);
+}
+
+export async function getCaregiverLink(params: {
+  caregiverId: string;
+  patientId: string;
+}): Promise<CaregiverLinkRecord | null> {
+  await ensureSchema();
+  const pg = getPostgresPool();
+  const res = await pg.query(
+    `
+      select *
+      from caregiver_links
+      where caregiver_id = $1::uuid and patient_id = $2::uuid
+      limit 1;
+    `,
+    [params.caregiverId, params.patientId],
+  );
+  if (res.rows.length === 0) return null;
+  return rowToCaregiverLink(res.rows[0]);
+}
+
+export async function requireCaregiverAccessLevel(params: {
+  caregiverId: string;
+  patientId: string;
+  minLevel: CaregiverAccessLevel;
+}): Promise<CaregiverAccessLevel> {
+  await ensureSchema();
+  const pg = getPostgresPool();
+  const res = await pg.query(
+    `
+      select access_level
       from caregiver_links
       where patient_id = $1::uuid
         and caregiver_id = $2::uuid
@@ -1765,6 +2320,28 @@ export async function requireCaregiverAccess(params: {
     `,
     [params.patientId, params.caregiverId],
   );
-
   if (res.rows.length === 0) throw new Error("forbidden");
+
+  const raw = String(res.rows[0].access_level ?? "view");
+  const level: CaregiverAccessLevel =
+    raw === "edit" || raw === "full" || raw === "view" ? raw : "view";
+
+  const order: Record<CaregiverAccessLevel, number> = {
+    view: 1,
+    edit: 2,
+    full: 3,
+  };
+  if (order[level] < order[params.minLevel]) throw new Error("forbidden");
+  return level;
+}
+
+export async function requireCaregiverAccess(params: {
+  caregiverId: string;
+  patientId: string;
+}): Promise<void> {
+  await requireCaregiverAccessLevel({
+    caregiverId: params.caregiverId,
+    patientId: params.patientId,
+    minLevel: "view",
+  });
 }

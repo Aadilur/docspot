@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation } from "react-router-dom";
 
-import { BellRing, Check, Plus, RefreshCw, X } from "lucide-react";
+import { BellRing, Check, Plus, RefreshCw, Users, X } from "lucide-react";
 
 import Footer from "../components/Footer";
 import Header from "../components/Header";
@@ -79,7 +79,12 @@ function formatDoseText(params: {
   return `${amount}${unit ? ` ${unit}` : ""}`;
 }
 
-type LocationState = { created?: boolean; timeline?: TimelineItem[] };
+type LocationState = {
+  created?: boolean;
+  createdMedicineId?: string;
+  createdMedicineName?: string;
+  timeline?: TimelineItem[];
+};
 
 type EffectiveStatus = "pending" | "taken" | "missed" | "skipped";
 
@@ -224,6 +229,15 @@ export default function ReminderPage() {
   const { configured, loading: authLoading, user } = useAuthState();
   const location = useLocation();
 
+  const patientId = useMemo(() => {
+    const raw = new URLSearchParams(location.search).get("patientId");
+    return raw && raw.trim() ? raw.trim() : null;
+  }, [location.search]);
+
+  const patientQuery = useMemo(() => {
+    return patientId ? `?patientId=${encodeURIComponent(patientId)}` : "";
+  }, [patientId]);
+
   const canUse = configured && !authLoading && !!user;
   const initial = (location.state as LocationState | null) ?? null;
 
@@ -243,6 +257,18 @@ export default function ReminderPage() {
     Boolean(initial?.created),
   );
 
+  const createdMedicine = useMemo(() => {
+    const id =
+      typeof initial?.createdMedicineId === "string"
+        ? initial.createdMedicineId
+        : "";
+    const name =
+      typeof initial?.createdMedicineName === "string"
+        ? initial.createdMedicineName
+        : "";
+    return { id, name };
+  }, [initial?.createdMedicineId, initial?.createdMedicineName]);
+
   const medicinesById = useMemo(() => {
     const m = new Map<string, MedicineRecord>();
     for (const med of medicines) m.set(med.id, med);
@@ -256,9 +282,14 @@ export default function ReminderPage() {
 
     try {
       const [s, items, meds] = await Promise.all([
-        getReminderSettings(),
-        getTodayTimeline(),
-        listMedicines({ limit: 200, offset: 0, includeArchived: false }),
+        getReminderSettings(patientId),
+        getTodayTimeline({ patientId }),
+        listMedicines({
+          limit: 200,
+          offset: 0,
+          includeArchived: false,
+          patientId,
+        }),
       ]);
       setSettings(s);
       setTimeline(items);
@@ -280,8 +311,7 @@ export default function ReminderPage() {
       return;
     }
     void refreshAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canUse]);
+  }, [canUse, patientId]);
 
   useEffect(() => {
     if (!createdVisible) return;
@@ -293,7 +323,7 @@ export default function ReminderPage() {
     if (!canUse) return;
     setBusyByEventId((p) => ({ ...p, [id]: true }));
     try {
-      await markIntakeTaken(id);
+      await markIntakeTaken(id, patientId);
       await refreshAll();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -306,7 +336,11 @@ export default function ReminderPage() {
     if (!canUse) return;
     setBusyByEventId((p) => ({ ...p, [id]: true }));
     try {
-      await markIntakeSkipped({ intakeEventId: id, reason: "" });
+      await markIntakeSkipped({
+        intakeEventId: id,
+        reason: "",
+        patientId,
+      });
       await refreshAll();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -379,26 +413,49 @@ export default function ReminderPage() {
               {t("Refresh")}
             </button>
             <Link
-              to="/reminder/medicines"
+              to={`/reminder/medicines${patientQuery}`}
               className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900"
             >
               <BellRing className="h-4 w-4" />
               {t("Medicines")}
             </Link>
-            <Link
-              to="/reminder/add"
-              className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700"
-            >
-              <Plus className="h-4 w-4" />
-              {t("Add")}
-            </Link>
+
+            {!patientId ? (
+              <Link
+                to="/reminder/caregiver"
+                className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900"
+              >
+                <Users className="h-4 w-4" />
+                {t("Caregiver")}
+              </Link>
+            ) : null}
           </div>
         </div>
 
         {createdVisible ? (
-          <div className="mt-4 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-200">
-            <Check className="h-4 w-4" />
-            {t("Reminder saved")}
+          <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-200">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-2">
+                <Check className="mt-0.5 h-4 w-4" />
+                <div>
+                  <div className="font-semibold">{t("Medicine added")}</div>
+                  {createdMedicine.name ? (
+                    <div className="text-emerald-900/90 dark:text-emerald-100/90">
+                      {createdMedicine.name}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
+              {createdMedicine.id ? (
+                <Link
+                  to={`/reminder/medicines/${createdMedicine.id}${patientQuery}`}
+                  className="flex-none rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-sm font-semibold text-emerald-800 hover:bg-emerald-50 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-200"
+                >
+                  {t("View")}
+                </Link>
+              ) : null}
+            </div>
           </div>
         ) : null}
 
@@ -422,11 +479,11 @@ export default function ReminderPage() {
                 {t("Add a medicine and schedule to start getting reminders.")}
               </p>
               <Link
-                to="/reminder/add"
+                to={`/reminder/medicines${patientQuery}`}
                 className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white hover:bg-brand-700"
               >
                 <Plus className="h-4 w-4" />
-                {t("Add medicine")}
+                {t("Manage medicines")}
               </Link>
             </div>
           ) : (
@@ -438,6 +495,7 @@ export default function ReminderPage() {
                   </div>
                   <TimelineGroupCard
                     group={timelineSections.due}
+                    patientQuery={patientQuery}
                     medicinesById={medicinesById}
                     busyByEventId={busyByEventId}
                     onTaken={onTaken}
@@ -458,6 +516,7 @@ export default function ReminderPage() {
                           g.groupTimeUtc + g.events.map((e) => e.id).join("-")
                         }
                         group={g}
+                        patientQuery={patientQuery}
                         medicinesById={medicinesById}
                         busyByEventId={busyByEventId}
                         onTaken={onTaken}
@@ -480,6 +539,7 @@ export default function ReminderPage() {
                           g.groupTimeUtc + g.events.map((e) => e.id).join("-")
                         }
                         group={g}
+                        patientQuery={patientQuery}
                         medicinesById={medicinesById}
                         busyByEventId={busyByEventId}
                         onTaken={onTaken}
@@ -505,6 +565,7 @@ export default function ReminderPage() {
                           g.groupTimeUtc + g.events.map((e) => e.id).join("-")
                         }
                         group={g}
+                        patientQuery={patientQuery}
                         medicinesById={medicinesById}
                         busyByEventId={busyByEventId}
                         onTaken={onTaken}
@@ -526,6 +587,7 @@ export default function ReminderPage() {
 
 function TimelineGroupCard(props: {
   group: GroupedEvent;
+  patientQuery: string;
   medicinesById: Map<string, MedicineRecord>;
   busyByEventId: Record<string, boolean>;
   onTaken: (id: string) => Promise<void>;
@@ -579,7 +641,7 @@ function TimelineGroupCard(props: {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <Link
-                    to={`/reminder/medicines/${item.medicineId}`}
+                    to={`/reminder/medicines/${item.medicineId}${props.patientQuery}`}
                     className="text-sm font-semibold hover:underline"
                   >
                     {item.medicine.name}

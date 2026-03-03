@@ -56,6 +56,32 @@ export function registerReminderRoutes(params: {
     }
   });
 
+  router.get(
+    "/caregiver/reminder-settings",
+    requireFirebaseAuth,
+    async (req, res) => {
+      try {
+        const me = await ensureMe(req);
+        const patientId = getQueryString(req.query?.patientId);
+        if (!patientId) {
+          badRequest(res, "patientId is required");
+          return;
+        }
+
+        await remindersDb.requireCaregiverAccessLevel({
+          caregiverId: me.id,
+          patientId,
+          minLevel: "view",
+        });
+
+        const settings = await remindersDb.getReminderSettings(patientId);
+        res.json({ ok: true, settings });
+      } catch (err) {
+        badRequest(res, toErrorMessage(err));
+      }
+    },
+  );
+
   router.patch(
     "/me/reminder-settings",
     requireFirebaseAuth,
@@ -427,6 +453,49 @@ export function registerReminderRoutes(params: {
     }
   });
 
+  router.patch("/me/medicines/:id", requireFirebaseAuth, async (req, res) => {
+    try {
+      const me = await ensureMe(req);
+      const body = (req as any).body ?? {};
+
+      const patch: any = {};
+
+      if (typeof body.name === "string") patch.name = body.name;
+      if (body.type != null) patch.type = body.type;
+      if (body.dosePerIntake != null) patch.dosePerIntake = body.dosePerIntake;
+      if (body.doseUnit !== undefined)
+        patch.doseUnit =
+          typeof body.doseUnit === "string" ? body.doseUnit : null;
+      if (body.stockTotal !== undefined)
+        patch.stockTotal =
+          body.stockTotal == null ? null : Number(body.stockTotal);
+      if (body.stockRemaining !== undefined)
+        patch.stockRemaining =
+          body.stockRemaining == null ? null : Number(body.stockRemaining);
+      if (body.lowStockThreshold !== undefined)
+        patch.lowStockThreshold = Number(body.lowStockThreshold);
+      if (body.instructionTag !== undefined)
+        patch.instructionTag = body.instructionTag;
+      if (body.note !== undefined)
+        patch.note = typeof body.note === "string" ? body.note : null;
+      if (body.isActive !== undefined) patch.isActive = Boolean(body.isActive);
+
+      const medicine = await remindersDb.patchMedicine({
+        userId: me.id,
+        medicineId: req.params.id,
+        patch,
+      });
+
+      if (!medicine) {
+        notFound(res);
+        return;
+      }
+      res.json({ ok: true, medicine });
+    } catch (err) {
+      badRequest(res, toErrorMessage(err));
+    }
+  });
+
   router.patch(
     "/me/medicines/:id/archive",
     requireFirebaseAuth,
@@ -566,6 +635,56 @@ export function registerReminderRoutes(params: {
     },
   );
 
+  router.get(
+    "/caregiver/reminders/upcoming",
+    requireFirebaseAuth,
+    async (req, res) => {
+      try {
+        const me = await ensureMe(req);
+        const patientId = getQueryString(req.query?.patientId);
+        if (!patientId) {
+          badRequest(res, "patientId is required");
+          return;
+        }
+
+        await remindersDb.requireCaregiverAccessLevel({
+          caregiverId: me.id,
+          patientId,
+          minLevel: "view",
+        });
+
+        const daysAhead = parseBoundedInt(
+          getQueryString(req.query?.daysAhead),
+          7,
+          1,
+          31,
+        );
+        const limit = parseBoundedInt(
+          getQueryString(req.query?.limit),
+          200,
+          1,
+          2000,
+        );
+
+        const untilUtc = DateTime.utc().plus({ days: daysAhead }).toISO();
+        if (!untilUtc) {
+          badRequest(res, "could not determine date range");
+          return;
+        }
+
+        const items = await remindersDb.listUpcomingIntakeEvents({
+          userId: patientId,
+          untilUtc,
+          limit,
+        });
+
+        res.json({ ok: true, items });
+      } catch (err) {
+        badRequest(res, toErrorMessage(err));
+      }
+    },
+  );
+
   // Intake updates.
   router.patch(
     "/me/reminders/intake/:id/taken",
@@ -646,6 +765,48 @@ export function registerReminderRoutes(params: {
     },
   );
 
+  router.get(
+    "/me/medicines/:id/logs",
+    requireFirebaseAuth,
+    async (req, res) => {
+      try {
+        const me = await ensureMe(req);
+        const medicine = await remindersDb.getMedicine({
+          userId: me.id,
+          medicineId: req.params.id,
+        });
+        if (!medicine) {
+          notFound(res);
+          return;
+        }
+
+        const limit = parseBoundedInt(
+          getQueryString(req.query?.limit),
+          25,
+          1,
+          50,
+        );
+        const offset = parseBoundedInt(
+          getQueryString(req.query?.offset),
+          0,
+          0,
+          100,
+        );
+
+        const result = await remindersDb.listMedicineActivityLogs({
+          userId: me.id,
+          medicineId: req.params.id,
+          limit,
+          offset,
+        });
+
+        res.json({ ok: true, ...result });
+      } catch (err) {
+        unavailable(res, err);
+      }
+    },
+  );
+
   // Caregiver flow.
   router.post("/me/caregiver/invite", requireFirebaseAuth, async (req, res) => {
     try {
@@ -680,11 +841,121 @@ export function registerReminderRoutes(params: {
         return;
       }
 
+      const rawLevel =
+        typeof body.accessLevel === "string"
+          ? body.accessLevel
+          : typeof body.access === "string"
+            ? body.access
+            : "view";
+      const accessLevel =
+        rawLevel === "view" || rawLevel === "edit" || rawLevel === "full"
+          ? rawLevel
+          : "view";
+
       const link = await remindersDb.inviteCaregiver({
         patientId: me.id,
         caregiverId,
+        accessLevel,
       });
 
+      res.json({ ok: true, link });
+    } catch (err) {
+      badRequest(res, toErrorMessage(err));
+    }
+  });
+
+  router.get(
+    "/me/caregiver/requests",
+    requireFirebaseAuth,
+    async (req, res) => {
+      try {
+        const me = await ensureMe(req);
+        const items = await remindersDb.listCaregiverRequests({
+          caregiverId: me.id,
+        });
+        res.json({ ok: true, items });
+      } catch (err) {
+        badRequest(res, toErrorMessage(err));
+      }
+    },
+  );
+
+  router.get(
+    "/me/caregiver/patients",
+    requireFirebaseAuth,
+    async (req, res) => {
+      try {
+        const me = await ensureMe(req);
+        const items = await remindersDb.listCaregiverPatients({
+          caregiverId: me.id,
+        });
+        res.json({ ok: true, items });
+      } catch (err) {
+        badRequest(res, toErrorMessage(err));
+      }
+    },
+  );
+
+  router.get("/me/caregiver/link", requireFirebaseAuth, async (req, res) => {
+    try {
+      const me = await ensureMe(req);
+      const patientId = getQueryString(req.query?.patientId);
+      if (!patientId) {
+        badRequest(res, "patientId is required");
+        return;
+      }
+      const link = await remindersDb.getCaregiverLink({
+        caregiverId: me.id,
+        patientId,
+      });
+      res.json({ ok: true, link });
+    } catch (err) {
+      badRequest(res, toErrorMessage(err));
+    }
+  });
+
+  router.patch(
+    "/me/caregiver/patients/:patientId",
+    requireFirebaseAuth,
+    async (req, res) => {
+      try {
+        const me = await ensureMe(req);
+        const body = (req as any).body ?? {};
+        const alias =
+          typeof body.alias === "string"
+            ? body.alias
+            : body.alias == null
+              ? null
+              : String(body.alias);
+
+        const link = await remindersDb.patchCaregiverAlias({
+          caregiverId: me.id,
+          patientId: req.params.patientId,
+          alias,
+        });
+
+        res.json({ ok: true, link });
+      } catch (err) {
+        badRequest(res, toErrorMessage(err));
+      }
+    },
+  );
+
+  router.post("/me/caregiver/reject", requireFirebaseAuth, async (req, res) => {
+    try {
+      const me = await ensureMe(req);
+      const body = (req as any).body ?? {};
+      const patientId =
+        typeof body.patientId === "string" ? body.patientId : "";
+      if (!patientId) {
+        badRequest(res, "patientId is required");
+        return;
+      }
+
+      const link = await remindersDb.rejectCaregiverInvite({
+        caregiverId: me.id,
+        patientId,
+      });
       res.json({ ok: true, link });
     } catch (err) {
       badRequest(res, toErrorMessage(err));
@@ -723,9 +994,10 @@ export function registerReminderRoutes(params: {
         return;
       }
 
-      await remindersDb.requireCaregiverAccess({
+      await remindersDb.requireCaregiverAccessLevel({
         caregiverId: me.id,
         patientId,
+        minLevel: "view",
       });
 
       const limit = parseBoundedInt(
@@ -755,6 +1027,461 @@ export function registerReminderRoutes(params: {
   });
 
   router.get(
+    "/caregiver/medicines/:id",
+    requireFirebaseAuth,
+    async (req, res) => {
+      try {
+        const me = await ensureMe(req);
+        const patientId = getQueryString(req.query?.patientId);
+        if (!patientId) {
+          badRequest(res, "patientId is required");
+          return;
+        }
+        await remindersDb.requireCaregiverAccessLevel({
+          caregiverId: me.id,
+          patientId,
+          minLevel: "view",
+        });
+
+        const medicine = await remindersDb.getMedicine({
+          userId: patientId,
+          medicineId: req.params.id,
+        });
+        if (!medicine) {
+          notFound(res);
+          return;
+        }
+        res.json({ ok: true, medicine });
+      } catch (err) {
+        badRequest(res, toErrorMessage(err));
+      }
+    },
+  );
+
+  router.get(
+    "/caregiver/medicines/:id/history",
+    requireFirebaseAuth,
+    async (req, res) => {
+      try {
+        const me = await ensureMe(req);
+        const patientId = getQueryString(req.query?.patientId);
+        if (!patientId) {
+          badRequest(res, "patientId is required");
+          return;
+        }
+        await remindersDb.requireCaregiverAccessLevel({
+          caregiverId: me.id,
+          patientId,
+          minLevel: "view",
+        });
+
+        const limit = parseBoundedInt(
+          getQueryString(req.query?.limit),
+          50,
+          1,
+          100,
+        );
+        const offset = parseBoundedInt(
+          getQueryString(req.query?.offset),
+          0,
+          0,
+          100_000,
+        );
+
+        const events = await remindersDb.listMedicineHistory({
+          userId: patientId,
+          medicineId: req.params.id,
+          limit,
+          offset,
+        });
+        res.json({ ok: true, events });
+      } catch (err) {
+        badRequest(res, toErrorMessage(err));
+      }
+    },
+  );
+
+  router.get(
+    "/caregiver/medicines/:id/logs",
+    requireFirebaseAuth,
+    async (req, res) => {
+      try {
+        const me = await ensureMe(req);
+        const patientId = getQueryString(req.query?.patientId);
+        if (!patientId) {
+          badRequest(res, "patientId is required");
+          return;
+        }
+        await remindersDb.requireCaregiverAccessLevel({
+          caregiverId: me.id,
+          patientId,
+          minLevel: "view",
+        });
+
+        const medicine = await remindersDb.getMedicine({
+          userId: patientId,
+          medicineId: req.params.id,
+        });
+        if (!medicine) {
+          notFound(res);
+          return;
+        }
+
+        const limit = parseBoundedInt(
+          getQueryString(req.query?.limit),
+          25,
+          1,
+          50,
+        );
+        const offset = parseBoundedInt(
+          getQueryString(req.query?.offset),
+          0,
+          0,
+          100,
+        );
+
+        const result = await remindersDb.listMedicineActivityLogs({
+          userId: patientId,
+          medicineId: req.params.id,
+          limit,
+          offset,
+        });
+
+        res.json({ ok: true, ...result });
+      } catch (err) {
+        badRequest(res, toErrorMessage(err));
+      }
+    },
+  );
+
+  router.patch(
+    "/caregiver/medicines/:id",
+    requireFirebaseAuth,
+    async (req, res) => {
+      try {
+        const me = await ensureMe(req);
+        const patientId = getQueryString(req.query?.patientId);
+        if (!patientId) {
+          badRequest(res, "patientId is required");
+          return;
+        }
+        await remindersDb.requireCaregiverAccessLevel({
+          caregiverId: me.id,
+          patientId,
+          minLevel: "edit",
+        });
+
+        const body = (req as any).body ?? {};
+        const patch: any = {};
+
+        for (const key of [
+          "name",
+          "type",
+          "dosePerIntake",
+          "doseUnit",
+          "stockTotal",
+          "stockRemaining",
+          "lowStockThreshold",
+          "instructionTag",
+          "note",
+          "isActive",
+        ]) {
+          if (Object.prototype.hasOwnProperty.call(body, key)) {
+            patch[key] = body[key];
+          }
+        }
+
+        const medicine = await remindersDb.patchMedicine({
+          userId: patientId,
+          actorUserId: me.id,
+          medicineId: req.params.id,
+          patch,
+        });
+        if (!medicine) {
+          notFound(res);
+          return;
+        }
+        res.json({ ok: true, medicine });
+      } catch (err) {
+        badRequest(res, toErrorMessage(err));
+      }
+    },
+  );
+
+  router.patch(
+    "/caregiver/medicines/:id/archive",
+    requireFirebaseAuth,
+    async (req, res) => {
+      try {
+        const me = await ensureMe(req);
+        const patientId = getQueryString(req.query?.patientId);
+        if (!patientId) {
+          badRequest(res, "patientId is required");
+          return;
+        }
+        await remindersDb.requireCaregiverAccessLevel({
+          caregiverId: me.id,
+          patientId,
+          minLevel: "full",
+        });
+
+        const medicine = await remindersDb.archiveMedicine({
+          userId: patientId,
+          actorUserId: me.id,
+          medicineId: req.params.id,
+        });
+        if (!medicine) {
+          notFound(res);
+          return;
+        }
+        res.json({ ok: true, medicine });
+      } catch (err) {
+        badRequest(res, toErrorMessage(err));
+      }
+    },
+  );
+
+  router.get(
+    "/caregiver/medicines/:id/schedules",
+    requireFirebaseAuth,
+    async (req, res) => {
+      try {
+        const me = await ensureMe(req);
+        const patientId = getQueryString(req.query?.patientId);
+        if (!patientId) {
+          badRequest(res, "patientId is required");
+          return;
+        }
+        await remindersDb.requireCaregiverAccessLevel({
+          caregiverId: me.id,
+          patientId,
+          minLevel: "view",
+        });
+
+        const schedules = await remindersDb.listSchedules({
+          userId: patientId,
+          medicineId: req.params.id,
+        });
+        res.json({ ok: true, schedules });
+      } catch (err) {
+        badRequest(res, toErrorMessage(err));
+      }
+    },
+  );
+
+  router.post(
+    "/caregiver/medicines/:id/schedules",
+    requireFirebaseAuth,
+    async (req, res) => {
+      try {
+        const me = await ensureMe(req);
+        const patientId = getQueryString(req.query?.patientId);
+        if (!patientId) {
+          badRequest(res, "patientId is required");
+          return;
+        }
+        await remindersDb.requireCaregiverAccessLevel({
+          caregiverId: me.id,
+          patientId,
+          minLevel: "edit",
+        });
+
+        const body = (req as any).body ?? {};
+        const schedule = await remindersDb.createSchedule({
+          userId: patientId,
+          actorUserId: me.id,
+          medicineId: req.params.id,
+          repeatType: body.repeatType,
+          intervalValue: body.intervalValue ?? null,
+          selectedDays: body.selectedDays ?? null,
+          times: Array.isArray(body.times) ? body.times : [],
+          doseByTime: body.doseByTime ?? null,
+          startDate: typeof body.startDate === "string" ? body.startDate : "",
+          endDate: body.endDate ?? null,
+          maxOccurrences: body.maxOccurrences ?? null,
+        });
+        res.json({ ok: true, schedule });
+      } catch (err) {
+        badRequest(res, toErrorMessage(err));
+      }
+    },
+  );
+
+  router.get(
+    "/caregiver/medicines/:id/upcoming",
+    requireFirebaseAuth,
+    async (req, res) => {
+      try {
+        const me = await ensureMe(req);
+        const patientId = getQueryString(req.query?.patientId);
+        if (!patientId) {
+          badRequest(res, "patientId is required");
+          return;
+        }
+        await remindersDb.requireCaregiverAccessLevel({
+          caregiverId: me.id,
+          patientId,
+          minLevel: "view",
+        });
+
+        const medicine = await remindersDb.getMedicine({
+          userId: patientId,
+          medicineId: req.params.id,
+        });
+        if (!medicine) {
+          notFound(res);
+          return;
+        }
+
+        const daysAhead = parseBoundedInt(
+          getQueryString(req.query?.daysAhead),
+          7,
+          1,
+          31,
+        );
+        const limit = parseBoundedInt(
+          getQueryString(req.query?.limit),
+          30,
+          1,
+          500,
+        );
+        const untilUtc = DateTime.utc().plus({ days: daysAhead }).toISO();
+        if (!untilUtc) {
+          badRequest(res, "could not determine date range");
+          return;
+        }
+
+        const items = await remindersDb.listUpcomingIntakeEventsForMedicine({
+          userId: patientId,
+          medicineId: req.params.id,
+          untilUtc,
+          limit,
+        });
+
+        res.json({ ok: true, items });
+      } catch (err) {
+        badRequest(res, toErrorMessage(err));
+      }
+    },
+  );
+
+  router.patch(
+    "/caregiver/reminders/intake/:id/taken",
+    requireFirebaseAuth,
+    async (req, res) => {
+      try {
+        const me = await ensureMe(req);
+        const patientId = getQueryString(req.query?.patientId);
+        if (!patientId) {
+          badRequest(res, "patientId is required");
+          return;
+        }
+        await remindersDb.requireCaregiverAccessLevel({
+          caregiverId: me.id,
+          patientId,
+          minLevel: "edit",
+        });
+
+        const idem =
+          typeof req.header("Idempotency-Key") === "string"
+            ? String(req.header("Idempotency-Key"))
+            : null;
+
+        const result = await remindersDb.markIntakeEventTaken({
+          userId: patientId,
+          actorUserId: me.id,
+          intakeEventId: req.params.id,
+          idempotencyKey: idem,
+        });
+
+        res.json({ ok: true, ...result });
+      } catch (err) {
+        badRequest(res, toErrorMessage(err));
+      }
+    },
+  );
+
+  router.patch(
+    "/caregiver/reminders/intake/:id/skipped",
+    requireFirebaseAuth,
+    async (req, res) => {
+      try {
+        const me = await ensureMe(req);
+        const patientId = getQueryString(req.query?.patientId);
+        if (!patientId) {
+          badRequest(res, "patientId is required");
+          return;
+        }
+        await remindersDb.requireCaregiverAccessLevel({
+          caregiverId: me.id,
+          patientId,
+          minLevel: "edit",
+        });
+
+        const body = (req as any).body ?? {};
+        const reason = typeof body.reason === "string" ? body.reason : null;
+
+        const event = await remindersDb.markIntakeEventSkipped({
+          userId: patientId,
+          actorUserId: me.id,
+          intakeEventId: req.params.id,
+          reason,
+        });
+
+        res.json({ ok: true, event });
+      } catch (err) {
+        badRequest(res, toErrorMessage(err));
+      }
+    },
+  );
+
+  router.post("/caregiver/medicines", requireFirebaseAuth, async (req, res) => {
+    try {
+      const me = await ensureMe(req);
+      const patientId = getQueryString(req.query?.patientId);
+      if (!patientId) {
+        badRequest(res, "patientId is required");
+        return;
+      }
+      await remindersDb.requireCaregiverAccessLevel({
+        caregiverId: me.id,
+        patientId,
+        minLevel: "edit",
+      });
+
+      const body = (req as any).body ?? {};
+      // Caregiver create currently does not accept media keys (they require patient drive uploads).
+      const created = await remindersDb.createMedicine({
+        userId: patientId,
+        actorUserId: me.id,
+        name: typeof body.name === "string" ? body.name : "",
+        type: body.type,
+        dosePerIntake:
+          typeof body.dosePerIntake === "number"
+            ? body.dosePerIntake
+            : Number(body.dosePerIntake),
+        doseUnit: typeof body.doseUnit === "string" ? body.doseUnit : null,
+        stockTotal: body.stockTotal == null ? null : Number(body.stockTotal),
+        stockRemaining:
+          body.stockRemaining == null ? null : Number(body.stockRemaining),
+        lowStockThreshold:
+          body.lowStockThreshold == null
+            ? undefined
+            : Number(body.lowStockThreshold),
+        instructionTag: body.instructionTag,
+        note: body.note ?? null,
+        photoUrl: null,
+        photoKey: null,
+        voiceNoteKey: null,
+      });
+
+      res.json({ ok: true, medicine: created });
+    } catch (err) {
+      badRequest(res, toErrorMessage(err));
+    }
+  });
+
+  router.get(
     "/caregiver/timeline/today",
     requireFirebaseAuth,
     async (req, res) => {
@@ -766,19 +1493,28 @@ export function registerReminderRoutes(params: {
           badRequest(res, "patientId is required");
           return;
         }
-        if (!date) {
-          badRequest(res, "date is required (YYYY-MM-DD)");
+
+        await remindersDb.requireCaregiverAccessLevel({
+          caregiverId: me.id,
+          patientId,
+          minLevel: "view",
+        });
+
+        let localDate = date;
+        if (!localDate) {
+          const settings = await remindersDb.getReminderSettings(patientId);
+          const nowLocal = DateTime.utc().setZone(settings.timezone);
+          localDate = nowLocal.isValid ? (nowLocal.toISODate() ?? "") : "";
+        }
+
+        if (!localDate) {
+          badRequest(res, "could not determine local date");
           return;
         }
 
-        await remindersDb.requireCaregiverAccess({
-          caregiverId: me.id,
-          patientId,
-        });
-
         const items = await remindersDb.getTimelineForLocalDate({
           userId: patientId,
-          localDate: date,
+          localDate,
         });
 
         res.json({ ok: true, items });

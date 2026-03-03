@@ -693,7 +693,7 @@ export default function LandingPage() {
             </Link>
 
             <Link
-              to="/reminder/add"
+              to="/reminder"
               className="group flex flex-col justify-between rounded-2xl border border-zinc-200/70 bg-white/80 p-5 shadow-sm backdrop-blur-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:border-zinc-800/70 dark:bg-zinc-950/60 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
               aria-label={t("serviceReminderTitle") as any}
             >
@@ -860,7 +860,7 @@ export default function LandingPage() {
               </Link>
 
               <Link
-                to="/reminder/add"
+                to="/reminder"
                 onClick={() => setGetStartedOpen(false)}
                 className="group rounded-2xl border border-zinc-200 bg-white p-4 text-left shadow-sm transition hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900 dark:focus:ring-brand-900"
               >

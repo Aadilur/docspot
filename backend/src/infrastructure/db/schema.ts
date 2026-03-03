@@ -625,21 +625,42 @@ export async function ensureSchema(): Promise<void> {
       patient_id uuid not null references users(id) on delete cascade,
       caregiver_id uuid not null references users(id) on delete cascade,
       status text not null default 'pending',
+      access_level text not null default 'view',
+      caregiver_alias text,
       created_at timestamptz not null default now(),
       unique (patient_id, caregiver_id)
     );
   `);
+  await pg.query(
+    "alter table caregiver_links add column if not exists access_level text;",
+  );
+  await pg.query(
+    "update caregiver_links set access_level = 'view' where access_level is null;",
+  );
+  await pg.query(
+    "alter table caregiver_links alter column access_level set default 'view';",
+  );
+  await pg.query(
+    "alter table caregiver_links alter column access_level set not null;",
+  );
+  await pg.query(
+    "alter table caregiver_links add column if not exists caregiver_alias text;",
+  );
   await pg.query(
     "create index if not exists caregiver_links_patient_idx on caregiver_links(patient_id, created_at desc);",
   );
   await pg.query(
     "create index if not exists caregiver_links_caregiver_idx on caregiver_links(caregiver_id, created_at desc);",
   );
+  await pg.query(
+    "create index if not exists caregiver_links_caregiver_status_idx on caregiver_links(caregiver_id, status, created_at desc);",
+  );
 
   await pg.query(`
     create table if not exists audit_logs (
       id uuid primary key,
       user_id uuid not null references users(id) on delete cascade,
+      actor_user_id uuid references users(id) on delete set null,
       action text not null,
       entity_type text not null,
       entity_id text not null,
@@ -648,7 +669,13 @@ export async function ensureSchema(): Promise<void> {
     );
   `);
   await pg.query(
+    "alter table audit_logs add column if not exists actor_user_id uuid references users(id) on delete set null;",
+  );
+  await pg.query(
     "create index if not exists audit_logs_user_idx on audit_logs(user_id, created_at desc);",
+  );
+  await pg.query(
+    "create index if not exists audit_logs_entity_idx on audit_logs(user_id, entity_type, entity_id, created_at desc);",
   );
 
   await pg.query(`
