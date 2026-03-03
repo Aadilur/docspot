@@ -39,6 +39,35 @@ export async function ensureSchema(): Promise<void> {
 
   // Backward-compatible migrations for existing deployments.
   await pg.query("alter table users add column if not exists photo_key text;");
+  // Medicine reminders (timezone + notification offset).
+  await pg.query("alter table users add column if not exists timezone text;");
+  await pg.query(
+    "alter table users add column if not exists reminder_offset_minutes int;",
+  );
+  await pg.query(
+    "alter table users add column if not exists reminder_grace_minutes int;",
+  );
+  await pg.query("update users set timezone = 'UTC' where timezone is null;");
+  await pg.query(
+    "update users set reminder_offset_minutes = 0 where reminder_offset_minutes is null;",
+  );
+  await pg.query(
+    "update users set reminder_grace_minutes = 90 where reminder_grace_minutes is null;",
+  );
+  await pg.query("alter table users alter column timezone set default 'UTC';");
+  await pg.query(
+    "alter table users alter column reminder_offset_minutes set default 0;",
+  );
+  await pg.query(
+    "alter table users alter column reminder_grace_minutes set default 90;",
+  );
+  await pg.query("alter table users alter column timezone set not null;");
+  await pg.query(
+    "alter table users alter column reminder_offset_minutes set not null;",
+  );
+  await pg.query(
+    "alter table users alter column reminder_grace_minutes set not null;",
+  );
   await pg.query(
     "alter table users add column if not exists storage_reserved_bytes bigint;",
   );
@@ -494,6 +523,154 @@ export async function ensureSchema(): Promise<void> {
   );
   await pg.query(
     "create index if not exists cms_logos_active_idx on cms_logos(is_active, updated_at desc);",
+  );
+
+  // Medicine reminders.
+  await pg.query(`
+    create table if not exists medicines (
+      id uuid primary key,
+      user_id uuid not null references users(id) on delete cascade,
+      name text not null,
+      type text not null default 'pill',
+      dose_per_intake numeric not null default 1,
+      stock_total numeric,
+      stock_remaining numeric,
+      low_stock_threshold numeric not null default 5,
+      instruction_tag text not null default 'none',
+      note text,
+      photo_url text,
+      photo_key text,
+      voice_note_key text,
+      voice_note_filename text,
+      voice_note_content_type text,
+      is_active boolean not null default true,
+      archived_at timestamptz,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+  `);
+  await pg.query(
+    "alter table medicines add column if not exists photo_key text;",
+  );
+  await pg.query(
+    "alter table medicines add column if not exists voice_note_key text;",
+  );
+  await pg.query(
+    "alter table medicines add column if not exists voice_note_filename text;",
+  );
+  await pg.query(
+    "alter table medicines add column if not exists voice_note_content_type text;",
+  );
+  await pg.query(
+    "alter table medicines add column if not exists dose_unit text;",
+  );
+  await pg.query(
+    "create index if not exists medicines_user_active_idx on medicines(user_id, is_active, updated_at desc);",
+  );
+  await pg.query(
+    "create index if not exists medicines_user_idx on medicines(user_id, updated_at desc);",
+  );
+
+  await pg.query(`
+    create table if not exists medicine_schedules (
+      id uuid primary key,
+      medicine_id uuid not null references medicines(id) on delete cascade,
+      repeat_type text not null,
+      interval_value int,
+      selected_days int[],
+      times time[] not null,
+      dose_by_time jsonb,
+      start_date date not null,
+      end_date date,
+      max_occurrences int,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+  `);
+  await pg.query(
+    "alter table medicine_schedules add column if not exists dose_by_time jsonb;",
+  );
+  await pg.query(
+    "create index if not exists medicine_schedules_medicine_idx on medicine_schedules(medicine_id, updated_at desc);",
+  );
+
+  await pg.query(`
+    create table if not exists medicine_intake_events (
+      id uuid primary key,
+      schedule_id uuid not null references medicine_schedules(id) on delete cascade,
+      medicine_id uuid not null references medicines(id) on delete cascade,
+      user_id uuid not null references users(id) on delete cascade,
+      datetime timestamptz not null,
+      status text not null default 'pending',
+      taken_at timestamptz,
+      skipped_reason text,
+      metadata jsonb,
+      created_at timestamptz not null default now(),
+      unique (schedule_id, datetime)
+    );
+  `);
+  await pg.query(
+    "create index if not exists medicine_intake_events_user_dt_idx on medicine_intake_events(user_id, datetime asc);",
+  );
+  await pg.query(
+    "create index if not exists medicine_intake_events_status_dt_idx on medicine_intake_events(status, datetime asc);",
+  );
+  await pg.query(
+    "create index if not exists medicine_intake_events_sched_idx on medicine_intake_events(schedule_id, datetime asc);",
+  );
+
+  await pg.query(`
+    create table if not exists caregiver_links (
+      id uuid primary key,
+      patient_id uuid not null references users(id) on delete cascade,
+      caregiver_id uuid not null references users(id) on delete cascade,
+      status text not null default 'pending',
+      created_at timestamptz not null default now(),
+      unique (patient_id, caregiver_id)
+    );
+  `);
+  await pg.query(
+    "create index if not exists caregiver_links_patient_idx on caregiver_links(patient_id, created_at desc);",
+  );
+  await pg.query(
+    "create index if not exists caregiver_links_caregiver_idx on caregiver_links(caregiver_id, created_at desc);",
+  );
+
+  await pg.query(`
+    create table if not exists audit_logs (
+      id uuid primary key,
+      user_id uuid not null references users(id) on delete cascade,
+      action text not null,
+      entity_type text not null,
+      entity_id text not null,
+      metadata jsonb,
+      created_at timestamptz not null default now()
+    );
+  `);
+  await pg.query(
+    "create index if not exists audit_logs_user_idx on audit_logs(user_id, created_at desc);",
+  );
+
+  await pg.query(`
+    create table if not exists reminder_generation_state (
+      user_id uuid primary key references users(id) on delete cascade,
+      last_local_date date,
+      updated_at timestamptz not null default now()
+    );
+  `);
+
+  await pg.query(`
+    create table if not exists idempotency_keys (
+      user_id uuid not null references users(id) on delete cascade,
+      key text not null,
+      request_hash text,
+      response jsonb,
+      created_at timestamptz not null default now(),
+      primary key (user_id, key)
+    );
+  `);
+  await pg.query(
+    "create index if not exists idempotency_keys_created_idx on idempotency_keys(created_at desc);",
   );
 
   ensured = true;

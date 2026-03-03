@@ -17,6 +17,10 @@ import PrivacyPolicyPage from "../pages/PrivacyPolicyPage";
 import ProfilePage from "../pages/ProfilePage";
 import PricingPage from "../pages/PricingPage";
 import RefundPolicyPage from "../pages/RefundPolicyPage";
+import ReminderPage from "../pages/ReminderPage";
+import ReminderAddWizardPage from "../pages/ReminderAddWizardPage";
+import ReminderMedicinesPage from "../pages/ReminderMedicinesPage";
+import ReminderMedicineDetailsPage from "../pages/ReminderMedicineDetailsPage";
 import TermsPage from "../pages/TermsPage";
 
 export default function App() {
@@ -32,6 +36,13 @@ export default function App() {
         <Route path="/refund-policy" element={<RefundPolicyPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/endpoints" element={<EndpointsPage />} />
+        <Route path="/reminder" element={<ReminderPage />} />
+        <Route path="/reminder/add" element={<ReminderAddWizardPage />} />
+        <Route path="/reminder/medicines" element={<ReminderMedicinesPage />} />
+        <Route
+          path="/reminder/medicines/:id"
+          element={<ReminderMedicineDetailsPage />}
+        />
         <Route path="/prescription" element={<PrescriptionGroupsPage />} />
         <Route
           path="/prescription/:groupId"

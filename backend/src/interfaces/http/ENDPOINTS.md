@@ -143,3 +143,48 @@ This flow keeps buckets private: the backend returns a redirect to a short-lived
 - `POST /users/:id/photo/presign`
   - Body: `{ "filename": "avatar.png", "contentType": "image/png" }`
 - `GET /users/:id/photo`
+
+## 10) Medicine reminders (auth)
+
+Reminder settings:
+
+- `GET /me/reminder-settings`
+- `PATCH /me/reminder-settings`
+  - Body: `{ "timezone": "Asia/Dhaka", "reminderOffsetMinutes": 10, "reminderGraceMinutes": 90 }` (all optional)
+
+Medicines:
+
+- `GET /me/medicines?limit=50&offset=0&includeArchived=true|false`
+- `POST /me/medicines`
+- `GET /me/medicines/:id`
+- `PATCH /me/medicines/:id/archive`
+
+Schedules:
+
+- `GET /me/medicines/:id/schedules`
+- `POST /me/medicines/:id/schedules`
+
+Timeline:
+
+- `GET /me/reminders/timeline/today?date=YYYY-MM-DD`
+
+Intake updates:
+
+- `PATCH /me/reminders/intake/:id/taken`
+  - Optional header: `Idempotency-Key: <string>`
+- `PATCH /me/reminders/intake/:id/skipped`
+  - Body: `{ "reason": "..." }`
+
+History:
+
+- `GET /me/medicines/:id/history?limit=50&offset=0`
+
+Caregiver:
+
+- `POST /me/caregiver/invite` — Body: `{ "caregiverId": "<user uuid>" }`
+- `POST /me/caregiver/accept` — Body: `{ "patientId": "<user uuid>" }`
+
+Caregiver read-only (accepted link required):
+
+- `GET /caregiver/medicines?patientId=<uuid>&limit=50&offset=0`
+- `GET /caregiver/timeline/today?patientId=<uuid>&date=YYYY-MM-DD`

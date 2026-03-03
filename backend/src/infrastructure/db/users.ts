@@ -269,6 +269,52 @@ export async function createUser(input: CreateUserInput): Promise<UserRecord> {
   return mapRow(result.rows[0]);
 }
 
+export async function getUserByEmail(
+  email: string,
+): Promise<UserRecord | null> {
+  await ensureSchema();
+  const pg = getPostgresPool();
+
+  const e = typeof email === "string" ? email.trim() : "";
+  if (!e) return null;
+
+  const result = await pg.query(
+    `
+      select *
+      from users
+      where lower(email) = lower($1::text)
+      limit 1;
+    `,
+    [e],
+  );
+
+  if (!result.rows[0]) return null;
+  return mapRow(result.rows[0]);
+}
+
+export async function getUserByPhone(
+  phone: string,
+): Promise<UserRecord | null> {
+  await ensureSchema();
+  const pg = getPostgresPool();
+
+  const p = typeof phone === "string" ? phone.trim() : "";
+  if (!p) return null;
+
+  const result = await pg.query(
+    `
+      select *
+      from users
+      where (metadata ->> 'phone') = $1::text
+      limit 1;
+    `,
+    [p],
+  );
+
+  if (!result.rows[0]) return null;
+  return mapRow(result.rows[0]);
+}
+
 export async function listUsers(params: {
   limit: number;
   offset: number;

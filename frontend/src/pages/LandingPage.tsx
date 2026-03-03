@@ -19,6 +19,11 @@ import Footer from "../components/Footer";
 import Header from "../components/Header";
 import PricingSection from "../components/PricingSection";
 import { getCmsBannersCached } from "../shared/api/cms";
+import { listInvoiceGroups } from "../shared/api/invoices";
+import { listObjectGroups } from "../shared/api/objects";
+import { listPrescriptionGroups } from "../shared/api/prescriptions";
+import { listMedicines } from "../shared/api/reminders";
+import { useAuthState } from "../shared/firebase/useAuthState";
 
 type CmsBanner = {
   id: string;
@@ -212,6 +217,17 @@ function ProductMockImage({
 export default function LandingPage() {
   const { t } = useTranslation();
 
+  const { configured, loading: authLoading, user } = useAuthState();
+  const canUseCounts = configured && !authLoading && !!user;
+
+  const [serviceCountsLoading, setServiceCountsLoading] = useState(false);
+  const [serviceCounts, setServiceCounts] = useState<{
+    prescriptions: { count: number | null; more: boolean };
+    invoices: { count: number | null; more: boolean };
+    otherDocs: { count: number | null; more: boolean };
+    reminders: { count: number | null; more: boolean };
+  } | null>(null);
+
   const [getStartedOpen, setGetStartedOpen] = useState(false);
   const [banners, setBanners] = useState<CmsBanner[]>([]);
 
@@ -233,6 +249,68 @@ export default function LandingPage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!canUseCounts) {
+      setServiceCounts(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setServiceCountsLoading(true);
+
+    (async () => {
+      const LIMIT = 101;
+
+      const [p, i, o, r] = await Promise.allSettled([
+        listPrescriptionGroups({ limit: LIMIT, offset: 0 }),
+        listInvoiceGroups({ limit: LIMIT, offset: 0 }),
+        listObjectGroups({ limit: LIMIT, offset: 0 }),
+        listMedicines({ limit: LIMIT, offset: 0, includeArchived: false }),
+      ]);
+
+      const toCount = (
+        result: PromiseFulfilledResult<any[]> | PromiseRejectedResult,
+      ): { count: number | null; more: boolean } => {
+        if (result.status !== "fulfilled") return { count: null, more: false };
+        const arr = Array.isArray(result.value) ? result.value : [];
+        const more = arr.length >= LIMIT;
+        return { count: more ? LIMIT - 1 : arr.length, more };
+      };
+
+      const next = {
+        prescriptions: toCount(p),
+        invoices: toCount(i),
+        otherDocs: toCount(o),
+        reminders: toCount(r),
+      };
+
+      if (cancelled) return;
+      setServiceCounts(next);
+    })()
+      .catch(() => {
+        if (cancelled) return;
+        setServiceCounts(null);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setServiceCountsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [canUseCounts]);
+
+  const formatCountLabel = (key: keyof NonNullable<typeof serviceCounts>) => {
+    if (!serviceCounts) return null;
+    const v = serviceCounts[key];
+    const n = v.count === null ? "—" : `${v.count}${v.more ? "+" : ""}`;
+    return `${n} ${t("entries", "entries")}`;
+  };
 
   useEffect(() => {
     if (!getStartedOpen) return;
@@ -491,7 +569,7 @@ export default function LandingPage() {
           <h2 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
             {t("howItWorksTitle")}
           </h2>
-          <p className="mt-2 max-w-2xl text-sm text-zinc-600 dark:text-zinc-300">
+          <p className="mt-2 max-w-2xl text-sm text-zinc-600 dark:text-zinc-300 hidden sm:block">
             {t("howItWorksBody")}
           </p>
 
@@ -521,75 +599,125 @@ export default function LandingPage() {
           <h2 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
             {t("servicesTitle")}
           </h2>
-          <p className="mt-2 max-w-2xl text-sm text-zinc-600 dark:text-zinc-300">
+          <p className="mt-2 max-w-2xl text-sm text-zinc-600 dark:text-zinc-300 hidden sm:block">
             {t("servicesBody")}
           </p>
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Link
               to="/prescription"
-              className="group rounded-2xl border border-zinc-200/70 bg-white/80 p-5 shadow-sm backdrop-blur-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:border-zinc-800/70 dark:bg-zinc-950/60 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
+              className="group flex flex-col justify-between rounded-2xl border border-zinc-200/70 bg-white/80 p-5 shadow-sm backdrop-blur-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:border-zinc-800/70 dark:bg-zinc-950/60 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
               aria-label={t("servicePrescriptionTitle")}
             >
-              <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl border border-zinc-200/70 bg-white/70 text-brand-700 dark:border-zinc-800/70 dark:bg-zinc-950/30 dark:text-brand-300">
-                <Pill className="h-6 w-6" aria-hidden="true" />
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl border border-zinc-200/70 bg-white/70 text-brand-700 dark:border-zinc-800/70 dark:bg-zinc-950/30 dark:text-brand-300">
+                  <Pill className="h-6 w-6" aria-hidden="true" />
+                </div>
+                {canUseCounts ? (
+                  <span className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-xs font-semibold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200">
+                    {serviceCountsLoading
+                      ? t("Loading...", "Loading...")
+                      : formatCountLabel("prescriptions")}
+                  </span>
+                ) : null}
               </div>
               <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
                 {t("servicePrescriptionTitle")}
               </h3>
-              <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">
+              <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300 hidden sm:block">
                 {t("servicePrescriptionBody")}
               </p>
+
+              <div className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-brand-700 group-hover:underline dark:text-brand-300">
+                {t("Open", "Open")}
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </div>
             </Link>
             <Link
               to="/invoice"
-              className="group rounded-2xl border border-zinc-200/70 bg-white/80 p-5 shadow-sm backdrop-blur-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:border-zinc-800/70 dark:bg-zinc-950/60 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
+              className="group flex flex-col justify-between rounded-2xl border border-zinc-200/70 bg-white/80 p-5 shadow-sm backdrop-blur-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:border-zinc-800/70 dark:bg-zinc-950/60 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
               aria-label={t("serviceDocumentTitle")}
             >
-              <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl border border-zinc-200/70 bg-white/70 text-brand-700 dark:border-zinc-800/70 dark:bg-zinc-950/30 dark:text-brand-300">
-                <Receipt className="h-6 w-6" aria-hidden="true" />
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl border border-zinc-200/70 bg-white/70 text-brand-700 dark:border-zinc-800/70 dark:bg-zinc-950/30 dark:text-brand-300">
+                  <Receipt className="h-6 w-6" aria-hidden="true" />
+                </div>
+                {canUseCounts ? (
+                  <span className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-xs font-semibold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200">
+                    {serviceCountsLoading
+                      ? t("Loading...", "Loading...")
+                      : formatCountLabel("invoices")}
+                  </span>
+                ) : null}
               </div>
               <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
                 {t("serviceDocumentTitle")}
               </h3>
-              <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">
+              <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300 hidden sm:block">
                 {t("serviceDocumentBody")}
               </p>
+
+              <div className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-brand-700 group-hover:underline dark:text-brand-300">
+                {t("Open", "Open")}
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </div>
             </Link>
             <Link
               to="/other-doc"
-              className="group rounded-2xl border border-zinc-200/70 bg-white/80 p-5 shadow-sm backdrop-blur-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:border-zinc-800/70 dark:bg-zinc-950/60 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
+              className="group flex flex-col justify-between rounded-2xl border border-zinc-200/70 bg-white/80 p-5 shadow-sm backdrop-blur-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:border-zinc-800/70 dark:bg-zinc-950/60 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
               aria-label={t("serviceOtherTitle")}
             >
-              <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl border border-zinc-200/70 bg-white/70 text-brand-700 dark:border-zinc-800/70 dark:bg-zinc-950/30 dark:text-brand-300">
-                <FileText className="h-6 w-6" aria-hidden="true" />
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl border border-zinc-200/70 bg-white/70 text-brand-700 dark:border-zinc-800/70 dark:bg-zinc-950/30 dark:text-brand-300">
+                  <FileText className="h-6 w-6" aria-hidden="true" />
+                </div>
+                {canUseCounts ? (
+                  <span className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-xs font-semibold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200">
+                    {serviceCountsLoading
+                      ? t("Loading...", "Loading...")
+                      : formatCountLabel("otherDocs")}
+                  </span>
+                ) : null}
               </div>
               <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
                 {t("serviceOtherTitle")}
               </h3>
-              <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">
+              <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300 hidden sm:block">
                 {t("serviceOtherBody")}
               </p>
+
+              <div className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-brand-700 group-hover:underline dark:text-brand-300">
+                {t("Open", "Open")}
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </div>
             </Link>
 
-            <a
-              href="#reminder"
-              className="group rounded-2xl border border-zinc-200/70 bg-white/80 p-5 shadow-sm backdrop-blur-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:border-zinc-800/70 dark:bg-zinc-950/60 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
+            <Link
+              to="/reminder/add"
+              className="group flex flex-col justify-between rounded-2xl border border-zinc-200/70 bg-white/80 p-5 shadow-sm backdrop-blur-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:border-zinc-800/70 dark:bg-zinc-950/60 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
               aria-label={t("serviceReminderTitle") as any}
             >
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl border border-zinc-200/70 bg-white/70 text-brand-700 dark:border-zinc-800/70 dark:bg-zinc-950/30 dark:text-brand-300">
                   <BellRing className="h-6 w-6" aria-hidden="true" />
                 </div>
-                <span className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-xs font-semibold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200">
-                  {t("availableNow")}
-                </span>
+                {canUseCounts ? (
+                  <span className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-xs font-semibold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200">
+                    {serviceCountsLoading
+                      ? t("Loading...", "Loading...")
+                      : formatCountLabel("reminders")}
+                  </span>
+                ) : (
+                  <span className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-xs font-semibold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200">
+                    {t("availableNow")}
+                  </span>
+                )}
               </div>
 
               <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
                 {t("serviceReminderTitle")}
               </h3>
-              <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">
+              <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300 hidden sm:block">
                 {t("serviceReminderBody")}
               </p>
 
@@ -597,7 +725,7 @@ export default function LandingPage() {
                 {t("reminderLearnMore")}
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </div>
-            </a>
+            </Link>
           </div>
         </section>
 
@@ -607,7 +735,7 @@ export default function LandingPage() {
           <h2 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
             {t("testimonialsTitle")}
           </h2>
-          <p className="mt-2 max-w-2xl text-sm text-zinc-600 dark:text-zinc-300">
+          <p className="mt-2 max-w-2xl text-sm text-zinc-600 dark:text-zinc-300 hidden sm:block">
             {t("testimonialsBody")}
           </p>
 
@@ -632,7 +760,7 @@ export default function LandingPage() {
           <h2 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
             {t("faqTitle")}
           </h2>
-          <p className="mt-2 max-w-2xl text-sm text-zinc-600 dark:text-zinc-300">
+          <p className="mt-2 max-w-2xl text-sm text-zinc-600 dark:text-zinc-300 hidden sm:block">
             {t("faqBody")}
           </p>
 
@@ -731,8 +859,8 @@ export default function LandingPage() {
                 </div>
               </Link>
 
-              <a
-                href="#reminder"
+              <Link
+                to="/reminder/add"
                 onClick={() => setGetStartedOpen(false)}
                 className="group rounded-2xl border border-zinc-200 bg-white p-4 text-left shadow-sm transition hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900 dark:focus:ring-brand-900"
               >
@@ -742,7 +870,7 @@ export default function LandingPage() {
                 <div className="mt-3 text-sm font-semibold text-zinc-900 dark:text-zinc-50">
                   {t("storeReminder")}
                 </div>
-              </a>
+              </Link>
             </div>
           </div>
         </div>

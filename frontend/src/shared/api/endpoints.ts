@@ -68,6 +68,23 @@ export const API_PATHS = {
   userById: (id: string) => `/users/${id}`,
   userPhotoPresign: (id: string) => `/users/${id}/photo/presign`,
   userPhotoRedirect: (id: string) => `/users/${id}/photo`,
+
+  // Medicine reminders.
+  meReminderSettings: "/me/reminder-settings",
+  meMedicines: "/me/medicines",
+  meMedicineById: (id: string) => `/me/medicines/${id}`,
+  meMedicineArchive: (id: string) => `/me/medicines/${id}/archive`,
+  meMedicineSchedules: (id: string) => `/me/medicines/${id}/schedules`,
+  meRemindersTimelineToday: "/me/reminders/timeline/today",
+  meRemindersUpcoming: "/me/reminders/upcoming",
+  meRemindersIntakeTaken: (id: string) => `/me/reminders/intake/${id}/taken`,
+  meRemindersIntakeSkipped: (id: string) =>
+    `/me/reminders/intake/${id}/skipped`,
+  meMedicineHistory: (id: string) => `/me/medicines/${id}/history`,
+  meMedicineUpcoming: (id: string) => `/me/medicines/${id}/upcoming`,
+
+  meCaregiverInvite: "/me/caregiver/invite",
+  meCaregiverAccept: "/me/caregiver/accept",
 } as const;
 
 export const API_ENDPOINTS: ApiEndpoint[] = [

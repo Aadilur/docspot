@@ -56,6 +56,7 @@ import {
 
 import { registerInvoiceRoutes } from "./routes/invoices";
 import { registerObjectRoutes } from "./routes/objects";
+import { registerReminderRoutes } from "./routes/reminders";
 
 export function createHttpRouter(): Router {
   const router = Router();
@@ -795,6 +796,19 @@ export function createHttpRouter(): Router {
     toErrorMessage,
     ATTACHMENT_URL_EXPIRES_SECONDS,
     SHARE_LINKS_PER_24H_LIMIT,
+  });
+
+  registerReminderRoutes({
+    router,
+    requireFirebaseAuth,
+    ensureMe,
+    parseBoundedInt,
+    badRequest,
+    notFound,
+    unavailable,
+    assertKeyInUserDrive,
+    toErrorMessage,
+    ATTACHMENT_URL_EXPIRES_SECONDS,
   });
 
   router.patch("/me", requireFirebaseAuth, async (req, res) => {

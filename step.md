@@ -118,6 +118,39 @@ After deploy completes, open the backend URL and check:
 
 - `GET https://<backend-service>.up.railway.app/health`
 
+---
+
+## 3.5) (Optional) Create a Medicine Reminders worker service
+
+Medicine reminders use pre-generated intake events and periodic “missed dose” marking.
+In production, this should run as a **separate process** (recommended) so the API server stays responsive.
+
+1. In the Railway project → **New Service** → **GitHub Repo**
+2. Select the same repo
+3. Name it: `reminders-worker`
+
+### Commands
+
+- **Build Command**:
+  ```bash
+  npm ci --include=dev && npm run -w backend build
+  ```
+- **Start Command**:
+  ```bash
+  npm run -w backend start:worker:reminders
+  ```
+
+### Variables
+
+Set the same variables as the backend API (at minimum `DATABASE_URL`).
+Optional tuning:
+
+- `REMINDERS_DAYS_AHEAD=7`
+- `REMINDERS_BATCH_LIMIT=250`
+- `REMINDERS_MIDNIGHT_WINDOW_MINUTES=20`
+- `REMINDERS_GENERATION_EVERY_MS=300000`
+- `REMINDERS_MISSED_EVERY_MS=60000`
+
 Railway provides `PORT` automatically.
 
 ---
