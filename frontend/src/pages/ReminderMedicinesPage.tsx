@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { ArrowLeft, ArrowRight, BellRing, Pill } from "lucide-react";
 
 import Footer from "../components/Footer";
 import Header from "../components/Header";
+import { FeedNativeAd } from "../shared/ads";
 import {
   getReminderSettings,
   getTodayTimeline,
@@ -16,6 +17,7 @@ import {
   type TimelineItem,
   type UpcomingIntakeItem,
 } from "../shared/api/reminders";
+import { useAuthRequiredModal } from "../shared/auth";
 import { useAuthState } from "../shared/firebase/useAuthState";
 
 function formatLocalTime(isoUtc: string): string {
@@ -79,6 +81,8 @@ export default function ReminderMedicinesPage() {
   const { t } = useTranslation();
   const { configured, loading: authLoading, user } = useAuthState();
   const location = useLocation();
+  const navigate = useNavigate();
+  const authRequired = useAuthRequiredModal();
 
   const patientId = useMemo(() => {
     const raw = new URLSearchParams(location.search).get("patientId");
@@ -275,6 +279,8 @@ export default function ReminderMedicinesPage() {
     <div className="min-h-screen bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-50">
       <Header />
 
+      {authRequired.modal}
+
       <main className="mx-auto w-full max-w-3xl px-4 pb-16 pt-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -297,6 +303,13 @@ export default function ReminderMedicinesPage() {
 
           <Link
             to={`/reminder/add${patientQuery}`}
+            onClick={(e) => {
+              if (user) return;
+              e.preventDefault();
+              authRequired.requireAuth(() => {
+                navigate(`/reminder/add${patientQuery}`);
+              });
+            }}
             className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700 sm:w-auto"
           >
             <BellRing className="h-4 w-4" />
@@ -325,6 +338,13 @@ export default function ReminderMedicinesPage() {
               </p>
               <Link
                 to={`/reminder/add${patientQuery}`}
+                onClick={(e) => {
+                  if (user) return;
+                  e.preventDefault();
+                  authRequired.requireAuth(() => {
+                    navigate(`/reminder/add${patientQuery}`);
+                  });
+                }}
                 className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white hover:bg-brand-700"
               >
                 <Pill className="h-4 w-4" />
@@ -333,7 +353,7 @@ export default function ReminderMedicinesPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {models.map((m) => {
+              {models.map((m, idx) => {
                 const instruction = prettyInstruction(
                   m.medicine.instructionTag,
                 );
@@ -345,57 +365,60 @@ export default function ReminderMedicinesPage() {
                       : "text-zinc-600 dark:text-zinc-300";
 
                 return (
-                  <Link
-                    key={m.medicine.id}
-                    to={`/reminder/medicines/${m.medicine.id}${patientQuery}`}
-                    className={
-                      "group block rounded-2xl border border-zinc-200 bg-white p-4 transition-all hover:-translate-y-0.5 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900 " +
-                      (m.disabled ? "opacity-70" : "")
-                    }
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-12 w-12 flex-none items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50">
-                        <span className="text-sm font-bold">
-                          {(m.medicine.name || "M").slice(0, 1).toUpperCase()}
-                        </span>
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="truncate text-sm font-semibold">
-                              {m.medicine.name}
-                            </div>
-                            <div className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
-                              {t("Dose")}: {m.medicine.dosePerIntake}
-                              {m.medicine.doseUnit
-                                ? ` ${m.medicine.doseUnit}`
-                                : ""}
-                              {instruction ? ` · ${instruction}` : ""}
-                            </div>
-                          </div>
-
-                          <span
-                            className={
-                              "flex-none rounded-full border px-2.5 py-1 text-xs font-semibold " +
-                              m.statusBadgeClass
-                            }
-                          >
-                            {m.statusText}
+                  <Fragment key={m.medicine.id}>
+                    <Link
+                      to={`/reminder/medicines/${m.medicine.id}${patientQuery}`}
+                      className={
+                        "group block rounded-2xl border border-zinc-200 bg-white p-4 transition-all hover:-translate-y-0.5 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900 " +
+                        (m.disabled ? "opacity-70" : "")
+                      }
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-12 w-12 flex-none items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50">
+                          <span className="text-sm font-bold">
+                            {(m.medicine.name || "M").slice(0, 1).toUpperCase()}
                           </span>
                         </div>
 
-                        <div className={`mt-2 text-sm ${inventoryToneClass}`}>
-                          {m.inventoryText}
-                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-semibold">
+                                {m.medicine.name}
+                              </div>
+                              <div className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
+                                {t("Dose")}: {m.medicine.dosePerIntake}
+                                {m.medicine.doseUnit
+                                  ? ` ${m.medicine.doseUnit}`
+                                  : ""}
+                                {instruction ? ` · ${instruction}` : ""}
+                              </div>
+                            </div>
 
-                        <div className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-brand-700 group-hover:underline dark:text-brand-300">
-                          {t("Open", "Open")}
-                          <ArrowRight className="h-4 w-4" />
+                            <span
+                              className={
+                                "flex-none rounded-full border px-2.5 py-1 text-xs font-semibold " +
+                                m.statusBadgeClass
+                              }
+                            >
+                              {m.statusText}
+                            </span>
+                          </div>
+
+                          <div className={`mt-2 text-sm ${inventoryToneClass}`}>
+                            {m.inventoryText}
+                          </div>
+
+                          <div className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-brand-700 group-hover:underline dark:text-brand-300">
+                            {t("Open", "Open")}
+                            <ArrowRight className="h-4 w-4" />
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </Link>
+                    </Link>
+
+                    {idx === 2 ? <FeedNativeAd /> : null}
+                  </Fragment>
                 );
               })}
             </div>

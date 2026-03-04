@@ -5,6 +5,7 @@ import "./shared/i18n";
 import "./styles/globals.css";
 
 import App from "./app/App";
+import { MeProvider } from "./shared/me/MeProvider";
 import { registerSW } from "./shared/pwa/registerSW";
 import { applyTheme, getInitialTheme } from "./shared/theme/theme";
 
@@ -13,6 +14,8 @@ registerSW();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <App />
+    <MeProvider>
+      <App />
+    </MeProvider>
   </React.StrictMode>,
 );

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { BellRing, Check, Plus, RefreshCw, Users, X } from "lucide-react";
 
 import Footer from "../components/Footer";
 import Header from "../components/Header";
+import { useAuthRequiredModal } from "../shared/auth";
 import {
   getReminderSettings,
   getTodayTimeline,
@@ -240,6 +241,8 @@ export default function ReminderPage() {
   const { t } = useTranslation();
   const { configured, loading: authLoading, user } = useAuthState();
   const location = useLocation();
+  const navigate = useNavigate();
+  const authRequired = useAuthRequiredModal();
 
   const patientId = useMemo(() => {
     const raw = new URLSearchParams(location.search).get("patientId");
@@ -287,8 +290,8 @@ export default function ReminderPage() {
     return m;
   }, [medicines]);
 
-  async function refreshAll() {
-    if (!canUse) return;
+  async function refreshAll(options?: { skipAuthCheck?: boolean }) {
+    if (!options?.skipAuthCheck && !canUse) return;
     setLoading(true);
     setError(null);
 
@@ -438,6 +441,8 @@ export default function ReminderPage() {
     <div className="min-h-screen bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-50">
       <Header />
 
+      {authRequired.modal}
+
       <main className="mx-auto w-full max-w-3xl px-4 pb-16 pt-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -459,6 +464,13 @@ export default function ReminderPage() {
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
             <Link
               to={`/reminder/add${patientQuery}`}
+              onClick={(e) => {
+                if (user) return;
+                e.preventDefault();
+                authRequired.requireAuth(() => {
+                  navigate(`/reminder/add${patientQuery}`);
+                });
+              }}
               className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700 sm:w-auto"
             >
               <Plus className="h-4 w-4" aria-hidden="true" />
@@ -467,9 +479,13 @@ export default function ReminderPage() {
 
             <button
               type="button"
-              onClick={() => void refreshAll()}
+              onClick={() => {
+                authRequired.requireAuth(() => {
+                  void refreshAll({ skipAuthCheck: true });
+                });
+              }}
               className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900 sm:w-auto"
-              disabled={!canUse || loading}
+              disabled={loading}
               aria-label={t("Refresh")}
             >
               <RefreshCw className="h-4 w-4" />
@@ -478,6 +494,13 @@ export default function ReminderPage() {
 
             <Link
               to={`/reminder/removed${patientQuery}`}
+              onClick={(e) => {
+                if (user) return;
+                e.preventDefault();
+                authRequired.requireAuth(() => {
+                  navigate(`/reminder/removed${patientQuery}`);
+                });
+              }}
               className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900 sm:w-auto"
             >
               <X className="h-4 w-4" />
@@ -487,6 +510,13 @@ export default function ReminderPage() {
             {!patientId ? (
               <Link
                 to="/reminder/caregiver"
+                onClick={(e) => {
+                  if (user) return;
+                  e.preventDefault();
+                  authRequired.requireAuth(() => {
+                    navigate("/reminder/caregiver");
+                  });
+                }}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900 sm:w-auto"
               >
                 <Users className="h-4 w-4" />

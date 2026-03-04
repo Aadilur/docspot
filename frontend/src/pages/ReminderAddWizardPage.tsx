@@ -6,6 +6,7 @@ import { Check, ChevronRight, Clock, Plus, X } from "lucide-react";
 
 import Footer from "../components/Footer";
 import Header from "../components/Header";
+import { useAuthRequiredModal } from "../shared/auth";
 import {
   createMedicine,
   createSchedule,
@@ -134,6 +135,7 @@ export default function ReminderAddWizardPage() {
   }, [patientId]);
 
   const canUse = configured && !authLoading && !!user;
+  const authRequired = useAuthRequiredModal();
 
   const [step, setStep] = useState<1 | 2>(1);
   const [busy, setBusy] = useState(false);
@@ -421,8 +423,8 @@ export default function ReminderAddWizardPage() {
     }
   }
 
-  async function onSave() {
-    if (!canUse) return;
+  async function onSave(options?: { skipAuthCheck?: boolean }) {
+    if (!options?.skipAuthCheck && !canUse) return;
     if (!name.trim()) return;
     if (scheduleValidationError) return;
     if (doseValidationError) return;
@@ -542,6 +544,8 @@ export default function ReminderAddWizardPage() {
       ) : null}
 
       <Header />
+
+      {authRequired.modal}
 
       <main className="mx-auto w-full max-w-3xl px-4 pb-28 pt-6 md:pb-10">
         <div className="flex items-center justify-between gap-3">
@@ -1256,11 +1260,12 @@ export default function ReminderAddWizardPage() {
               type="button"
               className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-5 py-3 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
               onClick={() => {
-                if (step === 1) nextFromStep1();
+                authRequired.requireAuth(() => {
+                  if (step === 1) nextFromStep1();
+                });
               }}
               disabled={
                 busy ||
-                !canUse ||
                 (step === 1 && (!name.trim() || photoUploading)) ||
                 photoUploading
               }
@@ -1272,10 +1277,11 @@ export default function ReminderAddWizardPage() {
             <button
               type="button"
               className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
-              onClick={() => void onSave()}
+              onClick={() => {
+                authRequired.requireAuth(() => onSave({ skipAuthCheck: true }));
+              }}
               disabled={
                 busy ||
-                !canUse ||
                 Boolean(scheduleValidationError) ||
                 Boolean(doseValidationError) ||
                 (frequency !== "once" &&

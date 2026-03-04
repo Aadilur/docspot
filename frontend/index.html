@@ -2,8 +2,46 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+
+    <!-- Google Tag Manager -->
+    <script>
+      (function (w, d, s, l, i) {
+        w[l] = w[l] || [];
+        w[l].push({ "gtm.start": new Date().getTime(), event: "gtm.js" });
+        var f = d.getElementsByTagName(s)[0],
+          j = d.createElement(s),
+          dl = l != "dataLayer" ? "&l=" + l : "";
+        j.async = true;
+        j.src = "https://www.googletagmanager.com/gtm.js?id=" + i + dl;
+        f.parentNode.insertBefore(j, f);
+      })(window, document, "script", "dataLayer", "GTM-NJFCFJRX");
+    </script>
+    <!-- End Google Tag Manager -->
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0b1220" />
+
+    <meta
+      name="description"
+      content="Store and share your family’s documents — organized, searchable, and private by default."
+    />
+
+    <meta property="og:site_name" content="DocSpot" />
+    <meta property="og:title" content="DocSpot" />
+    <meta
+      property="og:description"
+      content="Store and share your family’s documents — organized, searchable, and private by default."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/icon.png" />
+
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="DocSpot" />
+    <meta
+      name="twitter:description"
+      content="Store and share your family’s documents — organized, searchable, and private by default."
+    />
+    <meta name="twitter:image" content="/icon.png" />
 
     <link rel="icon" href="/icon.png" type="image/png" />
     <link rel="icon" href="/icon.png" sizes="any" />
@@ -17,6 +55,17 @@
     <title>DocSpot</title>
   </head>
   <body>
+    <!-- Google Tag Manager (noscript) -->
+    <noscript
+      ><iframe
+        src="https://www.googletagmanager.com/ns.html?id=GTM-NJFCFJRX"
+        height="0"
+        width="0"
+        style="display: none; visibility: hidden"
+      ></iframe
+    ></noscript>
+    <!-- End Google Tag Manager (noscript) -->
+
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

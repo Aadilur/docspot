@@ -463,11 +463,124 @@ export async function mountAdmin(app: Express): Promise<void> {
   const testimonials = new Resource(metadata.table("cms_testimonials"));
   const banners = new Resource(metadata.table("cms_banners"));
   const logos = new Resource(metadata.table("cms_logos"));
+  const users = new Resource(metadata.table("users"));
 
   const adminJs = new AdminJS({
     rootPath: "/admin",
     ...(componentLoader ? { componentLoader } : {}),
     resources: [
+      {
+        resource: users,
+        options: {
+          navigation: { name: "App", icon: "User" },
+          actions: {
+            new: { isAccessible: false, isVisible: false },
+            delete: { isAccessible: false, isVisible: false },
+            bulkDelete: { isAccessible: false, isVisible: false },
+          },
+          listProperties: [
+            "email",
+            "display_name",
+            "provider",
+            "provider_user_id",
+            "user_type",
+            "subscription_status",
+            "last_login_at",
+            "created_at",
+            "updated_at",
+          ],
+          filterProperties: [
+            "email",
+            "display_name",
+            "provider",
+            "provider_user_id",
+            "user_type",
+            "subscription_status",
+          ],
+          editProperties: ["user_type"],
+          showProperties: [
+            "id",
+            "provider",
+            "provider_user_id",
+            "provider_app_id",
+            "email",
+            "display_name",
+            "photo_url",
+            "photo_key",
+            "locale",
+            "user_type",
+            "subscription_type",
+            "subscription_status",
+            "storage_quota_bytes",
+            "storage_used_bytes",
+            "storage_reserved_bytes",
+            "timezone",
+            "reminder_offset_minutes",
+            "reminder_grace_minutes",
+            "last_login_at",
+            "created_at",
+            "updated_at",
+            "metadata",
+          ],
+          properties: {
+            id: {
+              isVisible: {
+                list: false,
+                filter: false,
+                show: true,
+                edit: false,
+              },
+            },
+            provider: {
+              isVisible: {
+                list: true,
+                filter: true,
+                show: true,
+                edit: false,
+              },
+            },
+            provider_user_id: {
+              isVisible: {
+                list: true,
+                filter: true,
+                show: true,
+                edit: false,
+              },
+            },
+            provider_app_id: {
+              isVisible: {
+                list: false,
+                filter: false,
+                show: true,
+                edit: false,
+              },
+            },
+            email: {
+              isVisible: {
+                list: true,
+                filter: true,
+                show: true,
+                edit: false,
+              },
+            },
+            display_name: {
+              isVisible: {
+                list: true,
+                filter: true,
+                show: true,
+                edit: false,
+              },
+            },
+            user_type: {
+              availableValues: [
+                { value: "free", label: "Free" },
+                { value: "paid", label: "Pro" },
+              ],
+            },
+            metadata: { type: "textarea" },
+          },
+        },
+      },
       {
         resource: posts,
         ...(postCoverUpload ? { features: [postCoverUpload] } : {}),

@@ -34,7 +34,10 @@ Docs:
 - Backend overview: `backend/README.md`
 - Backend endpoints: `backend/src/interfaces/http/ENDPOINTS.md`
 - Admin setup: `ADMIN_SETUP.md`
+- Ads setup: `ADS_SETUP.md`
 
 ## Notes
 
-Authentication is planned via Firebase (Google/Facebook). Ads/rewarded ads and Pro access are planned later.
+Authentication is via Firebase. AdminJS can flip `users.user_type` (`free`/`paid`) to simulate Free vs Pro.
+
+Basic Google AdSense native ad slots are supported (footer + share flows) and are automatically hidden for Pro users.

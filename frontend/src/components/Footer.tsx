@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import { getCmsLogoCached } from "../shared/api/cms";
+import { FooterNativeAd } from "../shared/ads";
 
 export default function Footer() {
   const { t } = useTranslation();
@@ -27,6 +28,10 @@ export default function Footer() {
   return (
     <footer className="border-t border-zinc-200/70 bg-white/50 py-12 text-xs text-zinc-500 backdrop-blur-sm dark:border-zinc-800/70 dark:bg-zinc-950/30 dark:text-zinc-400">
       <div className="mx-auto w-full max-w-5xl px-5">
+        <div className="mb-8">
+          <FooterNativeAd />
+        </div>
+
         <div className="grid gap-8 sm:grid-cols-3">
           <div className="sm:col-span-1">
             <Link to="/" className="inline-flex items-center gap-3">

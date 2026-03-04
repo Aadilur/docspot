@@ -76,6 +76,13 @@ If you already use `ADMIN_UIDS`, the backend still supports it as a fallback. Yo
 
 ## 5) What you can manage in AdminJS
 
+Under **App**:
+
+- **Users** (`users`)
+  - Search/filter by email, display name, provider UID
+  - Upgrade/downgrade by editing `user_type` (`free` ↔ `paid`)
+  - User creation/deletion is disabled in AdminJS (safer by default)
+
 Under **CMS**:
 
 - **Posts** (`cms_posts`)
