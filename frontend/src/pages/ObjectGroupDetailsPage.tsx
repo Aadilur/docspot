@@ -79,6 +79,28 @@ function formatDateTime(iso: string): string {
   }
 }
 
+function formatHumanDate(value: string): string {
+  const raw = value.trim();
+  if (!raw) return raw;
+
+  try {
+    const ymd = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const d = ymd
+      ? new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]))
+      : new Date(raw);
+
+    if (Number.isNaN(d.getTime())) return raw;
+
+    return d.toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  } catch {
+    return raw;
+  }
+}
+
 function isAllowedUpload(file: File) {
   if (file.type === "application/pdf") return true;
   if (file.type.startsWith("image/")) return true;
@@ -484,7 +506,7 @@ export default function ObjectGroupDetailsPage() {
                             {t("issueDate")}
                           </div>
                           <div className="mt-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                            {r.issueDate || "—"}
+                            {r.issueDate ? formatHumanDate(r.issueDate) : "—"}
                           </div>
                         </div>
                         <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
@@ -492,7 +514,9 @@ export default function ObjectGroupDetailsPage() {
                             {t("nextAppointment")}
                           </div>
                           <div className="mt-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                            {r.nextAppointment || "—"}
+                            {r.nextAppointment
+                              ? formatHumanDate(r.nextAppointment)
+                              : "—"}
                           </div>
                         </div>
                         <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
