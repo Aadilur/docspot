@@ -262,8 +262,15 @@ function jsonError(res: Response, status: number, message: string) {
 }
 
 export async function mountAdmin(app: Express): Promise<void> {
+  const startMs = Date.now();
+  // eslint-disable-next-line no-console
+  console.log("admin: mount start");
+
   // Ensure core schema (including CMS tables) exists.
+  const schemaStartMs = Date.now();
   await ensureSchema();
+  // eslint-disable-next-line no-console
+  console.log(`admin: ensureSchema in ${Date.now() - schemaStartMs}ms`);
 
   const { databaseUrl } = getConfig();
   if (!databaseUrl) {
@@ -272,11 +279,14 @@ export async function mountAdmin(app: Express): Promise<void> {
 
   const firebaseConfig = readFirebaseWebConfig();
 
+  const importsStartMs = Date.now();
   const adminjsModule = await import("adminjs");
   const AdminJS = adminjsModule.default;
   const { ComponentLoader } = adminjsModule;
   const AdminJSExpress = (await import("@adminjs/express")).default;
   const { Database, Resource, parse } = await import("@adminjs/sql");
+  // eslint-disable-next-line no-console
+  console.log(`admin: imports in ${Date.now() - importsStartMs}ms`);
 
   AdminJS.registerAdapter({ Database, Resource });
 
@@ -435,11 +445,18 @@ export async function mountAdmin(app: Express): Promise<void> {
     // ignore
   }
 
+  const parseStartMs = Date.now();
+  // eslint-disable-next-line no-console
+  console.log("admin: db introspection (parse) start");
   const metadata = await parse("postgresql", {
     database: dbName,
     schema: "public",
     connectionString: databaseUrl,
   });
+  // eslint-disable-next-line no-console
+  console.log(
+    `admin: db introspection (parse) in ${Date.now() - parseStartMs}ms`,
+  );
 
   const posts = new Resource(metadata.table("cms_posts"));
   const faqs = new Resource(metadata.table("cms_faqs"));
@@ -898,4 +915,7 @@ export async function mountAdmin(app: Express): Promise<void> {
   adminRouter.use(router);
 
   app.use(adminJs.options.rootPath, adminRouter);
+
+  // eslint-disable-next-line no-console
+  console.log(`admin: mount done in ${Date.now() - startMs}ms`);
 }

@@ -95,7 +95,7 @@ function UnsplashImageCard({
         </div>
       </Link>
 
-      <div className="p-5">
+      <div className="px-4 py-5 sm:p-5">
         <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
           {title}
         </div>
@@ -259,9 +259,12 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-dvh bg-gradient-to-b from-zinc-50 via-white to-white dark:from-zinc-950 dark:via-zinc-950 dark:to-zinc-900">
+      {/* Header */}
       <Header />
 
-      <main className="relative mx-auto w-full max-w-5xl px-4 pb-12 pt-6 sm:px-5 sm:pt-8">
+      {/* Main Content */}
+      <main className="relative mx-auto w-full max-w-5xl px-3 pb-12 pt-6 sm:px-5 sm:pt-8">
+        {/* Banners */}
         {banners.length > 0 && (
           <section
             aria-label={t("bannerTitle", { defaultValue: "Banners" }) as any}
@@ -307,7 +310,7 @@ export default function LandingPage() {
                       />
 
                       {(banner.title || banner.subtitle) && (
-                        <div className="absolute inset-x-0 bottom-0 p-4">
+                        <div className="absolute inset-x-0 bottom-0 px-3 py-4 sm:p-4">
                           {banner.title && (
                             <div className="text-sm font-semibold text-white">
                               {banner.title}
@@ -337,9 +340,10 @@ export default function LandingPage() {
           <div className="absolute -left-24 bottom-8 h-72 w-72 rounded-full bg-brand-500/10 blur-3xl motion-safe:animate-pulse dark:bg-brand-400/10" />
         </div>
 
+        {/* Hero */}
         <section
           id="home"
-          className="relative overflow-hidden rounded-3xl bg-white/70 p-6 shadow-sm backdrop-blur-sm ring-0 dark:bg-zinc-950/30 sm:border sm:border-zinc-200/70 sm:ring-1 sm:ring-zinc-200/60 dark:sm:border-zinc-800/70 dark:sm:ring-zinc-800/60 sm:p-8"
+          className="relative overflow-hidden rounded-3xl bg-white/70 px-4 py-6 shadow-sm backdrop-blur-sm ring-0 dark:bg-zinc-950/30 sm:border sm:border-zinc-200/70 sm:ring-1 sm:ring-zinc-200/60 dark:sm:border-zinc-800/70 dark:sm:ring-zinc-800/60 sm:p-8"
         >
           <div className="grid gap-8 md:grid-cols-2 md:items-center">
             <div>
@@ -353,7 +357,7 @@ export default function LandingPage() {
                 {t("subtitle")}
               </p>
 
-              <div className="mt-4 grid gap-2 rounded-2xl bg-white/70 p-4 text-sm text-zinc-700 shadow-sm backdrop-blur-sm ring-1 ring-zinc-200/60 dark:bg-zinc-950/40 dark:text-zinc-200 dark:ring-zinc-800/60">
+              <div className="mt-4 grid gap-2 rounded-2xl bg-white/70 px-3 py-4 text-sm text-zinc-700 shadow-sm backdrop-blur-sm ring-1 ring-zinc-200/60 dark:bg-zinc-950/40 dark:text-zinc-200 dark:ring-zinc-800/60 sm:p-4">
                 <div className="flex items-start gap-3">
                   <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand-600/10 text-brand-700 ring-1 ring-brand-500/20 dark:bg-brand-400/10 dark:text-brand-300 dark:ring-brand-400/20">
                     <ShieldCheck className="h-4 w-4" aria-hidden="true" />
@@ -412,7 +416,7 @@ export default function LandingPage() {
             </div>
 
             <div className="md:pl-2">
-              <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-white/70 via-white/50 to-brand-50/50 p-4 shadow-sm ring-0 backdrop-blur-sm dark:from-zinc-950/50 dark:via-zinc-950/35 dark:to-brand-500/10 sm:p-6 sm:ring-1 sm:ring-zinc-200/60 dark:sm:ring-zinc-800/60">
+              <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-white/70 via-white/50 to-brand-50/50 px-3 py-4 shadow-sm ring-0 backdrop-blur-sm dark:from-zinc-950/50 dark:via-zinc-950/35 dark:to-brand-500/10 sm:p-6 sm:ring-1 sm:ring-zinc-200/60 dark:sm:ring-zinc-800/60">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
@@ -441,7 +445,7 @@ export default function LandingPage() {
                 <div className="mt-5 grid grid-cols-2 gap-2 sm:gap-3">
                   <Link
                     to="/prescription"
-                    className="group rounded-2xl bg-white/50 p-4 ring-0 transition-colors hover:bg-white/80 focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none dark:bg-zinc-950/30 dark:hover:bg-zinc-950/45 dark:focus:ring-brand-900 sm:ring-1 sm:ring-zinc-200/60 sm:hover:ring-zinc-200/80 dark:sm:ring-zinc-800/60 dark:sm:hover:ring-zinc-800/80"
+                    className="group rounded-2xl bg-white/50 px-3 py-4 ring-0 transition-colors hover:bg-white/80 focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none dark:bg-zinc-950/30 dark:hover:bg-zinc-950/45 dark:focus:ring-brand-900 sm:p-4 sm:ring-1 sm:ring-zinc-200/60 sm:hover:ring-zinc-200/80 dark:sm:ring-zinc-800/60 dark:sm:hover:ring-zinc-800/80"
                     aria-label={t("servicePrescriptionTitle")}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -468,7 +472,7 @@ export default function LandingPage() {
 
                   <Link
                     to="/invoice"
-                    className="group rounded-2xl bg-white/50 p-4 ring-0 transition-colors hover:bg-white/80 focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none dark:bg-zinc-950/30 dark:hover:bg-zinc-950/45 dark:focus:ring-brand-900 sm:ring-1 sm:ring-zinc-200/60 sm:hover:ring-zinc-200/80 dark:sm:ring-zinc-800/60 dark:sm:hover:ring-zinc-800/80"
+                    className="group rounded-2xl bg-white/50 px-3 py-4 ring-0 transition-colors hover:bg-white/80 focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none dark:bg-zinc-950/30 dark:hover:bg-zinc-950/45 dark:focus:ring-brand-900 sm:p-4 sm:ring-1 sm:ring-zinc-200/60 sm:hover:ring-zinc-200/80 dark:sm:ring-zinc-800/60 dark:sm:hover:ring-zinc-800/80"
                     aria-label={t("serviceDocumentTitle")}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -495,7 +499,7 @@ export default function LandingPage() {
 
                   <Link
                     to="/other-doc"
-                    className="group rounded-2xl bg-white/50 p-4 ring-0 transition-colors hover:bg-white/80 focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none dark:bg-zinc-950/30 dark:hover:bg-zinc-950/45 dark:focus:ring-brand-900 sm:ring-1 sm:ring-zinc-200/60 sm:hover:ring-zinc-200/80 dark:sm:ring-zinc-800/60 dark:sm:hover:ring-zinc-800/80"
+                    className="group rounded-2xl bg-white/50 px-3 py-4 ring-0 transition-colors hover:bg-white/80 focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none dark:bg-zinc-950/30 dark:hover:bg-zinc-950/45 dark:focus:ring-brand-900 sm:p-4 sm:ring-1 sm:ring-zinc-200/60 sm:hover:ring-zinc-200/80 dark:sm:ring-zinc-800/60 dark:sm:hover:ring-zinc-800/80"
                     aria-label={t("serviceOtherTitle")}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -522,7 +526,7 @@ export default function LandingPage() {
 
                   <Link
                     to="/reminder"
-                    className="group rounded-2xl bg-white/50 p-4 ring-0 transition-colors hover:bg-white/80 focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none dark:bg-zinc-950/30 dark:hover:bg-zinc-950/45 dark:focus:ring-brand-900 sm:ring-1 sm:ring-zinc-200/60 sm:hover:ring-zinc-200/80 dark:sm:ring-zinc-800/60 dark:sm:hover:ring-zinc-800/80"
+                    className="group rounded-2xl bg-white/50 px-3 py-4 ring-0 transition-colors hover:bg-white/80 focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none dark:bg-zinc-950/30 dark:hover:bg-zinc-950/45 dark:focus:ring-brand-900 sm:p-4 sm:ring-1 sm:ring-zinc-200/60 sm:hover:ring-zinc-200/80 dark:sm:ring-zinc-800/60 dark:sm:hover:ring-zinc-800/80"
                     aria-label={t("serviceReminderTitle") as any}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -580,6 +584,7 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {/* At A Glance */}
         <section id="at-a-glance" className="mt-10 scroll-mt-24">
           <div className="flex items-end justify-between gap-4">
             <div>
@@ -713,7 +718,7 @@ export default function LandingPage() {
           </div>
 
           <div className="mt-4 overflow-hidden rounded-3xl bg-gradient-to-br from-brand-50 via-white to-white shadow-sm ring-0 dark:from-brand-500/10 dark:via-zinc-950 dark:to-zinc-950 sm:border sm:border-zinc-200/70 sm:ring-1 sm:ring-zinc-200/60 dark:sm:border-zinc-800/70 dark:sm:ring-zinc-800/60">
-            <div className="grid gap-6 p-5 sm:p-6 md:grid-cols-2 md:items-center">
+            <div className="grid gap-6 px-4 py-5 sm:p-6 md:grid-cols-2 md:items-center">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="inline-flex items-center gap-2 rounded-full border border-zinc-200/70 bg-white/80 px-3 py-1 text-xs font-semibold text-zinc-800 shadow-sm backdrop-blur dark:border-zinc-800/70 dark:bg-zinc-950/40 dark:text-zinc-100">
@@ -836,7 +841,7 @@ export default function LandingPage() {
                   aria-hidden="true"
                   className="pointer-events-none absolute inset-0 bg-gradient-to-t from-zinc-950/45 via-zinc-950/10 to-transparent dark:from-black/55"
                 />
-                <div className="absolute bottom-0 left-0 right-0 p-4">
+                <div className="absolute bottom-0 left-0 right-0 px-3 py-4 sm:p-4">
                   <div className="text-sm font-semibold text-white">
                     {t("reminderExampleTitle", {
                       defaultValue: "Example schedule",
@@ -868,8 +873,9 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {/* Reminder Spotlight */}
         <section id="reminder" className="mt-10 scroll-mt-24">
-          <div className="overflow-hidden rounded-3xl border border-zinc-200/70 bg-gradient-to-br from-brand-50 via-white to-white p-6 shadow-sm dark:border-zinc-800/70 dark:from-brand-500/10 dark:via-zinc-950 dark:to-zinc-950 sm:p-8">
+          <div className="overflow-hidden rounded-3xl border border-zinc-200/70 bg-gradient-to-br from-brand-50 via-white to-white px-4 py-6 shadow-sm dark:border-zinc-800/70 dark:from-brand-500/10 dark:via-zinc-950 dark:to-zinc-950 sm:p-8">
             <div className="grid gap-8 md:grid-cols-2 md:items-center">
               <div>
                 <div className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white/80 px-3 py-1 text-xs font-semibold text-zinc-800 shadow-sm backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/40 dark:text-zinc-100">
@@ -930,7 +936,7 @@ export default function LandingPage() {
               </div>
 
               <div className="md:pl-2">
-                <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-white/70 via-white/50 to-brand-50/40 p-4 shadow-sm ring-0 backdrop-blur-sm dark:from-zinc-950/50 dark:via-zinc-950/35 dark:to-brand-500/10 sm:p-6 sm:ring-1 sm:ring-zinc-200/60 dark:sm:ring-zinc-800/60">
+                <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-white/70 via-white/50 to-brand-50/40 px-3 py-4 shadow-sm ring-0 backdrop-blur-sm dark:from-zinc-950/50 dark:via-zinc-950/35 dark:to-brand-500/10 sm:p-6 sm:ring-1 sm:ring-zinc-200/60 dark:sm:ring-zinc-800/60">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                     <div>
                       <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
@@ -990,7 +996,7 @@ export default function LandingPage() {
                     ].map((item) => (
                       <div
                         key={`${item.time}-${item.title}`}
-                        className="flex items-start justify-between gap-4 rounded-2xl bg-white/55 p-4 ring-0 dark:bg-zinc-950/30 sm:ring-1 sm:ring-zinc-200/60 dark:sm:ring-zinc-800/60"
+                        className="flex items-start justify-between gap-4 rounded-2xl bg-white/55 px-3 py-4 ring-0 dark:bg-zinc-950/30 sm:p-4 sm:ring-1 sm:ring-zinc-200/60 dark:sm:ring-zinc-800/60"
                       >
                         <div className="flex items-start gap-3">
                           <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-600/10 text-brand-700 ring-1 ring-brand-500/20 dark:bg-brand-400/10 dark:text-brand-300 dark:ring-brand-400/20">
@@ -1026,6 +1032,7 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {/* How It Works */}
         <section id="how" className="mt-12 scroll-mt-24">
           <h2 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
             {t("howItWorksTitle")}
@@ -1038,7 +1045,7 @@ export default function LandingPage() {
             {[1, 2, 3].map((n) => (
               <li
                 key={n}
-                className="flex items-start gap-4 rounded-2xl bg-white/70 p-4 shadow-sm backdrop-blur-sm ring-1 ring-zinc-200/60 transition-colors hover:bg-white motion-reduce:transition-none dark:bg-zinc-950/40 dark:ring-zinc-800/60 dark:hover:bg-zinc-950"
+                className="flex items-start gap-4 rounded-2xl bg-white/70 px-3 py-4 shadow-sm backdrop-blur-sm ring-1 ring-zinc-200/60 transition-colors hover:bg-white motion-reduce:transition-none dark:bg-zinc-950/40 dark:ring-zinc-800/60 dark:hover:bg-zinc-950 sm:p-4"
               >
                 <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-600/10 text-sm font-semibold text-brand-700 ring-1 ring-brand-500/20 dark:bg-brand-400/10 dark:text-brand-300 dark:ring-brand-400/20">
                   {n}
@@ -1056,6 +1063,7 @@ export default function LandingPage() {
           </ol>
         </section>
 
+        {/* Services */}
         <section id="services" className="mt-10 scroll-mt-24">
           <h2 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
             {t("servicesTitle")}
@@ -1067,7 +1075,7 @@ export default function LandingPage() {
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Link
               to="/prescription"
-              className="group flex flex-col justify-between rounded-2xl bg-white/80 p-5 shadow-sm backdrop-blur-sm ring-1 ring-zinc-200/60 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:bg-zinc-950/60 dark:ring-zinc-800/60 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
+              className="group flex flex-col justify-between rounded-2xl bg-white/80 px-4 py-5 shadow-sm backdrop-blur-sm ring-1 ring-zinc-200/60 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:bg-zinc-950/60 dark:ring-zinc-800/60 dark:hover:bg-zinc-950 dark:focus:ring-brand-900 sm:p-5"
               aria-label={t("servicePrescriptionTitle")}
             >
               <div className="mb-4 flex items-start justify-between gap-3">
@@ -1096,7 +1104,7 @@ export default function LandingPage() {
             </Link>
             <Link
               to="/invoice"
-              className="group flex flex-col justify-between rounded-2xl bg-white/80 p-5 shadow-sm backdrop-blur-sm ring-1 ring-zinc-200/60 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:bg-zinc-950/60 dark:ring-zinc-800/60 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
+              className="group flex flex-col justify-between rounded-2xl bg-white/80 px-4 py-5 shadow-sm backdrop-blur-sm ring-1 ring-zinc-200/60 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:bg-zinc-950/60 dark:ring-zinc-800/60 dark:hover:bg-zinc-950 dark:focus:ring-brand-900 sm:p-5"
               aria-label={t("serviceDocumentTitle")}
             >
               <div className="mb-4 flex items-start justify-between gap-3">
@@ -1125,7 +1133,7 @@ export default function LandingPage() {
             </Link>
             <Link
               to="/other-doc"
-              className="group flex flex-col justify-between rounded-2xl bg-white/80 p-5 shadow-sm backdrop-blur-sm ring-1 ring-zinc-200/60 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:bg-zinc-950/60 dark:ring-zinc-800/60 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
+              className="group flex flex-col justify-between rounded-2xl bg-white/80 px-4 py-5 shadow-sm backdrop-blur-sm ring-1 ring-zinc-200/60 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:bg-zinc-950/60 dark:ring-zinc-800/60 dark:hover:bg-zinc-950 dark:focus:ring-brand-900 sm:p-5"
               aria-label={t("serviceOtherTitle")}
             >
               <div className="mb-4 flex items-start justify-between gap-3">
@@ -1155,7 +1163,7 @@ export default function LandingPage() {
 
             <Link
               to="/reminder"
-              className="group flex flex-col justify-between rounded-2xl bg-white/80 p-5 shadow-sm backdrop-blur-sm ring-1 ring-zinc-200/60 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:bg-zinc-950/60 dark:ring-zinc-800/60 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
+              className="group flex flex-col justify-between rounded-2xl bg-white/80 px-4 py-5 shadow-sm backdrop-blur-sm ring-1 ring-zinc-200/60 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:bg-zinc-950/60 dark:ring-zinc-800/60 dark:hover:bg-zinc-950 dark:focus:ring-brand-900 sm:p-5"
               aria-label={t("serviceReminderTitle") as any}
             >
               <div className="mb-4 flex items-center justify-between gap-3">
@@ -1190,8 +1198,10 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {/* Pricing */}
         <PricingSection />
 
+        {/* Testimonials */}
         <section id="testimonials" className="mt-12 scroll-mt-24">
           <h2 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
             {t("testimonialsTitle")}
@@ -1204,7 +1214,7 @@ export default function LandingPage() {
             {[1, 2, 3].map((n) => (
               <figure
                 key={n}
-                className="rounded-2xl bg-white/80 p-5 shadow-sm backdrop-blur-sm ring-1 ring-zinc-200/60 dark:bg-zinc-950/60 dark:ring-zinc-800/60"
+                className="rounded-2xl bg-white/80 px-4 py-5 shadow-sm backdrop-blur-sm ring-1 ring-zinc-200/60 dark:bg-zinc-950/60 dark:ring-zinc-800/60 sm:p-5"
               >
                 <blockquote className="text-sm text-zinc-700 dark:text-zinc-200">
                   “{t(`testimonial${n}Quote` as any)}”
@@ -1217,6 +1227,7 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {/* FAQ */}
         <section id="faq" className="mt-10 scroll-mt-24">
           <h2 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
             {t("faqTitle")}
@@ -1229,7 +1240,7 @@ export default function LandingPage() {
             {[1, 2, 3].map((n) => (
               <details
                 key={n}
-                className="group rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-200/60 dark:bg-zinc-950 dark:ring-zinc-800/60"
+                className="group rounded-2xl bg-white px-4 py-5 shadow-sm ring-1 ring-zinc-200/60 dark:bg-zinc-950 dark:ring-zinc-800/60 sm:p-5"
               >
                 <summary className="cursor-pointer list-none select-none text-sm font-semibold text-zinc-900 dark:text-zinc-50 [&::-webkit-details-marker]:hidden">
                   {t(`faqQ${n}` as any)}
@@ -1243,8 +1254,10 @@ export default function LandingPage() {
         </section>
       </main>
 
+      {/* Footer */}
       <Footer />
 
+      {/* Get Started Modal */}
       {getStartedOpen && (
         <div
           className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center"

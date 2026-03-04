@@ -5,6 +5,10 @@ let ensured = false;
 export async function ensureSchema(): Promise<void> {
   if (ensured) return;
 
+  const startMs = Date.now();
+  // eslint-disable-next-line no-console
+  console.log("db: ensureSchema start");
+
   const pg = getPostgresPool();
 
   await pg.query(`
@@ -701,4 +705,7 @@ export async function ensureSchema(): Promise<void> {
   );
 
   ensured = true;
+
+  // eslint-disable-next-line no-console
+  console.log(`db: ensureSchema done in ${Date.now() - startMs}ms`);
 }

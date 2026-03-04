@@ -4,6 +4,7 @@ import express from "express";
 import cookieParser from "cookie-parser";
 
 import { getConfig } from "./infrastructure/config/env";
+import { ensureSchema } from "./infrastructure/db/schema";
 import {
   closeRedis,
   initRedisIfConfigured,
@@ -13,7 +14,28 @@ import { mountAdmin } from "./interfaces/http/admin/mountAdmin";
 
 dotenv.config();
 
+type AdminMode = "blocking" | "lazy" | "off";
+
+function getAdminMode(): AdminMode {
+  const raw = (process.env.ADMIN_MODE ?? "").trim().toLowerCase();
+
+  // Explicit env wins.
+  if (["0", "false", "off", "disabled", "disable"].includes(raw)) {
+    return "off";
+  }
+  if (raw === "lazy") return "lazy";
+  if (raw === "blocking") return "blocking";
+
+  // Default: keep production behavior, but don't block dev server start.
+  if (process.env.TS_NODE_DEV) return "lazy";
+  return "blocking";
+}
+
 async function bootstrap() {
+  const bootStartMs = Date.now();
+  // eslint-disable-next-line no-console
+  console.log("boot: starting docspot-backend");
+
   const app = express();
   const corsOriginRaw = (process.env.CORS_ORIGIN || "").trim();
   if (!corsOriginRaw) {
@@ -77,13 +99,45 @@ async function bootstrap() {
     next();
   });
 
-  await mountAdmin(app);
+  // DB schema creation/migrations (fast-ish, required for API routes).
+  await ensureSchema();
+
+  // Core API routes.
   app.use(createHttpRouter());
+
+  const adminMode = getAdminMode();
+  if (adminMode === "blocking") {
+    const adminStartMs = Date.now();
+    // eslint-disable-next-line no-console
+    console.log("boot: mounting admin (blocking; includes DB introspection)");
+    await mountAdmin(app);
+    // eslint-disable-next-line no-console
+    console.log(`boot: admin mounted in ${Date.now() - adminStartMs}ms`);
+  } else if (adminMode === "lazy") {
+    // Mount admin asynchronously so the server can listen sooner.
+    // eslint-disable-next-line no-console
+    console.log("boot: mounting admin in background (lazy)");
+    const adminStartMs = Date.now();
+    mountAdmin(app)
+      .then(() => {
+        // eslint-disable-next-line no-console
+        console.log(`boot: admin mounted in ${Date.now() - adminStartMs}ms`);
+      })
+      .catch((err) => {
+        // eslint-disable-next-line no-console
+        console.error("boot: admin mount failed:", err);
+      });
+  } else {
+    // eslint-disable-next-line no-console
+    console.log("boot: admin disabled (ADMIN_MODE=off)");
+  }
 
   const { port } = getConfig();
   const server = app.listen(port, () => {
     // eslint-disable-next-line no-console
-    console.log(`docspot-backend listening on :${port}`);
+    console.log(
+      `docspot-backend listening on :${port} (boot ${Date.now() - bootStartMs}ms)`,
+    );
   });
 
   const shutdown = async () => {
@@ -104,5 +158,23 @@ async function bootstrap() {
 bootstrap().catch((err) => {
   // eslint-disable-next-line no-console
   console.error(err);
+
+  const anyErr = err as any;
+  if (anyErr && typeof anyErr === "object" && anyErr.code === "EADDRNOTAVAIL") {
+    // eslint-disable-next-line no-console
+    console.error(
+      "Hint: EADDRNOTAVAIL usually means a TCP connect/read tried to use an address that isn't available on this machine (common culprits: DATABASE_URL host set to 0.0.0.0, an IPv6-only host when IPv6 is disabled, or a wrong private IP).",
+    );
+
+    // eslint-disable-next-line no-console
+    console.error({
+      syscall: anyErr.syscall,
+      address: anyErr.address,
+      port: anyErr.port,
+      localAddress: anyErr.localAddress,
+      localPort: anyErr.localPort,
+    });
+  }
+
   process.exit(1);
 });
