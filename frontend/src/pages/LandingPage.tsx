@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
@@ -37,6 +37,155 @@ type CmsBanner = {
   sortOrder: number;
   updatedAt: string;
 };
+
+function usePrefersReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(false);
+
+  useEffect(() => {
+    if (
+      typeof window === "undefined" ||
+      typeof window.matchMedia !== "function"
+    ) {
+      return;
+    }
+
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const sync = () => setReduced(Boolean(query.matches));
+    sync();
+
+    if (typeof query.addEventListener === "function") {
+      query.addEventListener("change", sync);
+      return () => query.removeEventListener("change", sync);
+    }
+
+    // Safari < 14
+    // eslint-disable-next-line deprecation/deprecation
+    query.addListener(sync);
+    // eslint-disable-next-line deprecation/deprecation
+    return () => query.removeListener(sync);
+  }, []);
+
+  return reduced;
+}
+
+function HeroFeatureTyper() {
+  const { t } = useTranslation();
+  const prefersReducedMotion = usePrefersReducedMotion();
+
+  const prefix = String(
+    t("heroTyperPrefix", {
+      defaultValue: "Main features",
+    }),
+  );
+
+  const items = useMemo(() => {
+    const raw = [
+      t("heroTyperP1", { defaultValue: "Prescriptions, organized" }),
+      t("heroTyperP2", { defaultValue: "Invoices & receipts, searchable" }),
+      t("heroTyperP3", { defaultValue: "Object tracker with notes" }),
+      t("heroTyperP4", { defaultValue: "Medication reminders, simplified" }),
+    ];
+
+    return raw
+      .map((v) => (typeof v === "string" ? v : String(v)))
+      .map((v) => v.trim())
+      .filter(Boolean);
+  }, [t]);
+
+  const [itemIndex, setItemIndex] = useState(0);
+  const [charIndex, setCharIndex] = useState(0);
+  const [mode, setMode] = useState<"typing" | "pausing" | "deleting">("typing");
+
+  useEffect(() => {
+    // Reset animation if the phrase list changes (e.g. language switch).
+    setItemIndex(0);
+    setCharIndex(0);
+    setMode("typing");
+  }, [items]);
+
+  useEffect(() => {
+    if (prefersReducedMotion) return;
+    if (items.length === 0) return;
+
+    const safeIndex =
+      ((itemIndex % items.length) + items.length) % items.length;
+    const phrase = items[safeIndex] ?? "";
+    const clampedCharIndex = Math.max(0, Math.min(charIndex, phrase.length));
+
+    if (clampedCharIndex !== charIndex) {
+      setCharIndex(clampedCharIndex);
+      return;
+    }
+
+    let timeoutId: number | undefined;
+
+    if (mode === "typing") {
+      if (charIndex >= phrase.length) {
+        timeoutId = window.setTimeout(() => setMode("pausing"), 900);
+      } else {
+        timeoutId = window.setTimeout(() => setCharIndex((c) => c + 1), 38);
+      }
+    } else if (mode === "pausing") {
+      timeoutId = window.setTimeout(() => setMode("deleting"), 650);
+    } else {
+      if (charIndex <= 0) {
+        timeoutId = window.setTimeout(() => {
+          setMode("typing");
+          setItemIndex((i) => (i + 1) % items.length);
+        }, 160);
+      } else {
+        timeoutId = window.setTimeout(() => setCharIndex((c) => c - 1), 22);
+      }
+    }
+
+    return () => {
+      if (timeoutId != null) window.clearTimeout(timeoutId);
+    };
+  }, [prefersReducedMotion, items, itemIndex, charIndex, mode]);
+
+  const phrase = items.length > 0 ? items[itemIndex % items.length] : "";
+  const typed = prefersReducedMotion
+    ? (items[0] ?? "")
+    : phrase.slice(0, Math.max(0, Math.min(charIndex, phrase.length)));
+
+  return (
+    <div className="mt-4 overflow-hidden rounded-2xl border border-zinc-200/70 bg-gradient-to-r from-brand-50/70 via-white to-white px-4 py-3 shadow-sm backdrop-blur dark:border-zinc-800/70 dark:from-brand-500/10 dark:via-zinc-950/50 dark:to-zinc-950/50">
+      <div className="flex items-center gap-3">
+        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-600/10 text-brand-700 ring-1 ring-brand-500/20 dark:bg-brand-400/10 dark:text-brand-300 dark:ring-brand-400/20">
+          <Sparkles
+            className="h-5 w-5 motion-safe:animate-pulse"
+            aria-hidden="true"
+          />
+        </span>
+
+        <div className="min-w-0">
+          <div className="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
+            {prefix}
+          </div>
+
+          <div
+            aria-hidden="true"
+            className="mt-0.5 flex min-h-[1.5rem] items-baseline gap-1 text-base font-semibold text-zinc-900 dark:text-zinc-50"
+          >
+            <span className="text-brand-700 dark:text-brand-300">
+              {typed || "\u00A0"}
+            </span>
+            {!prefersReducedMotion ? (
+              <span
+                aria-hidden="true"
+                className="inline-block h-5 w-[2px] rounded-full bg-brand-700/70 dark:bg-brand-300/70 motion-safe:animate-pulse"
+              />
+            ) : null}
+          </div>
+
+          <span className="sr-only">
+            {prefix}: {items.join(", ")}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function UnsplashImageCard({
   imageUrl,
@@ -346,6 +495,7 @@ export default function LandingPage() {
           className="relative overflow-hidden rounded-3xl bg-white/70 px-4 py-6 shadow-sm backdrop-blur-sm ring-0 dark:bg-zinc-950/30 sm:border sm:border-zinc-200/70 sm:ring-1 sm:ring-zinc-200/60 dark:sm:border-zinc-800/70 dark:sm:ring-zinc-800/60 sm:p-8"
         >
           <div className="grid gap-8 md:grid-cols-2 md:items-center">
+            {/* Main (headline + key message) */}
             <div>
               <p className="text-xs font-semibold uppercase tracking-widest text-brand-700 dark:text-brand-300">
                 {t("brand")}
@@ -356,6 +506,9 @@ export default function LandingPage() {
               <p className="mt-3 max-w-2xl text-pretty text-zinc-600 dark:text-zinc-300">
                 {t("subtitle")}
               </p>
+
+              {/* Animated main-feature typer (for testing) */}
+              <HeroFeatureTyper />
 
               <div className="mt-4 grid gap-2 rounded-2xl bg-white/70 px-3 py-4 text-sm text-zinc-700 shadow-sm backdrop-blur-sm ring-1 ring-zinc-200/60 dark:bg-zinc-950/40 dark:text-zinc-200 dark:ring-zinc-800/60 sm:p-4">
                 <div className="flex items-start gap-3">
@@ -415,6 +568,7 @@ export default function LandingPage() {
               </p>
             </div>
 
+            {/* Sub-main (quick start + service shortcuts) */}
             <div className="md:pl-2">
               <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-white/70 via-white/50 to-brand-50/50 px-3 py-4 shadow-sm ring-0 backdrop-blur-sm dark:from-zinc-950/50 dark:via-zinc-950/35 dark:to-brand-500/10 sm:p-6 sm:ring-1 sm:ring-zinc-200/60 dark:sm:ring-zinc-800/60">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">

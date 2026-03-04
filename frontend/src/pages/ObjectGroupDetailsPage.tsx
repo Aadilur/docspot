@@ -33,6 +33,7 @@ import {
   addObjectAttachment,
   createObjectReport,
   createObjectShareLink,
+  deleteObjectAttachment,
   deleteObjectGroup,
   getObjectGroupDetails,
   patchObjectGroup,
@@ -295,10 +296,10 @@ export default function ObjectGroupDetailsPage() {
     group && reports.length ? bestTitle(group, reports) : t("objectDetails");
 
   return (
-    <div className="min-h-dvh">
+    <div className="min-h-dvh bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-50">
       <Header />
 
-      <main className="mx-auto w-full max-w-5xl px-5 pb-12 pt-6">
+      <main className="mx-auto w-full max-w-5xl px-4 pb-12 pt-6 sm:px-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <button
             type="button"
@@ -318,10 +319,11 @@ export default function ObjectGroupDetailsPage() {
                 setShareResult(null);
               }}
               disabled={!canUse}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-brand-200 disabled:opacity-60 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900 dark:focus:ring-brand-900"
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-brand-200 bg-brand-50 px-3 py-2 text-sm font-semibold text-brand-800 shadow-sm hover:bg-brand-100 focus:outline-none focus:ring-2 focus:ring-brand-200 disabled:opacity-60 dark:border-brand-900/50 dark:bg-brand-950/30 dark:text-brand-200 dark:hover:bg-brand-950/50 dark:focus:ring-brand-900"
               aria-label={t("share")}
             >
               <Share2 className="h-4 w-4" aria-hidden="true" />
+              <span className="hidden sm:inline">{t("share")}</span>
             </button>
 
             <button
@@ -377,13 +379,13 @@ export default function ObjectGroupDetailsPage() {
           </div>
         ) : (
           <>
-            <section className="mt-5 rounded-2xl border border-zinc-200/70 bg-white p-5 shadow-sm dark:border-zinc-800/70 dark:bg-zinc-950">
+            <section className="mt-5 rounded-2xl border border-zinc-200/70 bg-white p-6 shadow-sm dark:border-zinc-800/70 dark:bg-zinc-950">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                   <div className="text-xs font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
                     {t("objectDetails")}
                   </div>
-                  <div className="mt-2 truncate text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+                  <div className="mt-2 break-words text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
                     {pageTitle}
                   </div>
                   <div className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
@@ -435,139 +437,171 @@ export default function ObjectGroupDetailsPage() {
             </section>
 
             <section className="mt-5 grid gap-4">
-              {reports.map((r) => (
-                <div
-                  key={r.id}
-                  className="rounded-2xl border border-zinc-200/70 bg-white p-5 shadow-sm dark:border-zinc-800/70 dark:bg-zinc-950"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                        {r.title}
-                      </div>
-                      <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                        {t("updatedAt", { value: formatDateTime(r.updatedAt) })}
-                      </div>
-                      <div className="mt-3 grid gap-1 text-sm text-zinc-700 dark:text-zinc-200">
-                        <div>
-                          <span className="font-semibold">
-                            {t("issueDate")}:
-                          </span>{" "}
-                          {r.issueDate || "—"}
+              {reports.map((r, idx) => {
+                const reportLabel = `Report ${String(idx + 1).padStart(2, "0")}`;
+
+                return (
+                  <div key={r.id} className="grid gap-3">
+                    {reports.length > 1 ? (
+                      <div className="flex items-center gap-3">
+                        <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
+                        <div className="rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-semibold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200">
+                          {reportLabel}
                         </div>
-                        <div>
-                          <span className="font-semibold">
-                            {t("nextAppointment")}:
-                          </span>{" "}
-                          {r.nextAppointment || "—"}
+                        <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
+                      </div>
+                    ) : null}
+
+                    <div className="rounded-2xl border border-zinc-200/70 bg-white p-6 shadow-sm dark:border-zinc-800/70 dark:bg-zinc-950">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <div className="break-words text-base font-semibold text-zinc-900 dark:text-zinc-50">
+                            {r.title}
+                          </div>
+                          <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                            {t("updatedAt", {
+                              value: formatDateTime(r.updatedAt),
+                            })}
+                          </div>
                         </div>
-                        <div>
-                          <span className="font-semibold">{t("doctor")}:</span>{" "}
-                          {r.doctor || "—"}
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingReportId(r.id);
+                            setReportSheetOpen(true);
+                          }}
+                          className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-brand-200 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900 dark:focus:ring-brand-900"
+                          aria-label={t("edit")}
+                        >
+                          <Pencil className="h-4 w-4" aria-hidden="true" />
+                        </button>
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
+                          <div className="text-xs font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
+                            {t("issueDate")}
+                          </div>
+                          <div className="mt-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                            {r.issueDate || "—"}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
+                          <div className="text-xs font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
+                            {t("nextAppointment")}
+                          </div>
+                          <div className="mt-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                            {r.nextAppointment || "—"}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
+                          <div className="text-xs font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
+                            {t("doctor")}
+                          </div>
+                          <div className="mt-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                            {r.doctor || "—"}
+                          </div>
                         </div>
                       </div>
+
                       {r.textNote ? (
-                        <div className="mt-3 rounded-2xl border border-zinc-200 bg-white p-4 text-sm text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200">
+                        <div className="mt-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-200">
                           {r.textNote}
                         </div>
                       ) : null}
-                    </div>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingReportId(r.id);
-                        setReportSheetOpen(true);
-                      }}
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-brand-200 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900 dark:focus:ring-brand-900"
-                      aria-label={t("edit")}
-                    >
-                      <Pencil className="h-4 w-4" aria-hidden="true" />
-                    </button>
-                  </div>
-
-                  <div className="mt-4">
-                    <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                      {t("attachments")}
-                    </div>
-
-                    {r.attachments.length === 0 ? (
-                      <div className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
-                        {t("noAttachments")}
-                      </div>
-                    ) : (
-                      <div className="mt-3 grid gap-3">
-                        {r.attachments.map((a) => (
-                          <div
-                            key={a.id}
-                            className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950"
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <div className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                                  {a.filename || a.key}
-                                </div>
-                                <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                                  {(a.contentType || "").toLowerCase()}
-                                </div>
-                              </div>
-
-                              {a.url ? (
-                                <a
-                                  href={a.url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-brand-200 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900 dark:focus:ring-brand-900"
-                                  aria-label={t("open")}
-                                >
-                                  <ExternalLink
-                                    className="h-4 w-4"
-                                    aria-hidden="true"
-                                  />
-                                </a>
-                              ) : null}
-                            </div>
-
-                            {a.url &&
-                            (a.contentType || "").startsWith("image/") ? (
-                              <img
-                                src={a.url}
-                                alt={a.filename || "attachment"}
-                                className="mt-3 max-h-72 w-full rounded-xl object-contain"
-                                loading="lazy"
-                              />
-                            ) : null}
-
-                            {a.url && a.kind === "audio" ? (
-                              <audio
-                                className="mt-3 w-full"
-                                controls
-                                src={a.url}
-                              />
-                            ) : null}
-
-                            {a.url &&
-                            (a.contentType || "") === "application/pdf" ? (
-                              <a
-                                href={a.url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="mt-3 inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-brand-200 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900 dark:focus:ring-brand-900"
-                              >
-                                {t("openPdf")}
-                                <ExternalLink
-                                  className="h-4 w-4"
-                                  aria-hidden="true"
-                                />
-                              </a>
-                            ) : null}
+                      <div className="mt-5">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                            {t("attachments")}
                           </div>
-                        ))}
+                          <span className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-xs font-semibold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200">
+                            {r.attachments.length}
+                          </span>
+                        </div>
+
+                        {r.attachments.length === 0 ? (
+                          <div className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
+                            {t("noAttachments")}
+                          </div>
+                        ) : (
+                          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            {r.attachments.map((a) => (
+                              <div
+                                key={a.id}
+                                className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <div className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                                      {a.filename || a.key}
+                                    </div>
+                                    <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                                      {(a.contentType || "").toLowerCase()}
+                                    </div>
+                                  </div>
+
+                                  {a.url ? (
+                                    <a
+                                      href={a.url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-brand-200 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900 dark:focus:ring-brand-900"
+                                      aria-label={t("open")}
+                                    >
+                                      <ExternalLink
+                                        className="h-4 w-4"
+                                        aria-hidden="true"
+                                      />
+                                    </a>
+                                  ) : null}
+                                </div>
+
+                                {a.url &&
+                                (a.contentType || "").startsWith("image/") ? (
+                                  <div className="mt-3 overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/40">
+                                    <img
+                                      src={a.url}
+                                      alt={a.filename || "attachment"}
+                                      className="max-h-72 w-full object-contain"
+                                      loading="lazy"
+                                    />
+                                  </div>
+                                ) : null}
+
+                                {a.url && a.kind === "audio" ? (
+                                  <audio
+                                    className="mt-3 w-full"
+                                    controls
+                                    src={a.url}
+                                  />
+                                ) : null}
+
+                                {a.url &&
+                                (a.contentType || "") === "application/pdf" ? (
+                                  <a
+                                    href={a.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="mt-3 inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-brand-200 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900 dark:focus:ring-brand-900"
+                                  >
+                                    {t("openPdf")}
+                                    <ExternalLink
+                                      className="h-4 w-4"
+                                      aria-hidden="true"
+                                    />
+                                  </a>
+                                ) : null}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </section>
           </>
         )}
@@ -781,6 +815,9 @@ function ReportSheet({
   const [previewUrls, setPreviewUrls] = useState<
     Array<{ id: string; url: string; name: string; type: string }>
   >([]);
+  const [removedAttachmentIds, setRemovedAttachmentIds] = useState<string[]>(
+    [],
+  );
 
   useEffect(() => {
     const next = files.map((f) => ({
@@ -803,9 +840,26 @@ function ReportSheet({
     maxSeconds: DEFAULT_MAX_AUDIO_SECONDS,
   });
 
-  const existingAttachmentCount = initial?.attachments?.length ?? 0;
-  const existingAudioCount =
-    initial?.attachments?.filter((a) => a.kind === "audio").length ?? 0;
+  const existingAttachments = useMemo(() => {
+    const removed = new Set(removedAttachmentIds);
+    return (initial?.attachments ?? []).filter((a) => !removed.has(a.id));
+  }, [initial, removedAttachmentIds]);
+
+  const existingAudioAttachments = existingAttachments.filter(
+    (a) => a.kind === "audio",
+  );
+  const existingFileAttachments = existingAttachments.filter(
+    (a) => a.kind !== "audio",
+  );
+
+  const existingAttachmentCount = existingAttachments.length;
+  const existingAudioCount = existingAudioAttachments.length;
+
+  const markExistingRemoved = (attachmentId: string) => {
+    setRemovedAttachmentIds((prev) =>
+      prev.includes(attachmentId) ? prev : [...prev, attachmentId],
+    );
+  };
 
   const beginRecordChecked = () => {
     setError(null);
@@ -887,6 +941,18 @@ function ReportSheet({
 
       if (!reportId) {
         throw new Error("Missing report id");
+      }
+
+      if (removedAttachmentIds.length > 0) {
+        await Promise.all(
+          removedAttachmentIds.map((attachmentId) =>
+            deleteObjectAttachment({
+              groupId,
+              reportId,
+              attachmentId,
+            }),
+          ),
+        );
       }
 
       const preparedFiles = await Promise.all(
@@ -1148,6 +1214,44 @@ function ReportSheet({
                     />
                   </div>
 
+                  {existingFileAttachments.length > 0 && (
+                    <div className="mt-4 grid grid-cols-4 gap-3 sm:grid-cols-5">
+                      {existingFileAttachments.map((a) => (
+                        <div
+                          key={a.id}
+                          className="relative overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950"
+                          title={a.filename || a.key}
+                        >
+                          {a.url &&
+                          (a.contentType || "").startsWith("image/") ? (
+                            <img
+                              src={a.url}
+                              alt={a.filename || "attachment"}
+                              className="h-16 w-full object-cover"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div className="flex h-16 items-center justify-center text-zinc-500 dark:text-zinc-400">
+                              <FileText
+                                className="h-6 w-6"
+                                aria-hidden="true"
+                              />
+                            </div>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => markExistingRemoved(a.id)}
+                            aria-label={t("remove")}
+                            className="absolute right-1 top-1 inline-flex h-7 w-7 items-center justify-center rounded-lg border border-zinc-200 bg-white/90 text-zinc-700 hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 dark:border-zinc-800 dark:bg-zinc-950/80 dark:text-zinc-200 dark:hover:bg-zinc-950 dark:focus:ring-brand-900"
+                          >
+                            <X className="h-4 w-4" aria-hidden="true" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   {files.length > 0 && (
                     <div className="mt-4 grid grid-cols-4 gap-3 sm:grid-cols-5">
                       {previewUrls.map((p) => (
@@ -1202,6 +1306,37 @@ function ReportSheet({
               </summary>
 
               <div className="mt-4 grid gap-2">
+                {existingAudioAttachments.map((a) => (
+                  <div
+                    key={a.id}
+                    className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                          {a.filename || t("audioNote")}
+                        </div>
+                        <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                          {(a.contentType || "").toLowerCase()}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => markExistingRemoved(a.id)}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-brand-200 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900 dark:focus:ring-brand-900"
+                      >
+                        <Trash2 className="h-4 w-4" aria-hidden="true" />
+                        {t("remove")}
+                      </button>
+                    </div>
+
+                    {a.url ? (
+                      <audio className="mt-3 w-full" controls src={a.url} />
+                    ) : null}
+                  </div>
+                ))}
+
                 {voice.voiceErrorKind === "permission" ? (
                   <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
                     <div className="flex items-center justify-between gap-3">

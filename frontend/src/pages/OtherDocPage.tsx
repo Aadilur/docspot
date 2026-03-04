@@ -35,6 +35,7 @@ import {
 
 const MAX_FILES = 10;
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+const LIST_PAGE_SIZE = 20;
 
 function bytesToMb(bytes: number) {
   return Math.max(0, Math.round((bytes / (1024 * 1024)) * 10) / 10);
@@ -100,6 +101,9 @@ export default function OtherDocPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
+
   const [createOpen, setCreateOpen] = useState(false);
   const [busyCreate, setBusyCreate] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
@@ -162,13 +166,56 @@ export default function OtherDocPage() {
     );
   }, [items]);
 
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return sorted;
+
+    return sorted.filter((g) => {
+      const hay = `${g.title ?? ""} ${g.latestReport?.title ?? ""}`
+        .trim()
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }, [search, sorted]);
+
+  const pageCount = useMemo(() => {
+    return Math.max(1, Math.ceil(filtered.length / LIST_PAGE_SIZE));
+  }, [filtered.length]);
+
+  useEffect(() => {
+    setPage((p) => Math.min(p, pageCount - 1));
+  }, [pageCount]);
+
+  const currentPage = Math.min(page, pageCount - 1);
+
+  const pageItems = useMemo(() => {
+    const start = currentPage * LIST_PAGE_SIZE;
+    return filtered.slice(start, start + LIST_PAGE_SIZE);
+  }, [currentPage, filtered]);
+
+  const canPrev = currentPage > 0;
+  const canNext = currentPage + 1 < pageCount;
+
   async function refresh() {
     if (!canUse) return;
     setError(null);
     setLoading(true);
     try {
-      const groups = await listObjectGroups();
-      setItems(groups);
+      const FETCH_LIMIT = 100;
+      const MAX_OFFSET = 10_000;
+
+      const all: ObjectGroupListItem[] = [];
+      let offset = 0;
+      for (let i = 0; i < 200; i++) {
+        const chunk = await listObjectGroups({ limit: FETCH_LIMIT, offset });
+        all.push(...chunk);
+
+        if (chunk.length < FETCH_LIMIT) break;
+        offset += FETCH_LIMIT;
+        if (offset > MAX_OFFSET) break;
+      }
+
+      setItems(all);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -373,6 +420,70 @@ export default function OtherDocPage() {
             </button>
           </div>
 
+          {configured &&
+            !authLoading &&
+            user &&
+            !error &&
+            !loading &&
+            sorted.length > 0 && (
+              <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="relative flex-1">
+                  <input
+                    value={search}
+                    onChange={(e) => {
+                      setSearch(e.target.value);
+                      setPage(0);
+                    }}
+                    placeholder={t("searchPlaceholder")}
+                    aria-label={t("searchPlaceholder")}
+                    className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-4 pr-10 text-sm text-zinc-900 shadow-sm outline-none placeholder:text-zinc-400 focus:border-brand-300 focus:ring-2 focus:ring-brand-200 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-brand-700 dark:focus:ring-brand-900"
+                  />
+                  {search.trim() ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearch("");
+                        setPage(0);
+                      }}
+                      aria-label={t("clearSearch")}
+                      className="absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 focus:outline-none focus:ring-2 focus:ring-brand-200 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-200 dark:focus:ring-brand-900"
+                    >
+                      <X className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  ) : null}
+                </div>
+
+                <div className="flex items-center justify-between gap-2 sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.max(0, p - 1))}
+                    disabled={!canPrev}
+                    className="inline-flex items-center justify-center rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 shadow-sm hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-brand-200 disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900 dark:focus:ring-brand-900"
+                  >
+                    {t("paginationPrev")}
+                  </button>
+
+                  <div className="min-w-[7.5rem] text-center text-xs text-zinc-500 dark:text-zinc-400">
+                    {t("paginationPage", {
+                      page: currentPage + 1,
+                      pages: pageCount,
+                    })}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPage((p) => Math.min(pageCount - 1, p + 1))
+                    }
+                    disabled={!canNext}
+                    className="inline-flex items-center justify-center rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 shadow-sm hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-brand-200 disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900 dark:focus:ring-brand-900"
+                  >
+                    {t("paginationNext")}
+                  </button>
+                </div>
+              </div>
+            )}
+
           {!configured ? (
             <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
               {t("firebaseNotConfigured")}
@@ -397,9 +508,13 @@ export default function OtherDocPage() {
             <div className="mt-4 rounded-2xl border border-zinc-200/70 bg-white p-5 text-sm text-zinc-600 shadow-sm dark:border-zinc-800/70 dark:bg-zinc-950 dark:text-zinc-300">
               {t("noObjects")}
             </div>
+          ) : filtered.length === 0 ? (
+            <div className="mt-4 rounded-2xl border border-zinc-200/70 bg-white p-5 text-sm text-zinc-600 shadow-sm dark:border-zinc-800/70 dark:bg-zinc-950 dark:text-zinc-300">
+              {t("noMatches")}
+            </div>
           ) : (
             <div className="mt-4 grid gap-3">
-              {sorted.map((g) => (
+              {pageItems.map((g) => (
                 <Link
                   key={g.id}
                   to={`/other-doc/${g.id}`}

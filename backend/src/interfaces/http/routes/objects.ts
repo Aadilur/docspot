@@ -335,6 +335,48 @@ export function registerObjectRoutes(params: {
   );
 
   router.delete(
+    "/me/object-groups/:id/reports/:reportId/attachments/:attachmentId",
+    requireFirebaseAuth,
+    async (req, res) => {
+      try {
+        const me = await ensureMe(req);
+
+        const deleted = await objectsDb.deleteAttachment({
+          userId: me.id,
+          groupId: req.params.id,
+          reportId: req.params.reportId,
+          attachmentId: req.params.attachmentId,
+        });
+
+        if (!deleted) {
+          notFound(res);
+          return;
+        }
+
+        const key = deleted.key;
+        try {
+          assertKeyInUserDrive({ userId: me.id, key });
+        } catch {
+          res.json({ ok: true });
+          return;
+        }
+
+        try {
+          await deleteObjects({ keys: [key] });
+          await cancelUploadReservations({ userId: me.id, keys: [key] });
+          await applyObjectDeletes({ userId: me.id, keys: [key] });
+        } catch {
+          // Best-effort storage cleanup.
+        }
+
+        res.json({ ok: true });
+      } catch (err) {
+        badRequest(res, toErrorMessage(err));
+      }
+    },
+  );
+
+  router.delete(
     "/me/object-groups/:id",
     requireFirebaseAuth,
     async (req, res) => {

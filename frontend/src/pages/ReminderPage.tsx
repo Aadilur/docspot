@@ -21,7 +21,11 @@ import { useAuthState } from "../shared/firebase/useAuthState";
 function formatLocalTime(isoUtc: string): string {
   try {
     const d = new Date(isoUtc);
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return d.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
   } catch {
     return isoUtc;
   }
@@ -195,6 +199,14 @@ function groupStatusBadge(
   return { label: t("Pending"), cls: statusClasses("pending") };
 }
 
+function groupCardBorderClasses(status: GroupedEvent["groupStatus"]): string {
+  if (status === "taken")
+    return "border-emerald-200 dark:border-emerald-900/50";
+  if (status === "missed") return "border-red-200 dark:border-red-900/50";
+  if (status === "partial") return "border-amber-200 dark:border-amber-900/50";
+  return "border-brand-200 dark:border-brand-900/50";
+}
+
 function pickDueGroup(
   groups: GroupedEvent[],
   nowMs: number,
@@ -311,6 +323,7 @@ export default function ReminderPage() {
       return;
     }
     void refreshAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canUse, patientId]);
 
   useEffect(() => {
@@ -336,11 +349,7 @@ export default function ReminderPage() {
     if (!canUse) return;
     setBusyByEventId((p) => ({ ...p, [id]: true }));
     try {
-      await markIntakeSkipped({
-        intakeEventId: id,
-        reason: "",
-        patientId,
-      });
+      await markIntakeSkipped({ intakeEventId: id, reason: "", patientId });
       await refreshAll();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -358,6 +367,28 @@ export default function ReminderPage() {
       windowMinutes: 10,
     });
   }, [timeline, settings]);
+
+  const activeToday = useMemo(() => {
+    const byId = new Map<
+      string,
+      { medicineId: string; name: string; doseCount: number }
+    >();
+
+    for (const item of timeline) {
+      const medicineId = item.medicineId;
+      const name = item.medicine?.name ?? "";
+      const prev = byId.get(medicineId);
+      if (prev) {
+        prev.doseCount += 1;
+      } else {
+        byId.set(medicineId, { medicineId, name, doseCount: 1 });
+      }
+    }
+
+    return Array.from(byId.values()).sort((a, b) =>
+      String(a.name).localeCompare(String(b.name)),
+    );
+  }, [timeline]);
 
   const timelineSections = useMemo(() => {
     const nowMs = Date.now();
@@ -386,44 +417,77 @@ export default function ReminderPage() {
     };
   }, [grouped]);
 
+  const sectionCounts = useMemo(() => {
+    const dueCount = timelineSections.due?.events.length ?? 0;
+    const missedCount = timelineSections.missed.reduce(
+      (acc, g) => acc + g.events.length,
+      0,
+    );
+    const upcomingCount = timelineSections.upcoming.reduce(
+      (acc, g) => acc + g.events.length,
+      0,
+    );
+    const completedCount = timelineSections.completed.reduce(
+      (acc, g) => acc + g.events.length,
+      0,
+    );
+    return { dueCount, missedCount, upcomingCount, completedCount };
+  }, [timelineSections]);
+
   return (
     <div className="min-h-screen bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-50">
       <Header />
 
       <main className="mx-auto w-full max-w-3xl px-4 pb-16 pt-6">
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">
-              {t("Medicine Reminders")}
-            </h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl font-semibold tracking-tight">
+                {t("Medicine Reminders")}
+              </h1>
+              {patientId ? (
+                <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-semibold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950/40 dark:text-zinc-200">
+                  {t("Caregiver view")}
+                </span>
+              ) : null}
+            </div>
             <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
               {t("Today")}
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+            <Link
+              to={`/reminder/add${patientQuery}`}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700 sm:w-auto"
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              {t("Add")}
+            </Link>
+
             <button
               type="button"
               onClick={() => void refreshAll()}
-              className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900 sm:w-auto"
               disabled={!canUse || loading}
-              aria-label="Refresh"
+              aria-label={t("Refresh")}
             >
               <RefreshCw className="h-4 w-4" />
               {t("Refresh")}
             </button>
+
             <Link
-              to={`/reminder/medicines${patientQuery}`}
-              className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900"
+              to={`/reminder/removed${patientQuery}`}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900 sm:w-auto"
             >
-              <BellRing className="h-4 w-4" />
-              {t("Medicines")}
+              <X className="h-4 w-4" />
+              {t("Removed")}
             </Link>
 
             {!patientId ? (
               <Link
                 to="/reminder/caregiver"
-                className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900 sm:w-auto"
               >
                 <Users className="h-4 w-4" />
                 {t("Caregiver")}
@@ -465,8 +529,81 @@ export default function ReminderPage() {
           </div>
         ) : null}
 
+        {canUse && !loading && medicines.length > 0 ? (
+          <div className="mt-4 space-y-3">
+            <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 flex h-10 w-10 flex-none items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50">
+                    <BellRing className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                      {t("Medicines added")}
+                    </div>
+                    <div className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
+                      {medicines.length} {t("medicines")}
+                    </div>
+                  </div>
+                </div>
+
+                <Link
+                  to={`/reminder/medicines${patientQuery}`}
+                  className="flex-none rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900"
+                >
+                  {t("Manage")}
+                </Link>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                    {t("Today's active medicines")}
+                  </div>
+                  <div className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
+                    {t("Medicines with doses scheduled for today")}
+                  </div>
+                </div>
+
+                <span className="flex-none rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-semibold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950/40 dark:text-zinc-200">
+                  {activeToday.length}
+                </span>
+              </div>
+
+              {activeToday.length === 0 ? (
+                <div className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">
+                  {t("No scheduled doses today")}
+                </div>
+              ) : (
+                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {activeToday.map((m) => (
+                    <Link
+                      key={m.medicineId}
+                      to={`/reminder/medicines/${m.medicineId}${patientQuery}`}
+                      className="rounded-xl border border-zinc-200 bg-white p-3 text-left hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                    >
+                      <div className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                        {m.name || t("Medicine")}
+                      </div>
+                      <div className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
+                        {m.doseCount} {t("doses today")}
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : null}
+
         <section className="mt-6">
-          {loading ? (
+          {!canUse ? (
+            <div className="rounded-2xl border border-zinc-200 bg-white p-6 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
+              {t("Please sign in to view your reminders.")}
+            </div>
+          ) : loading ? (
             <div className="rounded-xl border border-zinc-200 bg-white p-4 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
               {t("Loading...")}
             </div>
@@ -476,7 +613,13 @@ export default function ReminderPage() {
                 {t("No reminders today")}
               </h2>
               <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
-                {t("Add a medicine and schedule to start getting reminders.")}
+                {medicines.length > 0
+                  ? t(
+                      "No doses are scheduled for today. Check your medicines and schedules.",
+                    )
+                  : t(
+                      "Add a medicine and schedule to start getting reminders.",
+                    )}
               </p>
               <Link
                 to={`/reminder/medicines${patientQuery}`}
@@ -490,9 +633,15 @@ export default function ReminderPage() {
             <div className="space-y-6">
               {timelineSections.due ? (
                 <div>
-                  <div className="mb-2 text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                    {t("Due now")}
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                      {t("Due now")}
+                    </div>
+                    <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-semibold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950/40 dark:text-zinc-200">
+                      {sectionCounts.dueCount}
+                    </span>
                   </div>
+
                   <TimelineGroupCard
                     group={timelineSections.due}
                     patientQuery={patientQuery}
@@ -500,15 +649,22 @@ export default function ReminderPage() {
                     busyByEventId={busyByEventId}
                     onTaken={onTaken}
                     onSkipped={onSkipped}
+                    kind="due"
                   />
                 </div>
               ) : null}
 
               {timelineSections.missed.length > 0 ? (
                 <div>
-                  <div className="mb-2 text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                    {t("Missed today")}
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                      {t("Missed today")}
+                    </div>
+                    <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-semibold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950/40 dark:text-zinc-200">
+                      {sectionCounts.missedCount}
+                    </span>
                   </div>
+
                   <div className="space-y-3">
                     {timelineSections.missed.map((g) => (
                       <TimelineGroupCard
@@ -529,9 +685,15 @@ export default function ReminderPage() {
 
               {timelineSections.upcoming.length > 0 ? (
                 <div>
-                  <div className="mb-2 text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                    {t("Upcoming")}
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                      {t("Upcoming")}
+                    </div>
+                    <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-semibold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950/40 dark:text-zinc-200">
+                      {sectionCounts.upcomingCount}
+                    </span>
                   </div>
+
                   <div className="space-y-3">
                     {timelineSections.upcoming.map((g) => (
                       <TimelineGroupCard
@@ -555,7 +717,7 @@ export default function ReminderPage() {
                   <summary className="cursor-pointer select-none text-sm font-semibold text-zinc-900 dark:text-zinc-50">
                     {t("Completed")}
                     <span className="ml-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
-                      ({timelineSections.completed.length})
+                      ({sectionCounts.completedCount})
                     </span>
                   </summary>
                   <div className="mt-3 space-y-3">
@@ -592,21 +754,30 @@ function TimelineGroupCard(props: {
   busyByEventId: Record<string, boolean>;
   onTaken: (id: string) => Promise<void>;
   onSkipped: (id: string) => Promise<void>;
+  kind?: "due" | "default";
 }) {
   const { t } = useTranslation();
   const badge = groupStatusBadge(t, props.group.groupStatus);
+  const cardBorder = groupCardBorderClasses(props.group.groupStatus);
+  const kind = props.kind ?? "default";
+  const nowMs = Date.now();
 
   return (
-    <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+    <div
+      className={`rounded-2xl border bg-white p-4 dark:bg-zinc-950 ${cardBorder} ${
+        kind === "due" ? "ring-2 ring-amber-200/60 dark:ring-amber-900/40" : ""
+      }`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
             {formatLocalTime(props.group.groupTimeUtc)}
           </div>
           <div className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
-            {props.group.events.length} {t("medicines")}
+            {props.group.events.length} {t("doses")}
           </div>
         </div>
+
         <span
           className={`inline-flex items-center rounded-full border px-2 py-1 text-xs font-semibold ${badge.cls}`}
         >
@@ -614,12 +785,16 @@ function TimelineGroupCard(props: {
         </span>
       </div>
 
-      <div className="mt-3 space-y-2">
+      <div className="mt-3 divide-y divide-zinc-200 dark:divide-zinc-800">
         {props.group.events.map((item) => {
           const busy = Boolean(props.busyByEventId[item.id]);
+
+          const atMs = new Date(item.datetimeUtc).getTime();
+          const isFuture = Number.isFinite(atMs) ? atMs > nowMs : false;
           const actionable =
-            item.effectiveStatus === "pending" ||
-            item.effectiveStatus === "missed";
+            !isFuture &&
+            (item.effectiveStatus === "pending" ||
+              item.effectiveStatus === "missed");
 
           const med = props.medicinesById.get(item.medicineId);
           const stockRemaining = med?.stockRemaining;
@@ -634,15 +809,12 @@ function TimelineGroupCard(props: {
               : null;
 
           return (
-            <div
-              key={item.id}
-              className="rounded-xl border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950"
-            >
+            <div key={item.id} className="py-3 first:pt-0 last:pb-0">
               <div className="flex items-start justify-between gap-3">
-                <div>
+                <div className="min-w-0">
                   <Link
                     to={`/reminder/medicines/${item.medicineId}${props.patientQuery}`}
-                    className="text-sm font-semibold hover:underline"
+                    className="block truncate text-sm font-semibold text-zinc-900 hover:underline dark:text-zinc-50"
                   >
                     {item.medicine.name}
                   </Link>
@@ -656,8 +828,9 @@ function TimelineGroupCard(props: {
                     {stockText ? ` · ${stockText}` : ""}
                   </div>
                 </div>
+
                 <span
-                  className={`inline-flex items-center rounded-full border px-2 py-1 text-xs font-semibold ${statusClasses(
+                  className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full border px-2 py-1 text-xs font-semibold ${statusClasses(
                     item.effectiveStatus,
                   )}`}
                 >
@@ -666,12 +839,12 @@ function TimelineGroupCard(props: {
               </div>
 
               {actionable ? (
-                <div className="mt-3 flex gap-2">
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                   <button
                     type="button"
                     onClick={() => void props.onTaken(item.id)}
                     disabled={busy}
-                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 sm:flex-1"
                   >
                     <Check className="h-4 w-4" />
                     {t("Taken")}
@@ -680,7 +853,7 @@ function TimelineGroupCard(props: {
                     type="button"
                     onClick={() => void props.onSkipped(item.id)}
                     disabled={busy}
-                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900"
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900 sm:flex-1"
                   >
                     <X className="h-4 w-4" />
                     {t("Skip")}

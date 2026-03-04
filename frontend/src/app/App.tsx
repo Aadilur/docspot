@@ -22,6 +22,9 @@ const ReminderCaregiverPage = lazy(
 const ReminderMedicinesPage = lazy(
   () => import("../pages/ReminderMedicinesPage"),
 );
+const ReminderRemovedMedicinesPage = lazy(
+  () => import("../pages/ReminderRemovedMedicinesPage"),
+);
 const ReminderMedicineDetailsPage = lazy(
   () => import("../pages/ReminderMedicineDetailsPage"),
 );
@@ -81,6 +84,10 @@ export default function App() {
           <Route
             path="/reminder/medicines"
             element={<ReminderMedicinesPage />}
+          />
+          <Route
+            path="/reminder/removed"
+            element={<ReminderRemovedMedicinesPage />}
           />
           <Route
             path="/reminder/medicines/:id"

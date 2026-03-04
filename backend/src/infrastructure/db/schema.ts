@@ -576,6 +576,22 @@ export async function ensureSchema(): Promise<void> {
   );
 
   await pg.query(`
+    create table if not exists removed_medicines (
+      id uuid primary key,
+      user_id uuid not null references users(id) on delete cascade,
+      name text not null,
+      type text not null default 'pill',
+      dose_per_intake numeric not null default 1,
+      dose_unit text,
+      removed_at timestamptz not null default now(),
+      created_at timestamptz not null default now()
+    );
+  `);
+  await pg.query(
+    "create index if not exists removed_medicines_user_removed_idx on removed_medicines(user_id, removed_at desc);",
+  );
+
+  await pg.query(`
     create table if not exists medicine_schedules (
       id uuid primary key,
       medicine_id uuid not null references medicines(id) on delete cascade,

@@ -21,7 +21,11 @@ import { useAuthState } from "../shared/firebase/useAuthState";
 function formatLocalTime(isoUtc: string): string {
   try {
     const d = new Date(isoUtc);
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return d.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
   } catch {
     return isoUtc;
   }
@@ -34,6 +38,7 @@ function formatLocalDayTime(isoUtc: string): string {
     const time = d.toLocaleTimeString([], {
       hour: "2-digit",
       minute: "2-digit",
+      hour12: true,
     });
     return `${day} ${time}`;
   } catch {
@@ -271,7 +276,7 @@ export default function ReminderMedicinesPage() {
       <Header />
 
       <main className="mx-auto w-full max-w-3xl px-4 pb-16 pt-6">
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="flex items-center gap-2">
               <Link
@@ -292,7 +297,7 @@ export default function ReminderMedicinesPage() {
 
           <Link
             to={`/reminder/add${patientQuery}`}
-            className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700 sm:w-auto"
           >
             <BellRing className="h-4 w-4" />
             {t("Add")}

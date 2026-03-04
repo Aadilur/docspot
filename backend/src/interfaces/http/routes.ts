@@ -40,6 +40,7 @@ import {
   createGroupWithFirstReport,
   createReport,
   createShareLink,
+  deleteAttachment,
   deleteGroupRow,
   getGroupAttachmentKeys,
   getGroupDetails,
@@ -48,6 +49,7 @@ import {
   patchGroup,
   patchReport,
 } from "../../infrastructure/db/prescriptions";
+import { requireCaregiverAccessLevel } from "../../infrastructure/db/reminders";
 import {
   requireAdmin,
   requireFirebaseAuth,
@@ -633,6 +635,48 @@ export function createHttpRouter(): Router {
   );
 
   router.delete(
+    "/me/prescription-groups/:id/reports/:reportId/attachments/:attachmentId",
+    requireFirebaseAuth,
+    async (req, res) => {
+      try {
+        const me = await ensureMe(req);
+
+        const deleted = await deleteAttachment({
+          userId: me.id,
+          groupId: req.params.id,
+          reportId: req.params.reportId,
+          attachmentId: req.params.attachmentId,
+        });
+
+        if (!deleted) {
+          notFound(res);
+          return;
+        }
+
+        const key = deleted.key;
+        try {
+          assertKeyInUserDrive({ userId: me.id, key });
+        } catch {
+          res.json({ ok: true });
+          return;
+        }
+
+        try {
+          await deleteObjects({ keys: [key] });
+          await cancelUploadReservations({ userId: me.id, keys: [key] });
+          await applyObjectDeletes({ userId: me.id, keys: [key] });
+        } catch {
+          // Best-effort storage cleanup.
+        }
+
+        res.json({ ok: true });
+      } catch (err) {
+        badRequest(res, toErrorMessage(err));
+      }
+    },
+  );
+
+  router.delete(
     "/me/prescription-groups/:id",
     requireFirebaseAuth,
     async (req, res) => {
@@ -1180,6 +1224,113 @@ export function createHttpRouter(): Router {
     }
   });
 
+  // Caregiver storage uploads: upload into the *patient's* drive.
+  router.post(
+    "/caregiver/storage/presign",
+    requireFirebaseAuth,
+    async (req, res) => {
+      const filename =
+        typeof req.body?.filename === "string" ? req.body.filename : "upload";
+      const contentType =
+        typeof req.body?.contentType === "string"
+          ? req.body.contentType
+          : "application/octet-stream";
+      const sizeBytesRaw = req.body?.sizeBytes;
+      const sizeBytes =
+        typeof sizeBytesRaw === "number" ? Math.trunc(sizeBytesRaw) : NaN;
+      const path = typeof req.body?.path === "string" ? req.body.path : "";
+
+      const patientIdBody =
+        typeof req.body?.patientId === "string" ? req.body.patientId : "";
+      const patientId = getQueryString(req.query?.patientId) || patientIdBody;
+      if (!patientId) {
+        badRequest(res, "patientId is required");
+        return;
+      }
+
+      if (filename.length > 200) {
+        badRequest(res, "filename is too long");
+        return;
+      }
+      if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) {
+        badRequest(res, "sizeBytes must be a positive number");
+        return;
+      }
+      if (sizeBytes > MAX_SINGLE_FILE_BYTES) {
+        badRequest(res, "file is too large (max 10MB)");
+        return;
+      }
+
+      let reservedKey: string | null = null;
+
+      try {
+        const me = await ensureMe(req);
+        await requireCaregiverAccessLevel({
+          caregiverId: me.id,
+          patientId,
+          minLevel: "edit",
+        });
+
+        let driveKey: string;
+        try {
+          driveKey = buildUserDriveKey({
+            userId: patientId,
+            filename,
+            path,
+          });
+        } catch (e) {
+          badRequest(res, toErrorMessage(e));
+          return;
+        }
+
+        reservedKey = driveKey;
+
+        try {
+          const reservation = await reserveUpload({
+            userId: patientId,
+            key: driveKey,
+            expectedSizeBytes: sizeBytes,
+          });
+
+          const presign = await createPresignedPutUrl({
+            key: driveKey,
+            contentType,
+          });
+
+          res.json({
+            ok: true,
+            ...presign,
+            warning: reservation.warning,
+            usage: reservation.usage,
+            reservationExpiresAt: reservation.expiresAt,
+          });
+        } catch (e) {
+          const msg = toErrorMessage(e);
+          if (msg === "HARD_CAP_EXCEEDED") {
+            const usage = await getUserStorageUsage(patientId);
+            res
+              .status(413)
+              .json({ ok: false, error: "storage hard cap exceeded", usage });
+            return;
+          }
+          throw e;
+        }
+      } catch (err) {
+        if (reservedKey) {
+          try {
+            await cancelUploadReservations({
+              userId: patientId,
+              keys: [reservedKey],
+            });
+          } catch {
+            // ignore
+          }
+        }
+        unavailable(res, err);
+      }
+    },
+  );
+
   router.post("/me/storage/confirm", requireFirebaseAuth, async (req, res) => {
     const key = typeof req.body?.key === "string" ? req.body.key : "";
     if (!key) {
@@ -1229,6 +1380,75 @@ export function createHttpRouter(): Router {
       unavailable(res, err);
     }
   });
+
+  router.post(
+    "/caregiver/storage/confirm",
+    requireFirebaseAuth,
+    async (req, res) => {
+      const key = typeof req.body?.key === "string" ? req.body.key : "";
+      if (!key) {
+        badRequest(res, "key is required");
+        return;
+      }
+
+      const patientIdBody =
+        typeof req.body?.patientId === "string" ? req.body.patientId : "";
+      const patientId = getQueryString(req.query?.patientId) || patientIdBody;
+      if (!patientId) {
+        badRequest(res, "patientId is required");
+        return;
+      }
+
+      try {
+        const me = await ensureMe(req);
+        await requireCaregiverAccessLevel({
+          caregiverId: me.id,
+          patientId,
+          minLevel: "edit",
+        });
+
+        try {
+          assertKeyInUserDrive({ userId: patientId, key });
+        } catch (e) {
+          badRequest(res, toErrorMessage(e));
+          return;
+        }
+
+        const info = await headObject({ key });
+        const result = await confirmUpload({
+          userId: patientId,
+          key,
+          actualSizeBytes: info.sizeBytes,
+          etag: info.etag,
+        });
+
+        res.json({
+          ok: true,
+          object: info,
+          usage: result.usage,
+          warning: result.warning,
+        });
+      } catch (err) {
+        const msg = toErrorMessage(err);
+        if (msg === "HARD_CAP_EXCEEDED") {
+          try {
+            await deleteObject({ key });
+          } catch {
+            // ignore
+          }
+          res
+            .status(413)
+            .json({ ok: false, error: "storage hard cap exceeded" });
+          return;
+        }
+        if (msg === "invalid key") {
+          badRequest(res, msg);
+          return;
+        }
+        unavailable(res, err);
+      }
+    },
+  );
 
   router.post("/me/storage/delete", requireFirebaseAuth, async (req, res) => {
     const keys = Array.isArray(req.body?.keys)

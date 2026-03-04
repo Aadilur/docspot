@@ -42,6 +42,17 @@ export type MedicineRecord = {
   updatedAt: string;
 };
 
+export type RemovedMedicineRecord = {
+  id: string;
+  userId: string;
+  name: string;
+  type: MedicineType;
+  dosePerIntake: number;
+  doseUnit: string | null;
+  removedAt: string;
+  createdAt: string;
+};
+
 export type ScheduleRecord = {
   id: string;
   medicineId: string;
@@ -126,6 +137,29 @@ export async function listMedicines(params?: {
   return res.medicines;
 }
 
+export async function listRemovedMedicines(params?: {
+  limit?: number;
+  offset?: number;
+  patientId?: string | null;
+}): Promise<RemovedMedicineRecord[]> {
+  const qs = new URLSearchParams();
+  if (typeof params?.limit === "number") qs.set("limit", String(params.limit));
+  if (typeof params?.offset === "number")
+    qs.set("offset", String(params.offset));
+
+  const basePath = params?.patientId
+    ? withPatientId(API_PATHS.caregiverRemovedMedicines, params.patientId)
+    : API_PATHS.meRemovedMedicines;
+
+  const res = await apiFetch<{
+    ok: true;
+    removedMedicines: RemovedMedicineRecord[];
+  }>(
+    `${basePath}${qs.toString() ? `${basePath.includes("?") ? "&" : "?"}${qs.toString()}` : ""}`,
+  );
+  return res.removedMedicines;
+}
+
 export async function getMedicineById(
   medicineId: string,
   patientId?: string | null,
@@ -152,7 +186,11 @@ export async function updateMedicine(
       | "instructionTag"
       | "note"
       | "isActive"
-    >
+    > & {
+      voiceNoteKey: string | null;
+      voiceNoteFilename: string | null;
+      voiceNoteContentType: string | null;
+    }
   >,
   patientId?: string | null,
 ): Promise<MedicineRecord> {
@@ -178,6 +216,8 @@ export async function createMedicine(payload: {
   note?: string | null;
   photoKey?: string | null;
   voiceNoteKey?: string | null;
+  voiceNoteFilename?: string | null;
+  voiceNoteContentType?: string | null;
   patientId?: string | null;
 }): Promise<MedicineRecord> {
   const path = payload.patientId
@@ -197,6 +237,8 @@ export async function createMedicine(payload: {
       note: payload.note ?? null,
       photoKey: payload.photoKey ?? null,
       voiceNoteKey: payload.voiceNoteKey ?? null,
+      voiceNoteFilename: payload.voiceNoteFilename ?? null,
+      voiceNoteContentType: payload.voiceNoteContentType ?? null,
     }),
   });
 
@@ -378,6 +420,48 @@ export async function listSchedules(
     : API_PATHS.meMedicineSchedules(medicineId);
   const res = await apiFetch<{ ok: true; schedules: ScheduleRecord[] }>(path);
   return res.schedules;
+}
+
+export async function patchSchedule(params: {
+  medicineId: string;
+  scheduleId: string;
+  patientId?: string | null;
+  times?: string[];
+  doseByTime?: Record<string, number> | null;
+}): Promise<ScheduleRecord> {
+  const path = params.patientId
+    ? withPatientId(
+        API_PATHS.caregiverMedicineScheduleById(
+          params.medicineId,
+          params.scheduleId,
+        ),
+        params.patientId,
+      )
+    : API_PATHS.meMedicineScheduleById(params.medicineId, params.scheduleId);
+
+  const body: any = {};
+  if (params.times !== undefined) body.times = params.times;
+  if (params.doseByTime !== undefined) body.doseByTime = params.doseByTime;
+
+  const res = await apiFetch<{ ok: true; schedule: ScheduleRecord }>(path, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+  return res.schedule;
+}
+
+export async function getMedicineVoiceNoteUrl(
+  medicineId: string,
+  patientId?: string | null,
+): Promise<string> {
+  const path = patientId
+    ? withPatientId(
+        API_PATHS.caregiverMedicineVoiceNoteUrl(medicineId),
+        patientId,
+      )
+    : API_PATHS.meMedicineVoiceNoteUrl(medicineId);
+  const res = await apiFetch<{ ok: true; url: string }>(path);
+  return res.url;
 }
 
 export async function createSchedule(params: {

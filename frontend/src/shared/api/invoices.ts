@@ -171,6 +171,21 @@ export async function addInvoiceAttachment(params: {
   return res.attachment;
 }
 
+export async function deleteInvoiceAttachment(params: {
+  groupId: string;
+  reportId: string;
+  attachmentId: string;
+}): Promise<void> {
+  await apiFetch<{ ok: true }>(
+    API_PATHS.meInvoiceReportAttachmentById(
+      params.groupId,
+      params.reportId,
+      params.attachmentId,
+    ),
+    { method: "DELETE" },
+  );
+}
+
 export async function deleteInvoiceGroup(groupId: string): Promise<void> {
   await apiFetch<{ ok: true }>(API_PATHS.meInvoiceGroupById(groupId), {
     method: "DELETE",

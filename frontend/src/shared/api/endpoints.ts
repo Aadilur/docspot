@@ -25,6 +25,8 @@ export const API_PATHS = {
   meStorage: "/me/storage",
   meStoragePresign: "/me/storage/presign",
   meStorageConfirm: "/me/storage/confirm",
+  caregiverStoragePresign: "/caregiver/storage/presign",
+  caregiverStorageConfirm: "/caregiver/storage/confirm",
   meStorageDelete: "/me/storage/delete",
   meStorageDeletePrefix: "/me/storage/delete-prefix",
   meStorageUsage: "/me/storage/usage",
@@ -37,6 +39,12 @@ export const API_PATHS = {
     `/me/prescription-groups/${id}/reports/${reportId}`,
   mePrescriptionReportAttachments: (id: string, reportId: string) =>
     `/me/prescription-groups/${id}/reports/${reportId}/attachments`,
+  mePrescriptionReportAttachmentById: (
+    id: string,
+    reportId: string,
+    attachmentId: string,
+  ) =>
+    `/me/prescription-groups/${id}/reports/${reportId}/attachments/${attachmentId}`,
   mePrescriptionGroupShare: (id: string) =>
     `/me/prescription-groups/${id}/share`,
 
@@ -49,6 +57,12 @@ export const API_PATHS = {
     `/me/invoice-groups/${id}/reports/${reportId}`,
   meInvoiceReportAttachments: (id: string, reportId: string) =>
     `/me/invoice-groups/${id}/reports/${reportId}/attachments`,
+  meInvoiceReportAttachmentById: (
+    id: string,
+    reportId: string,
+    attachmentId: string,
+  ) =>
+    `/me/invoice-groups/${id}/reports/${reportId}/attachments/${attachmentId}`,
   meInvoiceGroupShare: (id: string) => `/me/invoice-groups/${id}/share`,
   shareInvoiceByToken: (token: string) => `/share/invoices/${token}`,
 
@@ -59,6 +73,12 @@ export const API_PATHS = {
     `/me/object-groups/${id}/reports/${reportId}`,
   meObjectReportAttachments: (id: string, reportId: string) =>
     `/me/object-groups/${id}/reports/${reportId}/attachments`,
+  meObjectReportAttachmentById: (
+    id: string,
+    reportId: string,
+    attachmentId: string,
+  ) =>
+    `/me/object-groups/${id}/reports/${reportId}/attachments/${attachmentId}`,
   meObjectGroupShare: (id: string) => `/me/object-groups/${id}/share`,
   shareObjectByToken: (token: string) => `/share/objects/${token}`,
 
@@ -72,9 +92,12 @@ export const API_PATHS = {
   // Medicine reminders.
   meReminderSettings: "/me/reminder-settings",
   meMedicines: "/me/medicines",
+  meRemovedMedicines: "/me/medicines/removed",
   meMedicineById: (id: string) => `/me/medicines/${id}`,
   meMedicineArchive: (id: string) => `/me/medicines/${id}/archive`,
   meMedicineSchedules: (id: string) => `/me/medicines/${id}/schedules`,
+  meMedicineScheduleById: (medicineId: string, scheduleId: string) =>
+    `/me/medicines/${medicineId}/schedules/${scheduleId}`,
   meRemindersTimelineToday: "/me/reminders/timeline/today",
   meRemindersUpcoming: "/me/reminders/upcoming",
   meRemindersIntakeTaken: (id: string) => `/me/reminders/intake/${id}/taken`,
@@ -83,6 +106,8 @@ export const API_PATHS = {
   meMedicineHistory: (id: string) => `/me/medicines/${id}/history`,
   meMedicineUpcoming: (id: string) => `/me/medicines/${id}/upcoming`,
   meMedicineLogs: (id: string) => `/me/medicines/${id}/logs`,
+  meMedicineVoiceNoteRedirect: (id: string) => `/me/medicines/${id}/voice-note`,
+  meMedicineVoiceNoteUrl: (id: string) => `/me/medicines/${id}/voice-note/url`,
 
   meCaregiverInvite: "/me/caregiver/invite",
   meCaregiverAccept: "/me/caregiver/accept",
@@ -94,16 +119,23 @@ export const API_PATHS = {
     `/me/caregiver/patients/${patientId}`,
 
   caregiverMedicines: "/caregiver/medicines",
+  caregiverRemovedMedicines: "/caregiver/medicines/removed",
   caregiverMedicineById: (id: string) => `/caregiver/medicines/${id}`,
   caregiverMedicineArchive: (id: string) =>
     `/caregiver/medicines/${id}/archive`,
   caregiverMedicineSchedules: (id: string) =>
     `/caregiver/medicines/${id}/schedules`,
+  caregiverMedicineScheduleById: (medicineId: string, scheduleId: string) =>
+    `/caregiver/medicines/${medicineId}/schedules/${scheduleId}`,
   caregiverMedicineHistory: (id: string) =>
     `/caregiver/medicines/${id}/history`,
   caregiverMedicineUpcoming: (id: string) =>
     `/caregiver/medicines/${id}/upcoming`,
   caregiverMedicineLogs: (id: string) => `/caregiver/medicines/${id}/logs`,
+  caregiverMedicineVoiceNoteRedirect: (id: string) =>
+    `/caregiver/medicines/${id}/voice-note`,
+  caregiverMedicineVoiceNoteUrl: (id: string) =>
+    `/caregiver/medicines/${id}/voice-note/url`,
   caregiverTimelineToday: "/caregiver/timeline/today",
   caregiverReminderSettings: "/caregiver/reminder-settings",
   caregiverRemindersUpcoming: "/caregiver/reminders/upcoming",

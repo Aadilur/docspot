@@ -542,6 +542,60 @@ export async function addAttachment(params: {
   return rowToAttachment(res.rows[0]);
 }
 
+export async function deleteAttachment(params: {
+  userId: string;
+  groupId: string;
+  reportId: string;
+  attachmentId: string;
+}): Promise<{ key: string } | null> {
+  await ensureSchema();
+  const pg = getPostgresPool();
+
+  await pg.query("begin");
+  try {
+    const keyRes = await pg.query(
+      `select a.key as key
+       from prescription_attachments a
+       join prescription_reports r on r.id = a.report_id
+       join prescription_groups g on g.id = r.group_id
+       where a.id = $1::uuid
+         and a.user_id = $2::uuid
+         and r.id = $3::uuid
+         and r.group_id = $4::uuid
+         and g.user_id = $2::uuid
+       limit 1`,
+      [params.attachmentId, params.userId, params.reportId, params.groupId],
+    );
+
+    if (keyRes.rows.length === 0) {
+      await pg.query("rollback");
+      return null;
+    }
+
+    const key = String(keyRes.rows[0].key);
+
+    await pg.query(
+      `delete from prescription_attachments where id = $1::uuid and user_id = $2::uuid`,
+      [params.attachmentId, params.userId],
+    );
+
+    await pg.query(
+      `update prescription_reports set updated_at = now() where id = $1::uuid and user_id = $2::uuid`,
+      [params.reportId, params.userId],
+    );
+    await pg.query(
+      `update prescription_groups set updated_at = now() where id = $1::uuid and user_id = $2::uuid`,
+      [params.groupId, params.userId],
+    );
+
+    await pg.query("commit");
+    return { key };
+  } catch (e) {
+    await pg.query("rollback");
+    throw e;
+  }
+}
+
 export async function getGroupAttachmentKeys(params: {
   userId: string;
   groupId: string;

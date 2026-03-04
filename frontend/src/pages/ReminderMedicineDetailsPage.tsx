@@ -16,6 +16,7 @@ import Footer from "../components/Footer";
 import Header from "../components/Header";
 import {
   getMedicineById,
+  getMedicineVoiceNoteUrl,
   getMedicineUpcoming,
   getReminderSettings,
   getTodayTimeline,
@@ -25,6 +26,7 @@ import {
   listSchedules,
   markIntakeSkipped,
   markIntakeTaken,
+  patchSchedule,
   updateMedicine,
   type IntakeEventRecord,
   type MedicineActivityLog,
@@ -33,12 +35,18 @@ import {
   type ScheduleRecord,
   type UpcomingIntakeItem,
 } from "../shared/api/reminders";
+import { confirmDriveUpload, presignDriveUpload } from "../shared/api/storage";
+import { useVoiceNoteRecorder } from "../shared/audio/useVoiceNoteRecorder";
 import { useAuthState } from "../shared/firebase/useAuthState";
 
 function formatLocalTime(isoUtc: string): string {
   try {
     const d = new Date(isoUtc);
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return d.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
   } catch {
     return isoUtc;
   }
@@ -60,6 +68,48 @@ function formatLocalDate(isoUtc: string): string {
 function prettyInstruction(tag: string | null | undefined): string | null {
   if (!tag || tag === "none") return null;
   return tag.replace(/_/g, " ");
+}
+
+function timeOfDayLabel(timeHm: string): string {
+  const n = normalizeTimeHm(timeHm);
+  if (!n) return "Time";
+  const hh = Number(n.slice(0, 2));
+  if (!Number.isFinite(hh)) return "Time";
+  if (hh >= 5 && hh < 12) return "Morning";
+  if (hh >= 12 && hh < 17) return "Afternoon";
+  if (hh >= 17 && hh < 21) return "Evening";
+  return "Night";
+}
+
+function formatCompactNumber(n: number): string {
+  if (!Number.isFinite(n)) return "";
+  const rounded = Math.round(n);
+  if (Math.abs(n - rounded) < 1e-9) return String(rounded);
+  return String(n);
+}
+
+function extractDoseFromMetadata(metadata: unknown): {
+  amount: number | null;
+  unit: string | null;
+} {
+  if (!metadata || typeof metadata !== "object") {
+    return { amount: null, unit: null };
+  }
+
+  const m = metadata as Record<string, unknown>;
+  const rawAmount = m.doseAmount;
+  const rawUnit = m.doseUnit;
+
+  const n = typeof rawAmount === "number" ? rawAmount : Number(rawAmount);
+  const amount = Number.isFinite(n) && n > 0 ? n : null;
+  const unit = typeof rawUnit === "string" && rawUnit.trim() ? rawUnit : null;
+
+  return { amount, unit };
+}
+
+function formatDoseText(amount: number, unit: string | null): string {
+  const a = formatCompactNumber(amount);
+  return `${a}${unit ? ` ${unit}` : ""}`;
 }
 
 function statusPill(status: string): { label: string; cls: string } {
@@ -101,13 +151,91 @@ function computeMissedStatus(params: {
 function scheduleSummary(schedules: ScheduleRecord[]): string {
   if (schedules.length === 0) return "";
   const s = schedules[0];
-  const times = (s.times ?? []).map((t) => t.slice(0, 5)).join(", ");
+  const times = (s.times ?? [])
+    .map((t) => formatTimeHm12(String(t).slice(0, 5)))
+    .join(", ");
   if (s.repeatType === "daily") return `Daily at ${times}`;
   if (s.repeatType === "once") return `Once at ${times}`;
   if (s.repeatType === "weekly") return `Weekly at ${times}`;
   if (s.repeatType === "interval")
     return `Every ${s.intervalValue ?? "?"} days at ${times}`;
   return `${s.repeatType} at ${times}`;
+}
+
+function normalizeTimeHm(raw: string): string | null {
+  const s = String(raw || "")
+    .trim()
+    .slice(0, 5);
+  if (!/^\d{2}:\d{2}$/.test(s)) return null;
+  const [hh, mm] = s.split(":").map((x) => Number(x));
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+  if (hh < 0 || hh > 23) return null;
+  if (mm < 0 || mm > 59) return null;
+  return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+}
+
+function formatTimeHm12(raw: string): string {
+  const n = normalizeTimeHm(raw);
+  if (!n) return String(raw || "");
+  try {
+    const [hh, mm] = n.split(":").map((x) => Number(x));
+    const d = new Date();
+    d.setHours(hh, mm, 0, 0);
+    return d.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+  } catch {
+    return n;
+  }
+}
+
+function uniqSortedTimes(times: string[]): string[] {
+  const out = new Set<string>();
+  for (const t of times) {
+    const n = normalizeTimeHm(t);
+    if (n) out.add(n);
+  }
+  return Array.from(out).sort();
+}
+
+function sameStringArray(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+function normalizeDoseByTimeMap(
+  value: Record<string, number> | null | undefined,
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (!value) return out;
+  for (const [k, v] of Object.entries(value)) {
+    const key = String(k).slice(0, 5);
+    const n = typeof v === "number" ? v : Number(v);
+    if (Number.isFinite(n) && n > 0) out[key] = n;
+  }
+  return out;
+}
+
+function sameDoseByTime(
+  a: Record<string, number> | null | undefined,
+  b: Record<string, number> | null | undefined,
+): boolean {
+  const aa = normalizeDoseByTimeMap(a);
+  const bb = normalizeDoseByTimeMap(b);
+
+  const aKeys = Object.keys(aa).sort();
+  const bKeys = Object.keys(bb).sort();
+  if (!sameStringArray(aKeys, bKeys)) return false;
+
+  for (const k of aKeys) {
+    if (aa[k] !== bb[k]) return false;
+  }
+  return true;
 }
 
 function formatActionLabel(action: string): string {
@@ -130,6 +258,7 @@ function formatLocalDateTime(isoUtc: string): string {
     const time = d.toLocaleTimeString([], {
       hour: "2-digit",
       minute: "2-digit",
+      hour12: true,
     });
     return `${date} · ${time}`;
   } catch {
@@ -182,16 +311,34 @@ export default function ReminderMedicineDetailsPage() {
     {},
   );
 
-  async function refreshCore() {
+  async function refreshAll() {
     if (!canUse || !medicineId) return;
-    const [med, up, today] = await Promise.all([
+    const [med, sch, up, today, h7, h30] = await Promise.all([
       getMedicineById(medicineId, patientId),
+      listSchedules(medicineId, patientId),
       getMedicineUpcoming({ medicineId, daysAhead: 7, limit: 50, patientId }),
       getTodayTimeline({ patientId }),
+      listMedicineHistory({
+        medicineId,
+        limit: 200,
+        offset: 0,
+        days: 7,
+        patientId,
+      }),
+      listMedicineHistory({
+        medicineId,
+        limit: 500,
+        offset: 0,
+        days: 30,
+        patientId,
+      }),
     ]);
     setMedicine(med);
+    setSchedules(sch);
     setUpcoming(up);
     setTodayTimeline(today as any);
+    setHistory30(h30);
+    setHistory7(h7);
   }
 
   const [draftName, setDraftName] = useState("");
@@ -204,9 +351,24 @@ export default function ReminderMedicineDetailsPage() {
   const [draftLowStockThreshold, setDraftLowStockThreshold] =
     useState<string>("");
 
+  const [draftType, setDraftType] = useState<MedicineRecord["type"]>("pill");
+
+  const [draftScheduleTimes, setDraftScheduleTimes] = useState<string[]>([]);
+  const [draftScheduleDoseByTime, setDraftScheduleDoseByTime] = useState<
+    Record<string, string>
+  >({});
+  const [draftScheduleNewTime, setDraftScheduleNewTime] = useState<string>("");
+
+  const voice = useVoiceNoteRecorder({ t });
+  const [voiceUploading, setVoiceUploading] = useState(false);
+  const [voiceSignedUrl, setVoiceSignedUrl] = useState<string | null>(null);
+  const [voiceUrlBusy, setVoiceUrlBusy] = useState(false);
+  const [voiceUrlError, setVoiceUrlError] = useState<string | null>(null);
+
   useEffect(() => {
     if (!medicine || editOpen) return;
     setDraftName(medicine.name ?? "");
+    setDraftType(medicine.type ?? "pill");
     setDraftDosePerIntake(String(medicine.dosePerIntake ?? ""));
     setDraftDoseUnit(medicine.doseUnit ?? "");
     setDraftInstructionTag(medicine.instructionTag ?? "none");
@@ -219,12 +381,51 @@ export default function ReminderMedicineDetailsPage() {
         ? ""
         : String(medicine.lowStockThreshold),
     );
-  }, [editOpen, medicine]);
+
+    const primary = schedules[0] ?? null;
+    if (primary) {
+      const times = uniqSortedTimes(
+        (primary.times ?? []).map((tm) => String(tm).slice(0, 5)),
+      );
+      setDraftScheduleTimes(times);
+
+      const nextDoseByTime: Record<string, string> = {};
+      for (const tm of times) {
+        const raw = primary.doseByTime?.[tm];
+        const n = typeof raw === "number" ? raw : Number(raw);
+        if (Number.isFinite(n) && n > 0) nextDoseByTime[tm] = String(n);
+      }
+      setDraftScheduleDoseByTime(nextDoseByTime);
+    } else {
+      setDraftScheduleTimes([]);
+      setDraftScheduleDoseByTime({});
+    }
+    setDraftScheduleNewTime("");
+  }, [editOpen, medicine, schedules]);
+
+  useEffect(() => {
+    if (editOpen) return;
+    voice.clearNote();
+    setVoiceSignedUrl(null);
+    setVoiceUrlError(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editOpen]);
+
+  useEffect(() => {
+    if (!editOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [editOpen]);
 
   async function onDelete() {
     if (!canUse || !medicineId) return;
     const ok = window.confirm(
-      t("Delete this medicine? This will remove upcoming reminders."),
+      t(
+        "Delete this medicine? This will remove all reminders and history for it.",
+      ),
     );
     if (!ok) return;
     setEditBusy(true);
@@ -266,25 +467,124 @@ export default function ReminderMedicineDetailsPage() {
     setEditBusy(true);
     setError(null);
     try {
+      const primary = schedules[0] ?? null;
+      if (primary) {
+        const nextTimes = uniqSortedTimes(draftScheduleTimes);
+        if (nextTimes.length === 0) {
+          setError(t("Add at least one time"));
+          return;
+        }
+        const origTimes = uniqSortedTimes(
+          (primary.times ?? []).map((tm) => String(tm).slice(0, 5)),
+        );
+
+        const nextDoseByTimeRaw: Record<string, number> = {};
+        for (const tm of nextTimes) {
+          const raw = draftScheduleDoseByTime[tm];
+          const n = typeof raw === "string" ? Number(raw) : NaN;
+          if (Number.isFinite(n) && n > 0) nextDoseByTimeRaw[tm] = n;
+        }
+        const nextDoseByTime =
+          Object.keys(nextDoseByTimeRaw).length > 0 ? nextDoseByTimeRaw : null;
+
+        const timesChanged = !sameStringArray(origTimes, nextTimes);
+        const doseChanged = !sameDoseByTime(primary.doseByTime, nextDoseByTime);
+
+        if (timesChanged || doseChanged) {
+          await patchSchedule({
+            medicineId,
+            scheduleId: primary.id,
+            patientId,
+            ...(timesChanged ? { times: nextTimes } : {}),
+            // Keep doseByTime aligned with the edited times.
+            ...(timesChanged || doseChanged
+              ? { doseByTime: nextDoseByTime }
+              : {}),
+          });
+        }
+      }
+
+      let nextVoice: {
+        key: string;
+        filename: string;
+        contentType: string;
+      } | null = null;
+
+      if (voice.note?.blob) {
+        setVoiceUploading(true);
+        const contentType = voice.note.blob.type || "audio/wav";
+        const filename = contentType.includes("webm")
+          ? "voice-note.webm"
+          : contentType.includes("mpeg")
+            ? "voice-note.mp3"
+            : "voice-note.wav";
+
+        const presign = await presignDriveUpload({
+          filename,
+          contentType,
+          sizeBytes: voice.note.blob.size,
+          patientId,
+        });
+        const putRes = await fetch(presign.url, {
+          method: "PUT",
+          headers: { "Content-Type": contentType },
+          body: voice.note.blob,
+        });
+        if (!putRes.ok) {
+          throw new Error(`Upload failed (${putRes.status})`);
+        }
+
+        await confirmDriveUpload({ key: presign.key, patientId });
+        nextVoice = { key: presign.key, filename, contentType };
+        setVoiceUploading(false);
+      }
+
       const updated = await updateMedicine(
         medicineId,
         {
           name,
+          type: draftType,
           dosePerIntake,
           doseUnit: draftDoseUnit.trim() ? draftDoseUnit.trim() : null,
           instructionTag: draftInstructionTag,
           note: draftNote.trim() ? draftNote.trim() : null,
           stockRemaining,
           lowStockThreshold: low,
+          ...(nextVoice
+            ? {
+                voiceNoteKey: nextVoice.key,
+                voiceNoteFilename: nextVoice.filename,
+                voiceNoteContentType: nextVoice.contentType,
+              }
+            : {}),
         },
         patientId,
       );
       setMedicine(updated);
       setEditOpen(false);
+      voice.clearNote();
+      setVoiceSignedUrl(null);
+      setVoiceUrlError(null);
+      await refreshAll();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
+      setVoiceUploading(false);
       setEditBusy(false);
+    }
+  }
+
+  async function onLoadVoiceNote() {
+    if (!canUse || !medicineId) return;
+    setVoiceUrlBusy(true);
+    setVoiceUrlError(null);
+    try {
+      const url = await getMedicineVoiceNoteUrl(medicineId, patientId);
+      setVoiceSignedUrl(url);
+    } catch (e) {
+      setVoiceUrlError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setVoiceUrlBusy(false);
     }
   }
 
@@ -363,7 +663,7 @@ export default function ReminderMedicineDetailsPage() {
     setError(null);
     try {
       await markIntakeTaken(id, patientId);
-      await refreshCore();
+      await refreshAll();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -377,7 +677,7 @@ export default function ReminderMedicineDetailsPage() {
     setError(null);
     try {
       await markIntakeSkipped({ intakeEventId: id, reason: "", patientId });
-      await refreshCore();
+      await refreshAll();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -386,7 +686,6 @@ export default function ReminderMedicineDetailsPage() {
   }
 
   useEffect(() => {
-    if (!logsOpen) return;
     if (!canUse || !medicineId) return;
 
     let cancelled = false;
@@ -416,14 +715,14 @@ export default function ReminderMedicineDetailsPage() {
     return () => {
       cancelled = true;
     };
-  }, [canUse, logsLimit, logsOffset, logsOpen, medicineId, patientId]);
+  }, [canUse, logsLimit, logsOffset, medicineId, patientId]);
 
   const derived = useMemo(() => {
     const nowMs = Date.now();
     const graceMs = (settings?.reminderGraceMinutes ?? 60) * 60_000;
 
     const nextDose = upcoming[0] ?? null;
-    const upcoming3 = upcoming.slice(0, 3);
+    const upcoming3 = upcoming.slice(1, 4);
 
     const todays = (todayTimeline as any as UpcomingIntakeItem[]).filter(
       (e) => e.medicineId === medicineId,
@@ -491,6 +790,35 @@ export default function ReminderMedicineDetailsPage() {
     return { mode: "ok" as const, pct, remaining, total, low };
   }, [medicine]);
 
+  const schedulePlan = useMemo(() => {
+    if (!medicine) return null;
+    const primary = schedules[0] ?? null;
+    if (!primary) return null;
+
+    const times = uniqSortedTimes(
+      (primary.times ?? []).map((tm) => String(tm).slice(0, 5)),
+    );
+
+    const unit = medicine.doseUnit ?? null;
+    const defaultDose = medicine.dosePerIntake;
+
+    const doses = times
+      .map((tm) => {
+        const raw = primary.doseByTime?.[tm];
+        const n = typeof raw === "number" ? raw : Number(raw);
+        const amount = Number.isFinite(n) && n > 0 ? n : defaultDose;
+        return { time: tm, label: timeOfDayLabel(tm), amount };
+      })
+      .filter((d) => Number.isFinite(d.amount) && d.amount > 0);
+
+    return {
+      times,
+      unit,
+      defaultDose,
+      doses,
+    };
+  }, [medicine, schedules]);
+
   return (
     <div className="min-h-screen bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-50">
       <Header />
@@ -555,6 +883,7 @@ export default function ReminderMedicineDetailsPage() {
                 onClick={() => {
                   if (!medicine) return;
                   setDraftName(medicine.name ?? "");
+                  setDraftType(medicine.type ?? "pill");
                   setDraftDosePerIntake(String(medicine.dosePerIntake ?? ""));
                   setDraftDoseUnit(medicine.doseUnit ?? "");
                   setDraftInstructionTag(medicine.instructionTag ?? "none");
@@ -569,6 +898,31 @@ export default function ReminderMedicineDetailsPage() {
                       ? ""
                       : String(medicine.lowStockThreshold),
                   );
+
+                  const primary = schedules[0] ?? null;
+                  if (primary) {
+                    const times = uniqSortedTimes(
+                      (primary.times ?? []).map((tm) => String(tm).slice(0, 5)),
+                    );
+                    setDraftScheduleTimes(times);
+
+                    const nextDoseByTime: Record<string, string> = {};
+                    for (const tm of times) {
+                      const raw = primary.doseByTime?.[tm];
+                      const n = typeof raw === "number" ? raw : Number(raw);
+                      if (Number.isFinite(n) && n > 0)
+                        nextDoseByTime[tm] = String(n);
+                    }
+                    setDraftScheduleDoseByTime(nextDoseByTime);
+                  } else {
+                    setDraftScheduleTimes([]);
+                    setDraftScheduleDoseByTime({});
+                  }
+                  setDraftScheduleNewTime("");
+
+                  voice.clearNote();
+                  setVoiceSignedUrl(null);
+                  setVoiceUrlError(null);
                   setEditOpen(true);
                 }}
                 disabled={editBusy}
@@ -585,148 +939,6 @@ export default function ReminderMedicineDetailsPage() {
                 {t("Delete")}
               </button>
             </div>
-
-            {editOpen ? (
-              <div className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-base font-semibold">
-                      {t("Edit medicine")}
-                    </div>
-                    <div className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
-                      {t("Update name, dose, unit, stock, and notes.")}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setEditOpen(false)}
-                    className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900"
-                  >
-                    {t("Close")}
-                  </button>
-                </div>
-
-                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <label className="block sm:col-span-2">
-                    <div className="text-sm font-semibold">{t("Name")}</div>
-                    <input
-                      value={draftName}
-                      onChange={(e) => setDraftName(e.target.value)}
-                      className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-base outline-none focus:border-brand-500 dark:border-zinc-800 dark:bg-zinc-950"
-                    />
-                  </label>
-
-                  <label className="block">
-                    <div className="text-sm font-semibold">
-                      {t("Default dose")}
-                    </div>
-                    <input
-                      value={draftDosePerIntake}
-                      onChange={(e) => setDraftDosePerIntake(e.target.value)}
-                      type="number"
-                      min={0.1}
-                      step={0.5}
-                      className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-base outline-none focus:border-brand-500 dark:border-zinc-800 dark:bg-zinc-950"
-                    />
-                  </label>
-
-                  <label className="block">
-                    <div className="text-sm font-semibold">{t("Unit")}</div>
-                    <input
-                      value={draftDoseUnit}
-                      onChange={(e) => setDraftDoseUnit(e.target.value)}
-                      placeholder={t("e.g., piece, ml")}
-                      className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-base outline-none focus:border-brand-500 dark:border-zinc-800 dark:bg-zinc-950"
-                    />
-                  </label>
-
-                  <label className="block">
-                    <div className="text-sm font-semibold">
-                      {t("Stock remaining")}
-                    </div>
-                    <input
-                      value={draftStockRemaining}
-                      onChange={(e) => setDraftStockRemaining(e.target.value)}
-                      type="number"
-                      min={0}
-                      step={1}
-                      placeholder={t("Optional")}
-                      className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-base outline-none focus:border-brand-500 dark:border-zinc-800 dark:bg-zinc-950"
-                    />
-                  </label>
-
-                  <label className="block">
-                    <div className="text-sm font-semibold">
-                      {t("Low stock threshold")}
-                    </div>
-                    <input
-                      value={draftLowStockThreshold}
-                      onChange={(e) =>
-                        setDraftLowStockThreshold(e.target.value)
-                      }
-                      type="number"
-                      min={0}
-                      step={1}
-                      placeholder={t("Optional")}
-                      className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-base outline-none focus:border-brand-500 dark:border-zinc-800 dark:bg-zinc-950"
-                    />
-                  </label>
-
-                  <label className="block sm:col-span-2">
-                    <div className="text-sm font-semibold">
-                      {t("Instructions")}
-                    </div>
-                    <select
-                      value={draftInstructionTag}
-                      onChange={(e) =>
-                        setDraftInstructionTag(e.target.value as any)
-                      }
-                      className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-base outline-none focus:border-brand-500 dark:border-zinc-800 dark:bg-zinc-950"
-                    >
-                      <option value="none">{t("None")}</option>
-                      <option value="before_meal">{t("Before meal")}</option>
-                      <option value="after_meal">{t("After meal")}</option>
-                      <option value="with_food">{t("With food")}</option>
-                      <option value="empty_stomach">
-                        {t("Empty stomach")}
-                      </option>
-                    </select>
-                  </label>
-
-                  <label className="block sm:col-span-2">
-                    <div className="text-sm font-semibold">{t("Note")}</div>
-                    <textarea
-                      value={draftNote}
-                      onChange={(e) => setDraftNote(e.target.value)}
-                      rows={3}
-                      placeholder={t("Optional")}
-                      className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-base outline-none focus:border-brand-500 dark:border-zinc-800 dark:bg-zinc-950"
-                    />
-                  </label>
-                </div>
-
-                <div className="mt-4 flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void onSaveEdit()}
-                    disabled={editBusy}
-                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
-                  >
-                    <Check className="h-4 w-4" />
-                    {editBusy ? t("Saving...") : t("Save")}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEditOpen(false)}
-                    disabled={editBusy}
-                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900"
-                  >
-                    <X className="h-4 w-4" />
-                    {t("Cancel")}
-                  </button>
-                </div>
-              </div>
-            ) : null}
 
             <div className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
               <div className="flex items-start gap-3">
@@ -769,6 +981,27 @@ export default function ReminderMedicineDetailsPage() {
                 <div className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
                   {scheduleSummary(schedules) || t("No schedule")}
                 </div>
+
+                {schedulePlan?.doses?.length ? (
+                  <div className="mt-3 space-y-1 text-sm">
+                    {schedulePlan.doses.map((d) => (
+                      <div
+                        key={d.time}
+                        className="flex items-center justify-between gap-3"
+                      >
+                        <span className="min-w-0 truncate text-zinc-600 dark:text-zinc-300">
+                          {d.label}
+                          <span className="ml-2 text-xs font-semibold text-zinc-400 dark:text-zinc-500">
+                            {formatTimeHm12(d.time)}
+                          </span>
+                        </span>
+                        <span className="flex-none font-semibold text-zinc-900 dark:text-zinc-50">
+                          {formatDoseText(d.amount, schedulePlan.unit)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
               </div>
 
               <div className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
@@ -785,26 +1018,40 @@ export default function ReminderMedicineDetailsPage() {
                       {formatLocalDate(derived.nextDose.datetimeUtc)}
                     </div>
 
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => void onMarkTaken(derived.nextDose!.id)}
-                        disabled={!!intakeBusyById[derived.nextDose.id]}
-                        className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
-                      >
-                        <Check className="h-4 w-4" aria-hidden="true" />
-                        {t("Taken")}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void onMarkSkipped(derived.nextDose!.id)}
-                        disabled={!!intakeBusyById[derived.nextDose.id]}
-                        className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 disabled:opacity-60 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900"
-                      >
-                        <X className="h-4 w-4" aria-hidden="true" />
-                        {t("Skip")}
-                      </button>
-                    </div>
+                    {(() => {
+                      const atMs = new Date(
+                        derived.nextDose!.datetimeUtc,
+                      ).getTime();
+                      const canAct =
+                        Number.isFinite(atMs) && atMs <= Date.now();
+                      if (!canAct) return null;
+                      return (
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void onMarkTaken(derived.nextDose!.id)
+                            }
+                            disabled={!!intakeBusyById[derived.nextDose!.id]}
+                            className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                          >
+                            <Check className="h-4 w-4" aria-hidden="true" />
+                            {t("Taken")}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void onMarkSkipped(derived.nextDose!.id)
+                            }
+                            disabled={!!intakeBusyById[derived.nextDose!.id]}
+                            className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 disabled:opacity-60 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900"
+                          >
+                            <X className="h-4 w-4" aria-hidden="true" />
+                            {t("Skip")}
+                          </button>
+                        </div>
+                      );
+                    })()}
                   </div>
                 ) : (
                   <div className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
@@ -1055,45 +1302,174 @@ export default function ReminderMedicineDetailsPage() {
                   </div>
                 ) : (
                   <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                    {history30.map((e) => {
-                      const pill = statusPill(e.status);
-                      return (
-                        <div
-                          key={e.id}
-                          className="flex items-center justify-between gap-3 p-4"
-                        >
-                          <div>
-                            <div className="text-sm font-semibold">
-                              {formatLocalDate(e.datetimeUtc)} ·{" "}
-                              {formatLocalTime(e.datetimeUtc)}
-                            </div>
-                            <div className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
-                              {e.status === "taken" ? (
-                                <span className="inline-flex items-center gap-2">
-                                  <Check className="h-4 w-4" /> {t("Taken")}
-                                </span>
-                              ) : e.status === "skipped" ? (
-                                <span className="inline-flex items-center gap-2">
-                                  <X className="h-4 w-4" /> {t("Skipped")}
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-2">
-                                  <X className="h-4 w-4" /> {t("Missed")}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          <span
-                            className={
-                              "rounded-full border px-2.5 py-1 text-xs font-semibold " +
-                              pill.cls
+                    {(() => {
+                      const nowMs = Date.now();
+                      const graceMs =
+                        (settings?.reminderGraceMinutes ?? 60) * 60_000;
+
+                      const rows = history30
+                        .map((e) => {
+                          const atMs = new Date(e.datetimeUtc).getTime();
+                          const isFuture = Number.isFinite(atMs)
+                            ? atMs > nowMs
+                            : false;
+                          if (isFuture) return null;
+
+                          const statusUi = computeMissedStatus({
+                            event: e,
+                            nowMs,
+                            graceMs,
+                          });
+                          const pill = statusPill(statusUi);
+                          const localDate = formatLocalDate(e.datetimeUtc);
+                          const localTime = formatLocalTime(e.datetimeUtc);
+
+                          const localHm = (() => {
+                            try {
+                              const d = new Date(e.datetimeUtc);
+                              const hh = String(d.getHours()).padStart(2, "0");
+                              const mm = String(d.getMinutes()).padStart(
+                                2,
+                                "0",
+                              );
+                              return `${hh}:${mm}`;
+                            } catch {
+                              return null;
                             }
-                          >
-                            {t(pill.label)}
-                          </span>
+                          })();
+
+                          const metaDose = extractDoseFromMetadata(e.metadata);
+                          const amount =
+                            metaDose.amount ?? medicine?.dosePerIntake ?? null;
+                          const unit =
+                            metaDose.unit ?? medicine?.doseUnit ?? null;
+                          const doseText =
+                            typeof amount === "number" &&
+                            Number.isFinite(amount) &&
+                            amount > 0
+                              ? formatDoseText(amount, unit)
+                              : null;
+
+                          return {
+                            e,
+                            localDate,
+                            localTime,
+                            localHm,
+                            statusUi,
+                            pill,
+                            doseText,
+                          };
+                        })
+                        .filter(Boolean) as Array<{
+                        e: IntakeEventRecord;
+                        localDate: string;
+                        localTime: string;
+                        localHm: string | null;
+                        statusUi: IntakeEventRecord["status"] | "missed";
+                        pill: { label: string; cls: string };
+                        doseText: string | null;
+                      }>;
+
+                      if (rows.length === 0) {
+                        return (
+                          <div className="p-4 text-sm text-zinc-600 dark:text-zinc-300">
+                            {t("No history yet")}
+                          </div>
+                        );
+                      }
+
+                      const groups: Array<{
+                        date: string;
+                        items: typeof rows;
+                      }> = [];
+                      for (const r of rows) {
+                        const last = groups[groups.length - 1] ?? null;
+                        if (!last || last.date !== r.localDate) {
+                          groups.push({ date: r.localDate, items: [r] });
+                        } else {
+                          last.items.push(r);
+                        }
+                      }
+
+                      return groups.map((g) => (
+                        <div key={g.date}>
+                          <div className="sticky top-0 z-10 border-b border-zinc-200 bg-white/90 px-4 py-2 text-xs font-semibold text-zinc-500 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/80 dark:text-zinc-400">
+                            {g.date}
+                          </div>
+                          <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                            {g.items.map((r) => {
+                              const canUpdate =
+                                canUse && r.statusUi !== "taken";
+                              return (
+                                <div
+                                  key={r.e.id}
+                                  className="flex items-start justify-between gap-3 px-4 py-3"
+                                >
+                                  <div className="min-w-0">
+                                    <div className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                                      {r.localTime}
+                                      {r.doseText ? ` · ${r.doseText}` : ""}
+                                    </div>
+                                    <div className="mt-0.5 text-xs font-semibold text-zinc-400 dark:text-zinc-500">
+                                      {r.localHm
+                                        ? timeOfDayLabel(r.localHm)
+                                        : ""}
+                                    </div>
+                                  </div>
+
+                                  <div className="flex flex-col items-end gap-2">
+                                    <span
+                                      className={
+                                        "rounded-full border px-2.5 py-1 text-xs font-semibold " +
+                                        r.pill.cls
+                                      }
+                                    >
+                                      {t(r.pill.label)}
+                                    </span>
+
+                                    {canUpdate ? (
+                                      <div className="flex items-center gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            void onMarkTaken(r.e.id)
+                                          }
+                                          disabled={!!intakeBusyById[r.e.id]}
+                                          className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                                        >
+                                          <Check
+                                            className="h-4 w-4"
+                                            aria-hidden="true"
+                                          />
+                                          {t("Taken")}
+                                        </button>
+
+                                        {r.statusUi !== "skipped" ? (
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              void onMarkSkipped(r.e.id)
+                                            }
+                                            disabled={!!intakeBusyById[r.e.id]}
+                                            className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-zinc-900 hover:bg-zinc-50 disabled:opacity-60 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900"
+                                          >
+                                            <X
+                                              className="h-4 w-4"
+                                              aria-hidden="true"
+                                            />
+                                            {t("Skip")}
+                                          </button>
+                                        ) : null}
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
-                      );
-                    })}
+                      ));
+                    })()}
                   </div>
                 )}
               </div>
@@ -1109,6 +1485,441 @@ export default function ReminderMedicineDetailsPage() {
       </main>
 
       <Footer />
+
+      {editOpen && medicine && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center"
+          role="dialog"
+          aria-modal="true"
+        >
+          <button
+            type="button"
+            aria-label={t("Close")}
+            onClick={() => {
+              if (editBusy) return;
+              setEditOpen(false);
+            }}
+            className="absolute inset-0 cursor-default bg-zinc-950/30 backdrop-blur-[2px] dark:bg-black/40"
+          />
+
+          <div className="relative w-full max-w-3xl rounded-t-3xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-950">
+            <div className="mx-auto mt-3 h-1.5 w-12 rounded-full bg-zinc-200 dark:bg-zinc-800" />
+
+            <div className="flex items-start justify-between gap-4 px-5 pb-4 pt-4">
+              <div>
+                <div className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+                  {t("Edit medicine")}
+                </div>
+                <div className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
+                  {t("Update name, type, dose, schedule, stock, and notes.")}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (editBusy) return;
+                  setEditOpen(false);
+                }}
+                aria-label={t("Close")}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-brand-200 disabled:opacity-60 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900 dark:focus:ring-brand-900"
+                disabled={editBusy}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="max-h-[75dvh] overflow-y-auto px-5 pb-28">
+              <div className="grid gap-4">
+                {error ? (
+                  <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200">
+                    {error}
+                  </div>
+                ) : null}
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <label className="block sm:col-span-2">
+                    <div className="text-sm font-semibold">{t("Name")}</div>
+                    <input
+                      value={draftName}
+                      onChange={(e) => setDraftName(e.target.value)}
+                      className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-base outline-none focus:border-brand-500 dark:border-zinc-800 dark:bg-zinc-950"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <div className="text-sm font-semibold">
+                      {t("Default dose")}
+                    </div>
+                    <input
+                      value={draftDosePerIntake}
+                      onChange={(e) => setDraftDosePerIntake(e.target.value)}
+                      type="number"
+                      min={0.1}
+                      step={0.5}
+                      className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-base outline-none focus:border-brand-500 dark:border-zinc-800 dark:bg-zinc-950"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <div className="text-sm font-semibold">{t("Unit")}</div>
+                    <input
+                      value={draftDoseUnit}
+                      onChange={(e) => setDraftDoseUnit(e.target.value)}
+                      placeholder={t("e.g., piece, ml")}
+                      className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-base outline-none focus:border-brand-500 dark:border-zinc-800 dark:bg-zinc-950"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <div className="text-sm font-semibold">{t("Type")}</div>
+                    <select
+                      value={draftType}
+                      onChange={(e) => setDraftType(e.target.value as any)}
+                      className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-base outline-none focus:border-brand-500 dark:border-zinc-800 dark:bg-zinc-950"
+                    >
+                      <option value="pill">{t("Pill")}</option>
+                      <option value="syrup">{t("Syrup")}</option>
+                      <option value="injection">{t("Injection")}</option>
+                      <option value="inhaler">{t("Inhaler")}</option>
+                      <option value="other">{t("Other")}</option>
+                    </select>
+                  </label>
+
+                  <label className="block">
+                    <div className="text-sm font-semibold">
+                      {t("Stock remaining")}
+                    </div>
+                    <input
+                      value={draftStockRemaining}
+                      onChange={(e) => setDraftStockRemaining(e.target.value)}
+                      type="number"
+                      min={0}
+                      step={1}
+                      placeholder={t("Optional")}
+                      className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-base outline-none focus:border-brand-500 dark:border-zinc-800 dark:bg-zinc-950"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <div className="text-sm font-semibold">
+                      {t("Low stock threshold")}
+                    </div>
+                    <input
+                      value={draftLowStockThreshold}
+                      onChange={(e) =>
+                        setDraftLowStockThreshold(e.target.value)
+                      }
+                      type="number"
+                      min={0}
+                      step={1}
+                      placeholder={t("Optional")}
+                      className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-base outline-none focus:border-brand-500 dark:border-zinc-800 dark:bg-zinc-950"
+                    />
+                  </label>
+
+                  <label className="block sm:col-span-2">
+                    <div className="text-sm font-semibold">
+                      {t("Instructions")}
+                    </div>
+                    <select
+                      value={draftInstructionTag}
+                      onChange={(e) =>
+                        setDraftInstructionTag(e.target.value as any)
+                      }
+                      className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-base outline-none focus:border-brand-500 dark:border-zinc-800 dark:bg-zinc-950"
+                    >
+                      <option value="none">{t("None")}</option>
+                      <option value="before_meal">{t("Before meal")}</option>
+                      <option value="after_meal">{t("After meal")}</option>
+                      <option value="with_food">{t("With food")}</option>
+                      <option value="empty_stomach">
+                        {t("Empty stomach")}
+                      </option>
+                    </select>
+                  </label>
+
+                  <label className="block sm:col-span-2">
+                    <div className="text-sm font-semibold">{t("Note")}</div>
+                    <textarea
+                      value={draftNote}
+                      onChange={(e) => setDraftNote(e.target.value)}
+                      rows={3}
+                      placeholder={t("Optional")}
+                      className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-base outline-none focus:border-brand-500 dark:border-zinc-800 dark:bg-zinc-950"
+                    />
+                  </label>
+                </div>
+
+                <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+                  <div className="text-sm font-semibold">
+                    {t("Schedule times")}
+                  </div>
+
+                  {schedules.length === 0 ? (
+                    <div className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
+                      {t("No schedule")}
+                    </div>
+                  ) : (
+                    <div className="mt-3 grid gap-3">
+                      <div className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                        {scheduleSummary(schedules)}
+                      </div>
+
+                      {draftScheduleTimes.map((tm) => (
+                        <div
+                          key={tm}
+                          className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                              {timeOfDayLabel(tm)}
+                              <span className="ml-2 text-xs font-semibold text-zinc-400 dark:text-zinc-500">
+                                {tm}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDraftScheduleTimes((prev) =>
+                                  prev.filter((x) => x !== tm),
+                                );
+                                setDraftScheduleDoseByTime((prev) => {
+                                  const copy = { ...prev };
+                                  delete copy[tm];
+                                  return copy;
+                                });
+                              }}
+                              className="inline-flex items-center justify-center rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900"
+                            >
+                              {t("Remove")}
+                            </button>
+                          </div>
+
+                          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <label className="block">
+                              <div className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                                {t("Time")}
+                              </div>
+                              <input
+                                type="time"
+                                value={tm}
+                                onChange={(e) => {
+                                  const next = normalizeTimeHm(e.target.value);
+                                  if (!next) return;
+
+                                  setDraftScheduleTimes((prev) =>
+                                    uniqSortedTimes(
+                                      prev.map((x) => (x === tm ? next : x)),
+                                    ),
+                                  );
+
+                                  setDraftScheduleDoseByTime((prev) => {
+                                    if (tm === next) return prev;
+                                    const copy = { ...prev };
+                                    const v = copy[tm];
+                                    if (v !== undefined) {
+                                      delete copy[tm];
+                                      if (copy[next] === undefined) {
+                                        copy[next] = v;
+                                      }
+                                    }
+                                    return copy;
+                                  });
+                                }}
+                                className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-base outline-none focus:border-brand-500 dark:border-zinc-800 dark:bg-zinc-950"
+                              />
+                            </label>
+
+                            <label className="block">
+                              <div className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                                {t("Dose")}
+                                <span className="ml-1 text-zinc-400 dark:text-zinc-500">
+                                  ({t("Optional")})
+                                </span>
+                              </div>
+                              <input
+                                value={draftScheduleDoseByTime[tm] ?? ""}
+                                onChange={(e) =>
+                                  setDraftScheduleDoseByTime((prev) => ({
+                                    ...prev,
+                                    [tm]: e.target.value,
+                                  }))
+                                }
+                                type="number"
+                                min={0.1}
+                                step={0.5}
+                                placeholder={String(medicine.dosePerIntake)}
+                                className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-base outline-none focus:border-brand-500 dark:border-zinc-800 dark:bg-zinc-950"
+                              />
+                              {medicine.doseUnit ? (
+                                <div className="mt-1 text-xs font-semibold text-zinc-400 dark:text-zinc-500">
+                                  {medicine.doseUnit}
+                                </div>
+                              ) : null}
+                            </label>
+                          </div>
+                        </div>
+                      ))}
+
+                      <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+                        <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                          {t("Add")}
+                        </div>
+                        <div className="mt-2 flex items-center gap-2">
+                          <input
+                            type="time"
+                            value={draftScheduleNewTime}
+                            onChange={(e) =>
+                              setDraftScheduleNewTime(e.target.value)
+                            }
+                            className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-base outline-none focus:border-brand-500 dark:border-zinc-800 dark:bg-zinc-950"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const n = normalizeTimeHm(draftScheduleNewTime);
+                              if (!n) return;
+                              setDraftScheduleTimes((prev) =>
+                                uniqSortedTimes([...prev, n]),
+                              );
+                              setDraftScheduleNewTime("");
+                            }}
+                            className="inline-flex items-center justify-center rounded-xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white hover:bg-brand-700"
+                          >
+                            {t("Add")}
+                          </button>
+                        </div>
+
+                        <div className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                          {t("Schedule changes update upcoming reminders.")}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+                  <div className="text-sm font-semibold">{t("Voice note")}</div>
+
+                  {medicine.voiceNoteKey ? (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void onLoadVoiceNote()}
+                        disabled={voiceUrlBusy || editBusy}
+                        className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900"
+                      >
+                        {voiceUrlBusy ? t("Loading...") : t("Load")}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
+                      {t("No voice note yet")}
+                    </div>
+                  )}
+
+                  {voiceUrlError ? (
+                    <div className="mt-2 text-sm text-red-700 dark:text-red-200">
+                      {voiceUrlError}
+                    </div>
+                  ) : null}
+
+                  {voiceSignedUrl ? (
+                    <audio
+                      className="mt-3 w-full"
+                      controls
+                      src={voiceSignedUrl}
+                    />
+                  ) : null}
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    {!voice.recording ? (
+                      <button
+                        type="button"
+                        onClick={() => void voice.beginRecord()}
+                        className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+                        disabled={editBusy || voiceUploading}
+                      >
+                        {t("Record")}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => voice.endRecord()}
+                        className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white hover:bg-red-700"
+                      >
+                        {t("Stop")} ({voice.recordSecondsLeft})
+                      </button>
+                    )}
+
+                    {voice.note ? (
+                      <button
+                        type="button"
+                        onClick={() => voice.clearNote()}
+                        className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-3 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900"
+                      >
+                        <X className="h-4 w-4" />
+                        {t("Remove")}
+                      </button>
+                    ) : null}
+                  </div>
+
+                  {voice.audioUrl ? (
+                    <audio
+                      className="mt-3 w-full"
+                      controls
+                      src={voice.audioUrl}
+                    />
+                  ) : null}
+
+                  {voice.voiceErrorMessage ? (
+                    <div className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
+                      {voice.voiceErrorMessage}
+                    </div>
+                  ) : null}
+
+                  {voiceUploading ? (
+                    <div className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
+                      {t("Uploading voice note...")}
+                    </div>
+                  ) : (
+                    <div className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                      {t("Record a new note, then press Save.")}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="absolute inset-x-0 bottom-0 border-t border-zinc-200 bg-white/90 px-5 py-4 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/80">
+              <div className="flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (editBusy) return;
+                    setEditOpen(false);
+                  }}
+                  disabled={editBusy}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-brand-200 disabled:opacity-60 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900 dark:focus:ring-brand-900"
+                >
+                  {t("Cancel")}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => void onSaveEdit()}
+                  disabled={editBusy}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-200 disabled:opacity-60 dark:focus:ring-emerald-900"
+                >
+                  <Check className="h-4 w-4" />
+                  {editBusy ? t("Saving...") : t("Save")}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

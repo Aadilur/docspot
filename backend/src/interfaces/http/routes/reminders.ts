@@ -193,6 +193,34 @@ export function registerReminderRoutes(params: {
     }
   });
 
+  router.get("/me/medicines/removed", requireFirebaseAuth, async (req, res) => {
+    try {
+      const me = await ensureMe(req);
+      const limit = parseBoundedInt(
+        getQueryString(req.query?.limit),
+        50,
+        1,
+        100,
+      );
+      const offset = parseBoundedInt(
+        getQueryString(req.query?.offset),
+        0,
+        0,
+        100_000,
+      );
+
+      const removedMedicines = await remindersDb.listRemovedMedicines({
+        userId: me.id,
+        limit,
+        offset,
+      });
+
+      res.json({ ok: true, removedMedicines });
+    } catch (err) {
+      unavailable(res, err);
+    }
+  });
+
   router.get("/me/medicines/:id", requireFirebaseAuth, async (req, res) => {
     try {
       const me = await ensureMe(req);
@@ -244,6 +272,14 @@ export function registerReminderRoutes(params: {
         photoUrl: body.photoUrl ?? null,
         photoKey: photoKey || null,
         voiceNoteKey: voiceNoteKey || null,
+        voiceNoteFilename:
+          voiceNoteKey && typeof body.voiceNoteFilename === "string"
+            ? body.voiceNoteFilename
+            : null,
+        voiceNoteContentType:
+          voiceNoteKey && typeof body.voiceNoteContentType === "string"
+            ? body.voiceNoteContentType
+            : null,
       });
 
       res.json({ ok: true, medicine: created });
@@ -527,6 +563,28 @@ export function registerReminderRoutes(params: {
         patch.note = typeof body.note === "string" ? body.note : null;
       if (body.isActive !== undefined) patch.isActive = Boolean(body.isActive);
 
+      if (Object.prototype.hasOwnProperty.call(body, "voiceNoteKey")) {
+        const raw = body.voiceNoteKey;
+        const key =
+          raw == null
+            ? null
+            : typeof raw === "string"
+              ? raw.trim()
+              : String(raw).trim();
+
+        if (key) assertKeyInUserDrive({ userId: me.id, key });
+
+        patch.voiceNoteKey = key || null;
+        patch.voiceNoteFilename =
+          typeof body.voiceNoteFilename === "string"
+            ? body.voiceNoteFilename
+            : null;
+        patch.voiceNoteContentType =
+          typeof body.voiceNoteContentType === "string"
+            ? body.voiceNoteContentType
+            : null;
+      }
+
       const medicine = await remindersDb.patchMedicine({
         userId: me.id,
         medicineId: req.params.id,
@@ -602,6 +660,42 @@ export function registerReminderRoutes(params: {
           endDate: body.endDate ?? null,
           maxOccurrences: body.maxOccurrences ?? null,
         });
+
+        res.json({ ok: true, schedule });
+      } catch (err) {
+        badRequest(res, toErrorMessage(err));
+      }
+    },
+  );
+
+  router.patch(
+    "/me/medicines/:id/schedules/:scheduleId",
+    requireFirebaseAuth,
+    async (req, res) => {
+      try {
+        const me = await ensureMe(req);
+        const body = (req as any).body ?? {};
+
+        const patch: any = {};
+        if (Object.prototype.hasOwnProperty.call(body, "times")) {
+          patch.times = Array.isArray(body.times) ? body.times : [];
+        }
+        if (Object.prototype.hasOwnProperty.call(body, "doseByTime")) {
+          patch.doseByTime = body.doseByTime ?? null;
+        }
+
+        const schedule = await remindersDb.patchSchedule({
+          userId: me.id,
+          actorUserId: me.id,
+          scheduleId: req.params.scheduleId,
+          patch,
+        });
+        if (!schedule || schedule.medicineId !== req.params.id) {
+          notFound(res);
+          return;
+        }
+
+        await bestEffortGenerateUpcoming({ userId: me.id, daysAhead: 14 });
 
         res.json({ ok: true, schedule });
       } catch (err) {
@@ -789,39 +883,6 @@ export function registerReminderRoutes(params: {
         res.json({ ok: true, event });
       } catch (err) {
         badRequest(res, toErrorMessage(err));
-      }
-    },
-  );
-
-  router.get(
-    "/me/medicines/:id/history",
-    requireFirebaseAuth,
-    async (req, res) => {
-      try {
-        const me = await ensureMe(req);
-        const limit = parseBoundedInt(
-          getQueryString(req.query?.limit),
-          50,
-          1,
-          100,
-        );
-        const offset = parseBoundedInt(
-          getQueryString(req.query?.offset),
-          0,
-          0,
-          100_000,
-        );
-
-        const events = await remindersDb.listMedicineHistory({
-          userId: me.id,
-          medicineId: req.params.id,
-          limit,
-          offset,
-        });
-
-        res.json({ ok: true, events });
-      } catch (err) {
-        unavailable(res, err);
       }
     },
   );
@@ -1088,6 +1149,50 @@ export function registerReminderRoutes(params: {
   });
 
   router.get(
+    "/caregiver/medicines/removed",
+    requireFirebaseAuth,
+    async (req, res) => {
+      try {
+        const me = await ensureMe(req);
+        const patientId = getQueryString(req.query?.patientId);
+        if (!patientId) {
+          badRequest(res, "patientId is required");
+          return;
+        }
+
+        await remindersDb.requireCaregiverAccessLevel({
+          caregiverId: me.id,
+          patientId,
+          minLevel: "view",
+        });
+
+        const limit = parseBoundedInt(
+          getQueryString(req.query?.limit),
+          50,
+          1,
+          100,
+        );
+        const offset = parseBoundedInt(
+          getQueryString(req.query?.offset),
+          0,
+          0,
+          100_000,
+        );
+
+        const removedMedicines = await remindersDb.listRemovedMedicines({
+          userId: patientId,
+          limit,
+          offset,
+        });
+
+        res.json({ ok: true, removedMedicines });
+      } catch (err) {
+        badRequest(res, toErrorMessage(err));
+      }
+    },
+  );
+
+  router.get(
     "/caregiver/medicines/:id",
     requireFirebaseAuth,
     async (req, res) => {
@@ -1120,6 +1225,90 @@ export function registerReminderRoutes(params: {
   );
 
   router.get(
+    "/caregiver/medicines/:id/voice-note",
+    requireFirebaseAuth,
+    async (req, res) => {
+      try {
+        const me = await ensureMe(req);
+        const patientId = getQueryString(req.query?.patientId);
+        if (!patientId) {
+          badRequest(res, "patientId is required");
+          return;
+        }
+        await remindersDb.requireCaregiverAccessLevel({
+          caregiverId: me.id,
+          patientId,
+          minLevel: "view",
+        });
+
+        const medicine = await remindersDb.getMedicine({
+          userId: patientId,
+          medicineId: req.params.id,
+        });
+        if (!medicine) {
+          notFound(res);
+          return;
+        }
+
+        if (!medicine.voiceNoteKey) {
+          notFound(res);
+          return;
+        }
+
+        const signed = await createPresignedGetUrl({
+          key: medicine.voiceNoteKey,
+          expiresInSeconds: ATTACHMENT_URL_EXPIRES_SECONDS,
+        });
+        res.redirect(302, signed.url);
+      } catch (err) {
+        badRequest(res, toErrorMessage(err));
+      }
+    },
+  );
+
+  router.get(
+    "/caregiver/medicines/:id/voice-note/url",
+    requireFirebaseAuth,
+    async (req, res) => {
+      try {
+        const me = await ensureMe(req);
+        const patientId = getQueryString(req.query?.patientId);
+        if (!patientId) {
+          badRequest(res, "patientId is required");
+          return;
+        }
+        await remindersDb.requireCaregiverAccessLevel({
+          caregiverId: me.id,
+          patientId,
+          minLevel: "view",
+        });
+
+        const medicine = await remindersDb.getMedicine({
+          userId: patientId,
+          medicineId: req.params.id,
+        });
+        if (!medicine) {
+          notFound(res);
+          return;
+        }
+
+        if (!medicine.voiceNoteKey) {
+          notFound(res);
+          return;
+        }
+
+        const signed = await createPresignedGetUrl({
+          key: medicine.voiceNoteKey,
+          expiresInSeconds: ATTACHMENT_URL_EXPIRES_SECONDS,
+        });
+        res.json({ ok: true, url: signed.url });
+      } catch (err) {
+        badRequest(res, toErrorMessage(err));
+      }
+    },
+  );
+
+  router.get(
     "/caregiver/medicines/:id/history",
     requireFirebaseAuth,
     async (req, res) => {
@@ -1136,11 +1325,20 @@ export function registerReminderRoutes(params: {
           minLevel: "view",
         });
 
+        const medicine = await remindersDb.getMedicine({
+          userId: patientId,
+          medicineId: req.params.id,
+        });
+        if (!medicine) {
+          notFound(res);
+          return;
+        }
+
         const limit = parseBoundedInt(
           getQueryString(req.query?.limit),
           50,
           1,
-          100,
+          500,
         );
         const offset = parseBoundedInt(
           getQueryString(req.query?.offset),
@@ -1149,11 +1347,15 @@ export function registerReminderRoutes(params: {
           100_000,
         );
 
-        const events = await remindersDb.listMedicineHistory({
+        const daysRaw = getQueryString(req.query?.days);
+        const days = daysRaw ? Number(daysRaw) : null;
+
+        const events = await remindersDb.listMedicineIntakeHistory({
           userId: patientId,
           medicineId: req.params.id,
           limit,
           offset,
+          days: Number.isFinite(days) ? (days as number) : undefined,
         });
         res.json({ ok: true, events });
       } catch (err) {
@@ -1250,6 +1452,28 @@ export function registerReminderRoutes(params: {
           if (Object.prototype.hasOwnProperty.call(body, key)) {
             patch[key] = body[key];
           }
+        }
+
+        if (Object.prototype.hasOwnProperty.call(body, "voiceNoteKey")) {
+          const raw = body.voiceNoteKey;
+          const key =
+            raw == null
+              ? null
+              : typeof raw === "string"
+                ? raw.trim()
+                : String(raw).trim();
+
+          if (key) assertKeyInUserDrive({ userId: patientId, key });
+
+          patch.voiceNoteKey = key || null;
+          patch.voiceNoteFilename =
+            typeof body.voiceNoteFilename === "string"
+              ? body.voiceNoteFilename
+              : null;
+          patch.voiceNoteContentType =
+            typeof body.voiceNoteContentType === "string"
+              ? body.voiceNoteContentType
+              : null;
         }
 
         const medicine = await remindersDb.patchMedicine({
@@ -1361,6 +1585,51 @@ export function registerReminderRoutes(params: {
           endDate: body.endDate ?? null,
           maxOccurrences: body.maxOccurrences ?? null,
         });
+        res.json({ ok: true, schedule });
+      } catch (err) {
+        badRequest(res, toErrorMessage(err));
+      }
+    },
+  );
+
+  router.patch(
+    "/caregiver/medicines/:id/schedules/:scheduleId",
+    requireFirebaseAuth,
+    async (req, res) => {
+      try {
+        const me = await ensureMe(req);
+        const patientId = getQueryString(req.query?.patientId);
+        if (!patientId) {
+          badRequest(res, "patientId is required");
+          return;
+        }
+        await remindersDb.requireCaregiverAccessLevel({
+          caregiverId: me.id,
+          patientId,
+          minLevel: "edit",
+        });
+
+        const body = (req as any).body ?? {};
+        const patch: any = {};
+        if (Object.prototype.hasOwnProperty.call(body, "times")) {
+          patch.times = Array.isArray(body.times) ? body.times : [];
+        }
+        if (Object.prototype.hasOwnProperty.call(body, "doseByTime")) {
+          patch.doseByTime = body.doseByTime ?? null;
+        }
+
+        const schedule = await remindersDb.patchSchedule({
+          userId: patientId,
+          actorUserId: me.id,
+          scheduleId: req.params.scheduleId,
+          patch,
+        });
+        if (!schedule || schedule.medicineId !== req.params.id) {
+          notFound(res);
+          return;
+        }
+
+        await bestEffortGenerateUpcoming({ userId: patientId, daysAhead: 14 });
         res.json({ ok: true, schedule });
       } catch (err) {
         badRequest(res, toErrorMessage(err));
@@ -1513,7 +1782,15 @@ export function registerReminderRoutes(params: {
       });
 
       const body = (req as any).body ?? {};
-      // Caregiver create currently does not accept media keys (they require patient drive uploads).
+
+      const photoKey =
+        typeof body.photoKey === "string" ? body.photoKey.trim() : "";
+      const voiceNoteKey =
+        typeof body.voiceNoteKey === "string" ? body.voiceNoteKey.trim() : "";
+      if (photoKey) assertKeyInUserDrive({ userId: patientId, key: photoKey });
+      if (voiceNoteKey)
+        assertKeyInUserDrive({ userId: patientId, key: voiceNoteKey });
+
       const created = await remindersDb.createMedicine({
         userId: patientId,
         actorUserId: me.id,
@@ -1534,8 +1811,16 @@ export function registerReminderRoutes(params: {
         instructionTag: body.instructionTag,
         note: body.note ?? null,
         photoUrl: null,
-        photoKey: null,
-        voiceNoteKey: null,
+        photoKey: photoKey || null,
+        voiceNoteKey: voiceNoteKey || null,
+        voiceNoteFilename:
+          voiceNoteKey && typeof body.voiceNoteFilename === "string"
+            ? body.voiceNoteFilename
+            : null,
+        voiceNoteContentType:
+          voiceNoteKey && typeof body.voiceNoteContentType === "string"
+            ? body.voiceNoteContentType
+            : null,
       });
 
       res.json({ ok: true, medicine: created });

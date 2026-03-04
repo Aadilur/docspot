@@ -171,6 +171,21 @@ export async function addObjectAttachment(params: {
   return res.attachment;
 }
 
+export async function deleteObjectAttachment(params: {
+  groupId: string;
+  reportId: string;
+  attachmentId: string;
+}): Promise<void> {
+  await apiFetch<{ ok: true }>(
+    API_PATHS.meObjectReportAttachmentById(
+      params.groupId,
+      params.reportId,
+      params.attachmentId,
+    ),
+    { method: "DELETE" },
+  );
+}
+
 export async function deleteObjectGroup(groupId: string): Promise<void> {
   await apiFetch<{ ok: true }>(API_PATHS.meObjectGroupById(groupId), {
     method: "DELETE",

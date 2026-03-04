@@ -74,15 +74,15 @@ export default function SharedInvoiceGroupPage() {
   }, [token]);
 
   return (
-    <div className="min-h-dvh">
+    <div className="min-h-dvh bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-50">
       <Header />
 
-      <main className="mx-auto w-full max-w-5xl px-5 pb-12 pt-6">
-        <section className="rounded-2xl border border-zinc-200/70 bg-white p-5 shadow-sm dark:border-zinc-800/70 dark:bg-zinc-950">
+      <main className="mx-auto w-full max-w-5xl px-4 pb-12 pt-6 sm:px-5">
+        <section className="rounded-2xl border border-brand-200 bg-brand-50 p-5 shadow-sm dark:border-brand-900/50 dark:bg-brand-950/30">
           <div className="flex items-start gap-3">
             <div className="mt-0.5">
               <ShieldAlert
-                className="h-5 w-5 text-zinc-600 dark:text-zinc-300"
+                className="h-5 w-5 text-brand-700 dark:text-brand-200"
                 aria-hidden="true"
               />
             </div>
@@ -90,7 +90,7 @@ export default function SharedInvoiceGroupPage() {
               <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
                 {t("sharedView")}
               </div>
-              <div className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
+              <div className="mt-1 text-sm text-zinc-700 dark:text-zinc-200">
                 {expiresAt
                   ? t("linkExpiresAt", { value: formatDateTime(expiresAt) })
                   : t("shareHint")}
@@ -115,11 +115,11 @@ export default function SharedInvoiceGroupPage() {
           </div>
         ) : (
           <>
-            <section className="mt-5 rounded-2xl border border-zinc-200/70 bg-white p-5 shadow-sm dark:border-zinc-800/70 dark:bg-zinc-950">
+            <section className="mt-5 rounded-2xl border border-zinc-200/70 bg-white p-6 shadow-sm dark:border-zinc-800/70 dark:bg-zinc-950">
               <div className="text-xs font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
                 {t("invoiceDetails")}
               </div>
-              <div className="mt-2 truncate text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+              <div className="mt-2 break-words text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
                 {group.title || sortedReports[0]?.title || t("invoiceDetails")}
               </div>
               <div className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
@@ -128,123 +128,159 @@ export default function SharedInvoiceGroupPage() {
             </section>
 
             <section className="mt-5 grid gap-4">
-              {sortedReports.map((r) => (
-                <div
-                  key={r.id}
-                  className="rounded-2xl border border-zinc-200/70 bg-white p-5 shadow-sm dark:border-zinc-800/70 dark:bg-zinc-950"
-                >
-                  <div className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                    {r.title}
-                  </div>
-                  <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                    {t("updatedAt", { value: formatDateTime(r.updatedAt) })}
-                  </div>
+              {sortedReports.map((r, idx) => {
+                const reportLabel = `Report ${String(idx + 1).padStart(2, "0")}`;
 
-                  <div className="mt-3 grid gap-1 text-sm text-zinc-700 dark:text-zinc-200">
-                    <div>
-                      <span className="font-semibold">{t("issueDate")}:</span>{" "}
-                      {r.issueDate || "—"}
-                    </div>
-                    <div>
-                      <span className="font-semibold">
-                        {t("nextAppointment")}:
-                      </span>{" "}
-                      {r.nextAppointment || "—"}
-                    </div>
-                    <div>
-                      <span className="font-semibold">{t("doctor")}:</span>{" "}
-                      {r.doctor || "—"}
-                    </div>
-                  </div>
-
-                  {r.textNote ? (
-                    <div className="mt-3 rounded-2xl border border-zinc-200 bg-white p-4 text-sm text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200">
-                      {r.textNote}
-                    </div>
-                  ) : null}
-
-                  <div className="mt-4">
-                    <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                      {t("attachments")}
-                    </div>
-
-                    {r.attachments.length === 0 ? (
-                      <div className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
-                        {t("noAttachments")}
+                return (
+                  <div key={r.id} className="grid gap-3">
+                    {sortedReports.length > 1 ? (
+                      <div className="flex items-center gap-3">
+                        <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
+                        <div className="rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-semibold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200">
+                          {reportLabel}
+                        </div>
+                        <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
                       </div>
-                    ) : (
-                      <div className="mt-3 grid gap-3">
-                        {r.attachments.map((a) => (
-                          <div
-                            key={a.id}
-                            className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950"
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <div className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                                  {a.filename || a.key}
-                                </div>
-                                <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                                  {(a.contentType || "").toLowerCase()}
-                                </div>
-                              </div>
+                    ) : null}
 
-                              {a.url ? (
-                                <a
-                                  href={a.url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-brand-200 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900 dark:focus:ring-brand-900"
-                                  aria-label={t("open")}
-                                >
-                                  <ExternalLink
-                                    className="h-4 w-4"
-                                    aria-hidden="true"
-                                  />
-                                </a>
-                              ) : null}
-                            </div>
-
-                            {a.url &&
-                            (a.contentType || "").startsWith("image/") ? (
-                              <img
-                                src={a.url}
-                                alt={a.filename || "attachment"}
-                                className="mt-3 max-h-72 w-full rounded-xl object-contain"
-                                loading="lazy"
-                              />
-                            ) : null}
-
-                            {a.url && a.kind === "audio" ? (
-                              <audio
-                                className="mt-3 w-full"
-                                controls
-                                src={a.url}
-                              />
-                            ) : null}
-
-                            {a.url &&
-                            (a.contentType || "") === "application/pdf" ? (
-                              <a
-                                href={a.url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="mt-3 inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-brand-200 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900 dark:focus:ring-brand-900"
-                              >
-                                {t("openPdf")}
-                                <ExternalLink
-                                  className="h-4 w-4"
-                                  aria-hidden="true"
-                                />
-                              </a>
-                            ) : null}
+                    <div className="rounded-2xl border border-zinc-200/70 bg-white p-6 shadow-sm dark:border-zinc-800/70 dark:bg-zinc-950">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <div className="break-words text-base font-semibold text-zinc-900 dark:text-zinc-50">
+                            {r.title}
                           </div>
-                        ))}
+                          <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                            {t("updatedAt", {
+                              value: formatDateTime(r.updatedAt),
+                            })}
+                          </div>
+                        </div>
                       </div>
-                    )}
+
+                      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
+                          <div className="text-xs font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
+                            {t("issueDate")}
+                          </div>
+                          <div className="mt-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                            {r.issueDate || "—"}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
+                          <div className="text-xs font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
+                            {t("nextAppointment")}
+                          </div>
+                          <div className="mt-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                            {r.nextAppointment || "—"}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
+                          <div className="text-xs font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
+                            {t("doctor")}
+                          </div>
+                          <div className="mt-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                            {r.doctor || "—"}
+                          </div>
+                        </div>
+                      </div>
+
+                      {r.textNote ? (
+                        <div className="mt-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-200">
+                          {r.textNote}
+                        </div>
+                      ) : null}
+
+                      <div className="mt-5">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                            {t("attachments")}
+                          </div>
+                          <span className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-xs font-semibold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200">
+                            {r.attachments.length}
+                          </span>
+                        </div>
+
+                        {r.attachments.length === 0 ? (
+                          <div className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
+                            {t("noAttachments")}
+                          </div>
+                        ) : (
+                          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            {r.attachments.map((a) => (
+                              <div
+                                key={a.id}
+                                className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <div className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                                      {a.filename || a.key}
+                                    </div>
+                                    <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                                      {(a.contentType || "").toLowerCase()}
+                                    </div>
+                                  </div>
+
+                                  {a.url ? (
+                                    <a
+                                      href={a.url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-brand-200 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900 dark:focus:ring-brand-900"
+                                      aria-label={t("open")}
+                                    >
+                                      <ExternalLink
+                                        className="h-4 w-4"
+                                        aria-hidden="true"
+                                      />
+                                    </a>
+                                  ) : null}
+                                </div>
+
+                                {a.url &&
+                                (a.contentType || "").startsWith("image/") ? (
+                                  <div className="mt-3 overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/40">
+                                    <img
+                                      src={a.url}
+                                      alt={a.filename || "attachment"}
+                                      className="max-h-72 w-full object-contain"
+                                      loading="lazy"
+                                    />
+                                  </div>
+                                ) : null}
+
+                                {a.url && a.kind === "audio" ? (
+                                  <audio
+                                    className="mt-3 w-full"
+                                    controls
+                                    src={a.url}
+                                  />
+                                ) : null}
+
+                                {a.url &&
+                                (a.contentType || "") === "application/pdf" ? (
+                                  <a
+                                    href={a.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="mt-3 inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-brand-200 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900 dark:focus:ring-brand-900"
+                                  >
+                                    {t("openPdf")}
+                                    <ExternalLink
+                                      className="h-4 w-4"
+                                      aria-hidden="true"
+                                    />
+                                  </a>
+                                ) : null}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </section>
           </>
         )}

@@ -188,6 +188,21 @@ export async function addPrescriptionAttachment(params: {
   return res.attachment;
 }
 
+export async function deletePrescriptionAttachment(params: {
+  groupId: string;
+  reportId: string;
+  attachmentId: string;
+}): Promise<void> {
+  await apiFetch<{ ok: true }>(
+    API_PATHS.mePrescriptionReportAttachmentById(
+      params.groupId,
+      params.reportId,
+      params.attachmentId,
+    ),
+    { method: "DELETE" },
+  );
+}
+
 export async function deletePrescriptionGroup(groupId: string): Promise<void> {
   await apiFetch<{ ok: true }>(API_PATHS.mePrescriptionGroupById(groupId), {
     method: "DELETE",
