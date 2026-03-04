@@ -35,6 +35,12 @@ export function AdGateModal({ open, seconds = 14, onClose }: Props) {
 
   useEffect(() => {
     if (!open) return;
+    if (locked) return;
+    onClose();
+  }, [open, locked, onClose]);
+
+  useEffect(() => {
+    if (!open) return;
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !locked) onClose();
@@ -54,7 +60,7 @@ export function AdGateModal({ open, seconds = 14, onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4"
       role="dialog"
       aria-modal="true"
       aria-label={t("adSponsored")}
@@ -69,7 +75,7 @@ export function AdGateModal({ open, seconds = 14, onClose }: Props) {
         aria-label={t("close")}
       />
 
-      <div className="relative w-full max-w-md rounded-2xl border border-zinc-200/70 bg-white p-5 shadow-xl dark:border-zinc-800/70 dark:bg-zinc-950">
+      <div className="relative w-full max-w-md max-h-[85dvh] overflow-y-auto rounded-2xl border border-zinc-200/70 bg-white p-5 shadow-xl dark:border-zinc-800/70 dark:bg-zinc-950">
         <div className="flex items-start justify-between gap-3">
           <div className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
             {t("adSponsored")}
