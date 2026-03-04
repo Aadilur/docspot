@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { useState } from "react";
 
 import { useAdsEnabled } from "./useAdsEnabled";
 import { AdSenseSlot } from "./AdSenseSlot";
@@ -10,8 +11,10 @@ export function NativeAdCard(props: {
 }) {
   const { enabled } = useAdsEnabled();
   const { t } = useTranslation();
+  const [filled, setFilled] = useState<boolean | null>(null);
 
   if (!enabled || !props.slot) return null;
+  if (filled === false) return null;
 
   return (
     <div
@@ -32,7 +35,11 @@ export function NativeAdCard(props: {
           .filter(Boolean)
           .join(" ")}
       >
-        <AdSenseSlot slot={props.slot} />
+        <AdSenseSlot
+          slot={props.slot}
+          onFilledChange={setFilled}
+          unfilledTimeoutMs={6000}
+        />
       </div>
     </div>
   );

@@ -87,7 +87,7 @@ export function AdGateModal({ open, seconds = 14, onClose }: Props) {
           ) : null}
         </div>
 
-        <div className="mt-4">
+        <div className="mt-4 empty:hidden">
           <ShareGateNativeAd />
         </div>
 

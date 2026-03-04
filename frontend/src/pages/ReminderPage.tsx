@@ -874,7 +874,7 @@ function TimelineGroupCard(props: {
                     type="button"
                     onClick={() => void props.onTaken(item.id)}
                     disabled={busy}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 sm:flex-1"
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50 sm:flex-1"
                   >
                     <Check className="h-4 w-4" />
                     {t("Taken")}

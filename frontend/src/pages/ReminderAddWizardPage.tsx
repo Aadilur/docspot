@@ -1276,7 +1276,7 @@ export default function ReminderAddWizardPage() {
           ) : (
             <button
               type="button"
-              className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-5 py-3 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
               onClick={() => {
                 authRequired.requireAuth(() => onSave({ skipAuthCheck: true }));
               }}

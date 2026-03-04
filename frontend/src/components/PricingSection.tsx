@@ -90,7 +90,7 @@ export default function PricingSection() {
           {/* Free Plan */}
           <div className="rounded-2xl border border-zinc-200/70 bg-white/70 p-6 shadow-sm backdrop-blur-sm dark:border-zinc-800/70 dark:bg-zinc-950/30 flex flex-col relative">
             {user && isFreeTier && (
-              <div className="absolute -top-3 left-6 inline-flex rounded-full bg-blue-600 px-3 py-1 text-xs font-semibold text-white shadow-sm">
+              <div className="absolute -top-3 left-6 inline-flex rounded-full bg-brand-600 px-3 py-1 text-xs font-semibold text-white shadow-sm">
                 {t("pricingCurrentPlan")}
               </div>
             )}
@@ -184,7 +184,7 @@ export default function PricingSection() {
           {/* Pro Plan */}
           <div className="rounded-2xl border border-brand-500/40 bg-gradient-to-br from-brand-600/10 to-brand-700/5 p-6 shadow-md backdrop-blur-sm dark:border-brand-400/30 dark:from-brand-400/5 dark:to-brand-500/5 flex flex-col ring-1 ring-brand-500/20 relative">
             {user && isProTier && (
-              <div className="absolute -top-3 left-6 inline-flex rounded-full bg-blue-600 px-3 py-1 text-xs font-semibold text-white shadow-sm">
+              <div className="absolute -top-3 left-6 inline-flex rounded-full bg-brand-600 px-3 py-1 text-xs font-semibold text-white shadow-sm">
                 {t("pricingCurrentPlan")}
               </div>
             )}

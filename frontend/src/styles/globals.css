@@ -23,3 +23,18 @@
     @apply text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200;
   }
 }
+
+@keyframes ds-float {
+  0%,
+  100% {
+    transform: translate3d(var(--ds-x0, 0px), var(--ds-y0, 0px), 0)
+      scale(var(--ds-scale0, 1)) rotate(var(--ds-rot0, 0deg));
+    opacity: var(--ds-op0, 0.12);
+  }
+
+  50% {
+    transform: translate3d(var(--ds-x1, 0px), var(--ds-y1, 0px), 0)
+      scale(var(--ds-scale1, 1)) rotate(var(--ds-rot1, 0deg));
+    opacity: var(--ds-op1, 0.22);
+  }
+}

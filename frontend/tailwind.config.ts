@@ -7,7 +7,7 @@ export default {
   theme: {
     extend: {
       colors: {
-        brand: colors.sky,
+        brand: colors.orange,
         ink: colors.zinc,
       },
     },

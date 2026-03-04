@@ -28,7 +28,7 @@ export default function Footer() {
   return (
     <footer className="border-t border-zinc-200/70 bg-white/50 py-12 text-xs text-zinc-500 backdrop-blur-sm dark:border-zinc-800/70 dark:bg-zinc-950/30 dark:text-zinc-400">
       <div className="mx-auto w-full max-w-5xl px-5">
-        <div className="mb-8">
+        <div className="mb-8 empty:hidden">
           <FooterNativeAd />
         </div>
 

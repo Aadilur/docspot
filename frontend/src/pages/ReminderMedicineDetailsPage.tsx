@@ -1033,7 +1033,7 @@ export default function ReminderMedicineDetailsPage() {
                               void onMarkTaken(derived.nextDose!.id)
                             }
                             disabled={!!intakeBusyById[derived.nextDose!.id]}
-                            className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                            className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
                           >
                             <Check className="h-4 w-4" aria-hidden="true" />
                             {t("Taken")}
@@ -1435,7 +1435,7 @@ export default function ReminderMedicineDetailsPage() {
                                             void onMarkTaken(r.e.id)
                                           }
                                           disabled={!!intakeBusyById[r.e.id]}
-                                          className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                                          className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
                                         >
                                           <Check
                                             className="h-4 w-4"
@@ -1910,7 +1910,7 @@ export default function ReminderMedicineDetailsPage() {
                   type="button"
                   onClick={() => void onSaveEdit()}
                   disabled={editBusy}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-200 disabled:opacity-60 dark:focus:ring-emerald-900"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-200 disabled:opacity-60 dark:focus:ring-brand-900"
                 >
                   <Check className="h-4 w-4" />
                   {editBusy ? t("Saving...") : t("Save")}
