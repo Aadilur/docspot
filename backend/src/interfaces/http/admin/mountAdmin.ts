@@ -7,6 +7,11 @@ import { PutObjectCommand } from "@aws-sdk/client-s3";
 
 import { getConfig } from "../../../infrastructure/config/env";
 import { ensureSchema } from "../../../infrastructure/db/schema";
+import { getPostgresPool } from "../../../infrastructure/db/postgres";
+import {
+  applyObjectDeletes,
+  cancelUploadReservations,
+} from "../../../infrastructure/db/storage";
 import {
   createPresignedGetUrl,
   deleteObject,
@@ -241,6 +246,22 @@ function adminActionBeforeNew() {
   };
 }
 
+function adminActionBeforeNewCareerApplicationMessage() {
+  const base = adminActionBeforeNew();
+  return async (request: any) => {
+    const req = await base(request);
+    if (req?.method?.toLowerCase?.() !== "post") return req;
+
+    const payload = { ...(req.payload ?? {}) };
+    payload.sender_role = "admin";
+    if (payload.sender_user_id === "" || payload.sender_user_id == null) {
+      payload.sender_user_id = null;
+    }
+
+    return { ...req, payload };
+  };
+}
+
 function adminActionBeforeEdit() {
   return async (request: any) => {
     if (request?.method?.toLowerCase?.() !== "post") return request;
@@ -254,6 +275,56 @@ function adminActionBeforeEdit() {
     }
 
     return { ...request, payload };
+  };
+}
+
+function coerceBoolean(value: unknown): boolean | null {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  if (typeof value !== "string") return null;
+  const v = value.trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(v)) return true;
+  if (["0", "false", "no", "off"].includes(v)) return false;
+  return null;
+}
+
+function adminActionBeforeNewCareerJob() {
+  const base = adminActionBeforeNew();
+  return async (request: any) => {
+    const req = await base(request);
+    if (req?.method?.toLowerCase?.() !== "post") return req;
+
+    const payload = { ...(req.payload ?? {}) };
+    const now = new Date().toISOString();
+    const isPublished = coerceBoolean(payload.is_published);
+
+    if (isPublished === true) {
+      if (!payload.published_at) payload.published_at = now;
+    } else if (isPublished === false) {
+      payload.published_at = null;
+    }
+
+    return { ...req, payload };
+  };
+}
+
+function adminActionBeforeEditCareerJob() {
+  const base = adminActionBeforeEdit();
+  return async (request: any) => {
+    const req = await base(request);
+    if (req?.method?.toLowerCase?.() !== "post") return req;
+
+    const payload = { ...(req.payload ?? {}) };
+    const now = new Date().toISOString();
+    const isPublished = coerceBoolean(payload.is_published);
+
+    if (isPublished === true) {
+      if (!payload.published_at) payload.published_at = now;
+    } else if (isPublished === false) {
+      payload.published_at = null;
+    }
+
+    return { ...req, payload };
   };
 }
 
@@ -464,6 +535,16 @@ export async function mountAdmin(app: Express): Promise<void> {
   const banners = new Resource(metadata.table("cms_banners"));
   const logos = new Resource(metadata.table("cms_logos"));
   const users = new Resource(metadata.table("users"));
+  const careerJobs = new Resource(metadata.table("career_jobs"));
+  const careerJobTranslations = new Resource(
+    metadata.table("career_job_translations"),
+  );
+  const careerApplications = new Resource(
+    metadata.table("career_applications"),
+  );
+  const careerApplicationMessages = new Resource(
+    metadata.table("career_application_messages"),
+  );
 
   const adminJs = new AdminJS({
     rootPath: "/admin",
@@ -556,6 +637,7 @@ export async function mountAdmin(app: Express): Promise<void> {
               },
             },
             email: {
+              isTitle: true,
               isVisible: {
                 list: true,
                 filter: true,
@@ -578,6 +660,495 @@ export async function mountAdmin(app: Express): Promise<void> {
               ],
             },
             metadata: { type: "textarea" },
+          },
+        },
+      },
+      {
+        resource: careerJobs,
+        options: {
+          navigation: { name: "Careers", icon: "Briefcase" },
+          actions: {
+            new: { before: adminActionBeforeNewCareerJob() },
+            edit: { before: adminActionBeforeEditCareerJob() },
+            editDescription: {
+              actionType: "record",
+              icon: "Edit",
+              label: "Edit Job Description",
+              handler: async (request: any, _res: any, context: any) => {
+                const recordId =
+                  context?.record?.params?.id ??
+                  request?.params?.recordId ??
+                  request?.params?.id;
+                if (!recordId) {
+                  return {
+                    notice: {
+                      type: "error",
+                      message: "Missing record id",
+                    },
+                  };
+                }
+
+                const pg = getPostgresPool();
+                const jobRes = await pg.query(
+                  `select id, slug, default_locale from career_jobs where id = $1::uuid limit 1`,
+                  [recordId],
+                );
+                const jobRow = (jobRes.rows ?? [])[0];
+                if (!jobRow) {
+                  return {
+                    notice: { type: "error", message: "Not found" },
+                    redirectUrl: "/admin/resources/career_jobs",
+                  };
+                }
+
+                const defaultLocaleRaw =
+                  typeof jobRow.default_locale === "string"
+                    ? jobRow.default_locale.trim()
+                    : "";
+                const preferredLocale = defaultLocaleRaw || "en";
+
+                const existingPreferred = await pg.query(
+                  `select id from career_job_translations where job_id = $1::uuid and locale = $2::text limit 1`,
+                  [recordId, preferredLocale],
+                );
+                let translationId: string | null =
+                  typeof (existingPreferred.rows ?? [])[0]?.id === "string"
+                    ? String(existingPreferred.rows[0].id)
+                    : null;
+
+                if (!translationId) {
+                  const anyExisting = await pg.query(
+                    `select id from career_job_translations where job_id = $1::uuid order by updated_at desc limit 1`,
+                    [recordId],
+                  );
+                  translationId =
+                    typeof (anyExisting.rows ?? [])[0]?.id === "string"
+                      ? String(anyExisting.rows[0].id)
+                      : null;
+                }
+
+                if (!translationId) {
+                  translationId = randomUUID();
+                  const title =
+                    typeof jobRow.slug === "string" && jobRow.slug.trim()
+                      ? jobRow.slug.trim()
+                      : "Untitled";
+
+                  await pg.query(
+                    `insert into career_job_translations (id, job_id, locale, title)
+                     values ($1::uuid, $2::uuid, $3::text, $4::text)`,
+                    [translationId, recordId, preferredLocale, title],
+                  );
+                }
+
+                return {
+                  redirectUrl: `/admin/resources/career_job_translations/records/${encodeURIComponent(
+                    translationId,
+                  )}/edit`,
+                };
+              },
+            },
+          },
+          listProperties: [
+            "slug",
+            "department",
+            "location",
+            "employment_type",
+            "experience_level",
+            "is_published",
+            "updated_at",
+          ],
+          filterProperties: [
+            "slug",
+            "department",
+            "location",
+            "employment_type",
+            "experience_level",
+            "is_published",
+          ],
+          editProperties: [
+            "slug",
+            "department",
+            "location",
+            "employment_type",
+            "experience_level",
+            "apply_url",
+            "apply_email",
+            "is_published",
+          ],
+          showProperties: [
+            "id",
+            "slug",
+            "department",
+            "location",
+            "employment_type",
+            "experience_level",
+            "apply_url",
+            "apply_email",
+            "is_published",
+            "created_at",
+            "updated_at",
+          ],
+          properties: {
+            id: {
+              isVisible: {
+                list: false,
+                filter: false,
+                show: true,
+                edit: false,
+              },
+            },
+            created_at: {
+              isVisible: {
+                list: false,
+                filter: false,
+                show: true,
+                edit: false,
+              },
+            },
+            updated_at: {
+              isVisible: {
+                list: true,
+                filter: false,
+                show: true,
+                edit: false,
+              },
+            },
+            slug: {
+              isTitle: true,
+            },
+          },
+        },
+      },
+      {
+        resource: careerJobTranslations,
+        options: {
+          navigation: { name: "Careers", icon: "Briefcase" },
+          actions: {
+            new: { before: adminActionBeforeNew() },
+            edit: { before: adminActionBeforeEdit() },
+          },
+          listProperties: ["title", "job_id", "locale", "updated_at"],
+          filterProperties: ["job_id", "locale", "title"],
+          editProperties: ["job_id", "locale", "title", "description"],
+          showProperties: [
+            "id",
+            "job_id",
+            "locale",
+            "title",
+            "summary",
+            "description",
+            "responsibilities",
+            "requirements",
+            "benefits",
+            "created_at",
+            "updated_at",
+          ],
+          properties: {
+            id: {
+              isVisible: {
+                list: false,
+                filter: false,
+                show: true,
+                edit: false,
+              },
+            },
+            job_id: {
+              reference: "career_jobs",
+              label: "Job",
+            },
+            locale: {
+              description: "Examples: en, bn, en-US",
+            },
+            summary: {
+              type: "textarea",
+              isVisible: {
+                list: false,
+                filter: false,
+                show: false,
+                edit: false,
+              },
+            },
+            description: { type: "textarea", label: "Job description" },
+            responsibilities: {
+              type: "textarea",
+              isVisible: {
+                list: false,
+                filter: false,
+                show: false,
+                edit: false,
+              },
+            },
+            requirements: {
+              type: "textarea",
+              isVisible: {
+                list: false,
+                filter: false,
+                show: false,
+                edit: false,
+              },
+            },
+            benefits: {
+              type: "textarea",
+              isVisible: {
+                list: false,
+                filter: false,
+                show: false,
+                edit: false,
+              },
+            },
+            created_at: {
+              isVisible: {
+                list: false,
+                filter: false,
+                show: true,
+                edit: false,
+              },
+            },
+            updated_at: {
+              isVisible: {
+                list: true,
+                filter: false,
+                show: true,
+                edit: false,
+              },
+            },
+          },
+        },
+      },
+      {
+        resource: careerApplications,
+        options: {
+          navigation: { name: "Careers", icon: "Briefcase" },
+          actions: {
+            new: { isAccessible: false, isVisible: false },
+            bulkDelete: { isAccessible: false, isVisible: false },
+            downloadCv: {
+              actionType: "record",
+              icon: "Download",
+              label: "Download CV",
+              isVisible: uploadsEnabled,
+              handler: async (_request: any, _res: any, context: any) => {
+                const cvKey =
+                  typeof context?.record?.params?.cv_key === "string"
+                    ? context.record.params.cv_key
+                    : "";
+
+                if (!uploadsEnabled) {
+                  return {
+                    notice: {
+                      type: "error",
+                      message: "Uploads are not enabled",
+                    },
+                  };
+                }
+
+                if (!cvKey) {
+                  return {
+                    notice: {
+                      type: "error",
+                      message: "No CV key found",
+                    },
+                  };
+                }
+
+                const { url } = await createPresignedGetUrl({
+                  key: cvKey,
+                  expiresInSeconds: 60 * 10,
+                });
+                return { redirectUrl: url };
+              },
+            },
+            delete: {
+              // Override delete to purge CV from storage as well.
+              handler: async (request: any, _res: any, context: any) => {
+                const recordId =
+                  context?.record?.params?.id ??
+                  request?.params?.recordId ??
+                  request?.params?.id;
+
+                if (!recordId) {
+                  return {
+                    notice: {
+                      type: "error",
+                      message: "Missing record id",
+                    },
+                  };
+                }
+
+                if (String(request?.method ?? "").toLowerCase() !== "post") {
+                  // Let AdminJS render its default confirmation UI.
+                  return {
+                    record: context?.record?.toJSON
+                      ? context.record.toJSON(context.currentAdmin)
+                      : undefined,
+                  };
+                }
+
+                const pg = getPostgresPool();
+                const appRes = await pg.query(
+                  `select id, user_id, cv_key from career_applications where id = $1::uuid limit 1`,
+                  [recordId],
+                );
+                const row = (appRes.rows ?? [])[0];
+                if (!row) {
+                  return {
+                    notice: { type: "error", message: "Not found" },
+                    redirectUrl: "/admin/resources/career_applications",
+                  };
+                }
+
+                const userId = String(row.user_id);
+                const cvKey = typeof row.cv_key === "string" ? row.cv_key : "";
+
+                if (cvKey) {
+                  // Best-effort storage cleanup.
+                  if (uploadsEnabled) {
+                    await deleteObject({ key: cvKey });
+                  }
+                  await cancelUploadReservations({ userId, keys: [cvKey] });
+                  await applyObjectDeletes({ userId, keys: [cvKey] });
+                }
+
+                await pg.query(
+                  `delete from career_applications where id = $1::uuid`,
+                  [recordId],
+                );
+
+                return {
+                  notice: {
+                    type: "success",
+                    message: "Application and CV deleted",
+                  },
+                  redirectUrl: "/admin/resources/career_applications",
+                };
+              },
+            },
+            edit: { before: adminActionBeforeEdit() },
+          },
+          listProperties: [
+            "job_id",
+            "user_id",
+            "status",
+            "user_message_limit",
+            "cv_filename",
+            "cv_size_bytes",
+            "created_at",
+            "updated_at",
+          ],
+          filterProperties: ["job_id", "user_id", "status"],
+          editProperties: ["status", "user_message_limit"],
+          showProperties: [
+            "id",
+            "job_id",
+            "user_id",
+            "message",
+            "status",
+            "user_message_limit",
+            "cv_key",
+            "cv_filename",
+            "cv_content_type",
+            "cv_size_bytes",
+            "created_at",
+            "updated_at",
+          ],
+          properties: {
+            id: {
+              isVisible: {
+                list: false,
+                filter: false,
+                show: true,
+                edit: false,
+              },
+            },
+            message: { type: "textarea" },
+            job_id: {
+              reference: "career_jobs",
+              label: "Job",
+            },
+            user_id: {
+              reference: "users",
+              label: "User",
+            },
+            user_message_limit: {
+              label: "User message limit",
+              description:
+                "Max number of chat messages the user can send (default 5).",
+            },
+            cv_key: {
+              isVisible: {
+                list: false,
+                filter: false,
+                show: true,
+                edit: false,
+              },
+            },
+            created_at: {
+              isVisible: { list: true, filter: false, show: true, edit: false },
+            },
+            updated_at: {
+              isVisible: { list: true, filter: false, show: true, edit: false },
+            },
+          },
+        },
+      },
+      {
+        resource: careerApplicationMessages,
+        options: {
+          navigation: { name: "Careers", icon: "Briefcase" },
+          actions: {
+            new: { before: adminActionBeforeNewCareerApplicationMessage() },
+            edit: { isAccessible: false, isVisible: false },
+          },
+          listProperties: [
+            "application_id",
+            "sender_role",
+            "message",
+            "created_at",
+          ],
+          filterProperties: ["application_id", "sender_role"],
+          editProperties: ["application_id", "message"],
+          showProperties: [
+            "id",
+            "application_id",
+            "sender_role",
+            "message",
+            "created_at",
+            "updated_at",
+          ],
+          properties: {
+            id: {
+              isVisible: {
+                list: false,
+                filter: false,
+                show: true,
+                edit: false,
+              },
+            },
+            message: { type: "textarea" },
+            application_id: {
+              reference: "career_applications",
+              label: "Application",
+            },
+            sender_user_id: {
+              isVisible: {
+                list: false,
+                filter: false,
+                show: false,
+                edit: false,
+              },
+            },
+            created_at: {
+              isVisible: { list: true, filter: false, show: true, edit: false },
+            },
+            updated_at: {
+              isVisible: {
+                list: false,
+                filter: false,
+                show: true,
+                edit: false,
+              },
+            },
           },
         },
       },

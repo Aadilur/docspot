@@ -529,6 +529,107 @@ export async function ensureSchema(): Promise<void> {
     "create index if not exists cms_logos_active_idx on cms_logos(is_active, updated_at desc);",
   );
 
+  // Careers / job posts (admin-managed; localized via translations table).
+  await pg.query(`
+    create table if not exists career_jobs (
+      id uuid primary key,
+      slug text not null,
+      department text,
+      location text,
+      employment_type text,
+      experience_level text,
+      apply_url text,
+      apply_email text,
+      default_locale text,
+      sort_order int not null default 0,
+      is_published boolean not null default false,
+      published_at timestamptz,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now(),
+      unique (slug)
+    );
+  `);
+  await pg.query(
+    "create index if not exists career_jobs_published_idx on career_jobs(is_published, sort_order asc, published_at desc nulls last, updated_at desc);",
+  );
+
+  await pg.query(`
+    create table if not exists career_job_translations (
+      id uuid primary key,
+      job_id uuid not null references career_jobs(id) on delete cascade,
+      locale text not null,
+      title text not null,
+      summary text,
+      description text,
+      responsibilities text,
+      requirements text,
+      benefits text,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now(),
+      unique (job_id, locale)
+    );
+  `);
+  await pg.query(
+    "create index if not exists career_job_translations_job_idx on career_job_translations(job_id, locale);",
+  );
+
+  // Career applications + chat (CV stored in user drive; counted in storage usage).
+  await pg.query(`
+    create table if not exists career_applications (
+      id uuid primary key,
+      job_id uuid not null references career_jobs(id) on delete cascade,
+      user_id uuid not null references users(id) on delete cascade,
+      message text,
+      status text not null default 'submitted',
+      user_message_limit int not null default 5,
+      cv_key text not null,
+      cv_filename text,
+      cv_content_type text,
+      cv_size_bytes bigint not null default 0,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+  `);
+  await pg.query(
+    "alter table career_applications add column if not exists message text;",
+  );
+  await pg.query(
+    "alter table career_applications add column if not exists user_message_limit int;",
+  );
+  await pg.query(
+    "update career_applications set user_message_limit = 5 where user_message_limit is null;",
+  );
+  await pg.query(
+    "alter table career_applications alter column user_message_limit set default 5;",
+  );
+  await pg.query(
+    "alter table career_applications alter column user_message_limit set not null;",
+  );
+  await pg.query(
+    "create index if not exists career_applications_job_idx on career_applications(job_id, created_at desc);",
+  );
+  await pg.query(
+    "create index if not exists career_applications_user_idx on career_applications(user_id, created_at desc);",
+  );
+  await pg.query(
+    "create index if not exists career_applications_status_idx on career_applications(status, created_at desc);",
+  );
+
+  await pg.query(`
+    create table if not exists career_application_messages (
+      id uuid primary key,
+      application_id uuid not null references career_applications(id) on delete cascade,
+      sender_role text not null default 'user',
+      sender_user_id uuid references users(id) on delete set null,
+      message text not null,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+  `);
+  await pg.query(
+    "create index if not exists career_application_messages_app_idx on career_application_messages(application_id, created_at asc);",
+  );
+
   // Medicine reminders.
   await pg.query(`
     create table if not exists medicines (

@@ -107,6 +107,19 @@ export default function Header() {
             {t("navAbout")}
           </NavLink>
           <NavLink
+            to="/careers"
+            className={({ isActive }) =>
+              [
+                "transition-colors hover:text-zinc-900 dark:hover:text-zinc-50",
+                isActive
+                  ? "font-semibold text-zinc-900 underline decoration-brand-500/80 underline-offset-8 dark:text-zinc-50"
+                  : "",
+              ].join(" ")
+            }
+          >
+            {t("navCareers")}
+          </NavLink>
+          <NavLink
             to="/contact"
             className={({ isActive }) =>
               [

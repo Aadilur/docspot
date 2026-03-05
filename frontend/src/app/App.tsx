@@ -1,10 +1,11 @@
-import { Suspense, lazy } from "react";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { Suspense, lazy, useEffect } from "react";
+import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
 
 import LandingPage from "../pages/LandingPage";
 
 const AboutPage = lazy(() => import("../pages/AboutPage"));
 const ContactPage = lazy(() => import("../pages/ContactPage"));
+const CareersPage = lazy(() => import("../pages/CareersPage"));
 const PricingPage = lazy(() => import("../pages/PricingPage"));
 const TermsPage = lazy(() => import("../pages/TermsPage"));
 const PrivacyPolicyPage = lazy(() => import("../pages/PrivacyPolicyPage"));
@@ -55,9 +56,20 @@ const SharedObjectGroupPage = lazy(
   () => import("../pages/SharedObjectGroupPage"),
 );
 
+function ScrollToTop() {
+  const location = useLocation();
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [location.pathname, location.search]);
+
+  return null;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <Suspense
         fallback={
           <div className="mx-auto w-full max-w-5xl px-5 py-10 text-sm text-zinc-600 dark:text-zinc-300">
@@ -69,6 +81,7 @@ export default function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/contact" element={<ContactPage />} />
+          <Route path="/careers" element={<CareersPage />} />
           <Route path="/pricing" element={<PricingPage />} />
           <Route path="/terms-and-conditions" element={<TermsPage />} />
           <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />

@@ -188,3 +188,10 @@ Caregiver read-only (accepted link required):
 
 - `GET /caregiver/medicines?patientId=<uuid>&limit=50&offset=0`
 - `GET /caregiver/timeline/today?patientId=<uuid>&date=YYYY-MM-DD`
+
+## 11) Careers (public)
+
+Job posts are managed in the backend (DB + AdminJS) and served in the requested locale.
+
+- `GET /careers/jobs?locale=<lang>` — list published jobs (localized; falls back when translation is missing)
+- `GET /careers/jobs/:slug?locale=<lang>` — get a published job by slug (localized)
