@@ -2,16 +2,19 @@ import type { Express, Request, Response } from "express";
 import express from "express";
 import { randomUUID } from "crypto";
 import fs from "node:fs";
+import path from "node:path";
 
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 
 import { getConfig } from "../../../infrastructure/config/env";
 import { ensureSchema } from "../../../infrastructure/db/schema";
 import { getPostgresPool } from "../../../infrastructure/db/postgres";
+import * as careerApplicationsDb from "../../../infrastructure/db/careerApplications";
 import {
   applyObjectDeletes,
   cancelUploadReservations,
 } from "../../../infrastructure/db/storage";
+import { upsertUser } from "../../../infrastructure/db/users";
 import {
   createPresignedGetUrl,
   deleteObject,
@@ -332,6 +335,24 @@ function jsonError(res: Response, status: number, message: string) {
   res.status(status).json({ ok: false, error: message });
 }
 
+function clearAdminJsBundlerCacheIfDev(): void {
+  if (process.env.NODE_ENV === "production") return;
+
+  const dir = process.env.ADMIN_JS_TMP_DIR || ".adminjs";
+  const absDir = path.isAbsolute(dir) ? dir : path.join(process.cwd(), dir);
+  for (const filename of ["bundle.js", "entry.js"]) {
+    try {
+      fs.rmSync(path.join(absDir, filename));
+    } catch (e) {
+      const anyErr = e as any;
+      if (anyErr?.code !== "ENOENT") {
+        // eslint-disable-next-line no-console
+        console.warn("admin: failed to clear bundler cache", anyErr);
+      }
+    }
+  }
+}
+
 export async function mountAdmin(app: Express): Promise<void> {
   const startMs = Date.now();
   // eslint-disable-next-line no-console
@@ -363,7 +384,17 @@ export async function mountAdmin(app: Express): Promise<void> {
 
   const uploadsEnabled = !!getConfig().s3;
 
-  let componentLoader: InstanceType<typeof ComponentLoader> | undefined;
+  const componentLoader = new ComponentLoader();
+  clearAdminJsBundlerCacheIfDev();
+
+  const careerApplicationChatComponent = componentLoader.add(
+    "CareerApplicationChat",
+    path.join(__dirname, "./components/CareerApplicationChat"),
+  );
+  const careerApplicationDownloadCvComponent = componentLoader.add(
+    "CareerApplicationDownloadCv",
+    path.join(__dirname, "./components/CareerApplicationDownloadCv"),
+  );
   let postCoverUpload: any | undefined;
   let testimonialAvatarUpload: any | undefined;
   let bannerImageUpload: any | undefined;
@@ -403,7 +434,6 @@ export async function mountAdmin(app: Express): Promise<void> {
       }
     }
 
-    componentLoader = new ComponentLoader();
     const uploadProvider = new DocspotS3UploadProvider();
 
     postCoverUpload = uploadFileFeature({
@@ -548,10 +578,7 @@ export async function mountAdmin(app: Express): Promise<void> {
 
   const adminJs = new AdminJS({
     rootPath: "/admin",
-    assets: {
-      scripts: ["/admin/careers-live-chat.js"],
-    },
-    ...(componentLoader ? { componentLoader } : {}),
+    componentLoader,
     resources: [
       {
         resource: users,
@@ -745,6 +772,7 @@ export async function mountAdmin(app: Express): Promise<void> {
                 }
 
                 return {
+                  record: context.record.toJSON(context.currentAdmin),
                   redirectUrl: `/admin/resources/career_job_translations/records/${encodeURIComponent(
                     translationId,
                   )}/edit`,
@@ -930,36 +958,172 @@ export async function mountAdmin(app: Express): Promise<void> {
               actionType: "record",
               icon: "Chat",
               label: "Open Chat",
+              component: careerApplicationChatComponent,
               handler: async (request: any, _res: any, context: any) => {
-                const recordId =
-                  context?.record?.params?.id ??
-                  request?.params?.recordId ??
-                  request?.params?.id;
-                if (!recordId) {
+                const recordJson = context?.record?.toJSON
+                  ? context.record.toJSON(context.currentAdmin)
+                  : undefined;
+
+                try {
+                  const recordId =
+                    context?.record?.params?.id ??
+                    request?.params?.recordId ??
+                    request?.params?.id;
+                  const applicationId =
+                    typeof recordId === "string" ? recordId.trim() : "";
+
+                  if (!applicationId) {
+                    return {
+                      record: recordJson,
+                      notice: {
+                        type: "error",
+                        message: "Missing record id",
+                      },
+                    };
+                  }
+
+                  const method = String(request?.method ?? "get").toLowerCase();
+
+                  if (method === "post") {
+                    const payload = request?.payload ?? {};
+                    const op =
+                      typeof payload?.op === "string" ? payload.op : "";
+
+                    const hasMessageField =
+                      Object.prototype.hasOwnProperty.call(payload, "message");
+
+                    const messageRaw =
+                      typeof payload?.message === "string"
+                        ? payload.message
+                        : "";
+                    const message = messageRaw.trim();
+
+                    // List messages.
+                    if (!hasMessageField || op === "list") {
+                      const messages =
+                        await careerApplicationsDb.listCareerApplicationMessages(
+                          {
+                            applicationId,
+                            afterCreatedAt: null,
+                            limit: 200,
+                          },
+                        );
+
+                      return {
+                        record: recordJson,
+                        messages,
+                      };
+                    }
+
+                    // Send message.
+                    if (!message) {
+                      return {
+                        record: recordJson,
+                        notice: {
+                          type: "error",
+                          message: "Message is required",
+                        },
+                      };
+                    }
+                    if (message.length > 4000) {
+                      return {
+                        record: recordJson,
+                        notice: {
+                          type: "error",
+                          message: "Message is too long",
+                        },
+                      };
+                    }
+
+                    // Ensure application exists.
+                    const app =
+                      await careerApplicationsDb.getCareerApplicationById(
+                        applicationId,
+                      );
+                    if (!app) {
+                      return {
+                        record: recordJson,
+                        notice: {
+                          type: "error",
+                          message: "Application not found",
+                        },
+                      };
+                    }
+
+                    // The entire admin router is protected by requireAdminSession, which sets req.auth.
+                    const auth = (request as any)?.auth ?? null;
+                    const uid =
+                      typeof auth?.uid === "string" ? auth.uid.trim() : "";
+
+                    let senderUserId: string | null = null;
+                    if (uid) {
+                      const me = await upsertUser({
+                        provider: "firebase",
+                        providerUserId: uid,
+                        email:
+                          typeof auth?.email === "string" ? auth.email : null,
+                        displayName:
+                          typeof auth?.name === "string" ? auth.name : null,
+                        photoUrl: null,
+                        locale:
+                          typeof auth?.locale === "string" ? auth.locale : null,
+                        metadata: {
+                          firebase: { uid },
+                          adminPortal: true,
+                        },
+                      });
+                      senderUserId = me.id;
+                    }
+
+                    const created =
+                      await careerApplicationsDb.addCareerApplicationMessage({
+                        applicationId,
+                        senderRole: "admin",
+                        senderUserId,
+                        message,
+                      });
+
+                    return {
+                      record: recordJson,
+                      message: created,
+                    };
+                  }
+
                   return {
+                    record: recordJson,
+                  };
+                } catch (e) {
+                  // eslint-disable-next-line no-console
+                  console.error("admin: openChat failed", e);
+                  const message = e instanceof Error ? e.message : String(e);
+                  return {
+                    record: recordJson,
                     notice: {
                       type: "error",
-                      message: "Missing record id",
+                      message: message || "Failed to load chat",
                     },
                   };
                 }
-
-                const qs = new URLSearchParams();
-                qs.set("filters.application_id", String(recordId));
-                qs.set("sortBy", "created_at");
-                qs.set("direction", "asc");
-
-                return {
-                  redirectUrl: `/admin/resources/career_application_messages?${qs.toString()}`,
-                };
               },
             },
             downloadCv: {
               actionType: "record",
               icon: "Download",
               label: "Download CV",
+              component: careerApplicationDownloadCvComponent,
               isVisible: uploadsEnabled,
-              handler: async (_request: any, _res: any, context: any) => {
+              handler: async (request: any, _res: any, context: any) => {
+                const recordJson = context?.record?.toJSON
+                  ? context.record.toJSON(context.currentAdmin)
+                  : undefined;
+
+                const method = String(request?.method ?? "get").toLowerCase();
+
+                // On route enter (GET), do not generate a presigned URL.
+                if (method !== "post") {
+                  return { record: recordJson };
+                }
+
                 const cvKey =
                   typeof context?.record?.params?.cv_key === "string"
                     ? context.record.params.cv_key
@@ -967,6 +1131,7 @@ export async function mountAdmin(app: Express): Promise<void> {
 
                 if (!uploadsEnabled) {
                   return {
+                    record: recordJson,
                     notice: {
                       type: "error",
                       message: "Uploads are not enabled",
@@ -976,6 +1141,7 @@ export async function mountAdmin(app: Express): Promise<void> {
 
                 if (!cvKey) {
                   return {
+                    record: recordJson,
                     notice: {
                       type: "error",
                       message: "No CV key found",
@@ -987,7 +1153,10 @@ export async function mountAdmin(app: Express): Promise<void> {
                   key: cvKey,
                   expiresInSeconds: 60 * 10,
                 });
-                return { redirectUrl: url };
+                return {
+                  record: recordJson,
+                  redirectUrl: url,
+                };
               },
             },
             delete: {
@@ -1047,6 +1216,7 @@ export async function mountAdmin(app: Express): Promise<void> {
                 );
 
                 return {
+                  record: context.record.toJSON(context.currentAdmin),
                   notice: {
                     type: "success",
                     message: "Application and CV deleted",
@@ -1626,67 +1796,6 @@ export async function mountAdmin(app: Express): Promise<void> {
   });
 
   adminRouter.use(requireAdminSession);
-
-  // Push-based live refresh for the per-application careers chat view.
-  adminRouter.get("/careers-live-chat.js", (_req: Request, res: Response) => {
-    res.status(200).type("application/javascript").send(`(() => {
-  try {
-    const path = window.location.pathname.replace(/\\/+$/, "");
-    if (path !== "/admin/resources/career_application_messages") return;
-
-    const qs = new URLSearchParams(window.location.search);
-    const applicationId = qs.get("filters.application_id");
-    if (!applicationId) return;
-
-    const wsProto = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = wsProto + "//" + window.location.host + "/admin/ws/careers";
-
-    let reloadScheduled = false;
-
-    function connect() {
-      const ws = new WebSocket(wsUrl);
-
-      ws.addEventListener("open", () => {
-        ws.send(JSON.stringify({ type: "subscribe", applicationId }));
-      });
-
-      ws.addEventListener("message", (event) => {
-        if (reloadScheduled) return;
-        let payload = null;
-        try {
-          payload = JSON.parse(event.data);
-        } catch {
-          payload = null;
-        }
-        if (!payload || payload.type !== "message") return;
-        if (payload.applicationId !== applicationId) return;
-
-        reloadScheduled = true;
-        window.setTimeout(() => {
-          window.location.reload();
-        }, 250);
-      });
-
-      ws.addEventListener("close", () => {
-        if (reloadScheduled) return;
-        window.setTimeout(connect, 1500);
-      });
-
-      ws.addEventListener("error", () => {
-        try {
-          ws.close();
-        } catch {
-          // ignore
-        }
-      });
-    }
-
-    connect();
-  } catch {
-    // ignore
-  }
-})();`);
-  });
 
   const router = AdminJSExpress.buildRouter(adminJs);
   adminRouter.use(router);

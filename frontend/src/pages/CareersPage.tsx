@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Footer from "../components/Footer";
 import Header from "../components/Header";
 import { useAuthRequiredModal } from "../shared/auth";
-import { API_BASE_URL } from "../shared/api/http";
 import { presignDriveUpload, confirmDriveUpload } from "../shared/api/storage";
 import { listCareerJobs, type CareerJob } from "../shared/api/careers";
 import {
@@ -15,27 +14,6 @@ import {
   type CareerApplication,
   type CareerApplicationMessage,
 } from "../shared/api/careerApplications";
-import {
-  getFirebaseAuth,
-  isFirebaseConfigured,
-} from "../shared/firebase/firebase";
-
-function toWebSocketUrl(baseUrl: string, path: string): string {
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  try {
-    const url = new URL(baseUrl);
-    url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-    url.pathname = normalizedPath;
-    url.search = "";
-    url.hash = "";
-    return url.toString();
-  } catch {
-    const trimmed = String(baseUrl || "").replace(/\/+$/, "");
-    const proto = trimmed.startsWith("https://") ? "wss://" : "ws://";
-    const host = trimmed.replace(/^https?:\/\//, "");
-    return `${proto}${host}${normalizedPath}`;
-  }
-}
 
 function toBadgeValues(job: CareerJob): string[] {
   const values: string[] = [];
@@ -68,8 +46,8 @@ export default function CareersPage() {
 
   const [applyBusy, setApplyBusy] = useState(false);
   const [chatBusy, setChatBusy] = useState(false);
+  const [chatRefreshing, setChatRefreshing] = useState(false);
   const [applyPanelError, setApplyPanelError] = useState<string | null>(null);
-  const lastMessageAtRef = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,128 +73,6 @@ export default function CareersPage() {
       cancelled = true;
     };
   }, [i18n.language]);
-
-  useEffect(() => {
-    lastMessageAtRef.current = messages.length
-      ? (messages[messages.length - 1]?.createdAt ?? null)
-      : null;
-  }, [messages]);
-
-  useEffect(() => {
-    if (!activeApplyJob || !myApplication) return;
-    if (myApplication.jobSlug !== activeApplyJob.slug) return;
-
-    let closed = false;
-    let ws: WebSocket | null = null;
-    let reconnectTimer: number | null = null;
-    let reconnectAttempt = 0;
-
-    const connect = async () => {
-      if (closed) return;
-
-      if (!isFirebaseConfigured()) return;
-
-      let token: string | null = null;
-      try {
-        const user = getFirebaseAuth().currentUser;
-        token = user ? await user.getIdToken() : null;
-      } catch {
-        token = null;
-      }
-      if (!token) return;
-
-      const url = toWebSocketUrl(API_BASE_URL, "/ws/careers");
-      ws = new WebSocket(url);
-
-      ws.onopen = () => {
-        if (closed || !ws) return;
-        reconnectAttempt = 0;
-        ws.send(
-          JSON.stringify({
-            type: "subscribe",
-            token,
-            applicationId: myApplication.id,
-            afterCreatedAt: lastMessageAtRef.current,
-          }),
-        );
-      };
-
-      ws.onmessage = (event) => {
-        if (closed) return;
-
-        const raw = typeof event.data === "string" ? event.data : "";
-        let payload: any = null;
-        try {
-          payload = raw ? JSON.parse(raw) : null;
-        } catch {
-          payload = null;
-        }
-
-        if (!payload || typeof payload !== "object") return;
-        if (payload.applicationId !== myApplication.id) return;
-
-        if (payload.type === "message" && payload.message) {
-          const incoming = payload.message as CareerApplicationMessage;
-          if (!incoming?.id) return;
-          setMessages((prev) => {
-            if (prev.some((m) => m.id === incoming.id)) return prev;
-            return [...prev, incoming].sort((a, b) =>
-              a.createdAt.localeCompare(b.createdAt),
-            );
-          });
-          return;
-        }
-
-        if (payload.type === "messages" && Array.isArray(payload.messages)) {
-          const incoming = payload.messages as CareerApplicationMessage[];
-          if (!incoming.length) return;
-          setMessages((prev) => {
-            const seen = new Set(prev.map((m) => m.id));
-            const next = [...prev];
-            for (const m of incoming) {
-              if (!m || typeof m.id !== "string") continue;
-              if (seen.has(m.id)) continue;
-              seen.add(m.id);
-              next.push(m);
-            }
-            return next.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-          });
-        }
-      };
-
-      ws.onclose = () => {
-        if (closed) return;
-        if (reconnectTimer != null) window.clearTimeout(reconnectTimer);
-        reconnectAttempt += 1;
-        const delayMs = Math.min(10_000, 500 * reconnectAttempt);
-        reconnectTimer = window.setTimeout(() => {
-          void connect();
-        }, delayMs);
-      };
-
-      ws.onerror = () => {
-        // Let the `close` handler trigger reconnect.
-        try {
-          ws?.close();
-        } catch {
-          // ignore
-        }
-      };
-    };
-
-    void connect();
-
-    return () => {
-      closed = true;
-      if (reconnectTimer != null) window.clearTimeout(reconnectTimer);
-      try {
-        ws?.close();
-      } catch {
-        // ignore
-      }
-      ws = null;
-    };
-  }, [activeApplyJob, myApplication]);
 
   const hasJobs = jobs.length > 0;
 
@@ -437,13 +293,8 @@ export default function CareersPage() {
                                       await listCareerApplicationMessages({
                                         applicationId: existing.id,
                                       });
-                                    lastMessageAtRef.current = msgs.length
-                                      ? (msgs[msgs.length - 1]?.createdAt ??
-                                        null)
-                                      : null;
                                     setMessages(msgs);
                                   } else {
-                                    lastMessageAtRef.current = null;
                                     setMessages([]);
                                   }
 
@@ -629,10 +480,6 @@ export default function CareersPage() {
                                           await listCareerApplicationMessages({
                                             applicationId: created.id,
                                           });
-                                        lastMessageAtRef.current = msgs.length
-                                          ? (msgs[msgs.length - 1]?.createdAt ??
-                                            null)
-                                          : null;
                                         setMessages(msgs);
                                         setMyApplication(created);
                                         setApplyCvFile(null);
@@ -673,8 +520,47 @@ export default function CareersPage() {
 
                                   return (
                                     <>
-                                      <div className="text-xs font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
-                                        {t("careersChatTitle")}
+                                      <div className="flex items-center justify-between gap-3">
+                                        <div className="text-xs font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
+                                          {t("careersChatTitle")}
+                                        </div>
+                                        <button
+                                          type="button"
+                                          disabled={
+                                            chatBusy ||
+                                            chatRefreshing ||
+                                            !myApplication
+                                          }
+                                          onClick={async () => {
+                                            if (!myApplication) return;
+
+                                            setChatRefreshing(true);
+                                            setApplyPanelError(null);
+                                            try {
+                                              const msgs =
+                                                await listCareerApplicationMessages(
+                                                  {
+                                                    applicationId:
+                                                      myApplication.id,
+                                                  },
+                                                );
+                                              setMessages(msgs);
+                                            } catch (e) {
+                                              setApplyPanelError(
+                                                e instanceof Error
+                                                  ? e.message
+                                                  : String(e),
+                                              );
+                                            } finally {
+                                              setChatRefreshing(false);
+                                            }
+                                          }}
+                                          className="text-xs font-semibold text-zinc-600 hover:text-zinc-900 disabled:opacity-60 dark:text-zinc-300 dark:hover:text-zinc-100"
+                                        >
+                                          {chatRefreshing
+                                            ? t("loading")
+                                            : "Refresh"}
+                                        </button>
                                       </div>
                                       <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
                                         {t("careersChatLimit", {

@@ -5,6 +5,10 @@ node_modules
 frontend/dist
 backend/dist
 
+# AdminJS bundler cache
+.adminjs
+**/.adminjs
+
 # env
 .env
 .env.*

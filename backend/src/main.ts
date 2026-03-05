@@ -11,7 +11,6 @@ import {
 } from "./infrastructure/redis/redis";
 import { createHttpRouter } from "./interfaces/http/routes";
 import { mountAdmin } from "./interfaces/http/admin/mountAdmin";
-import { mountCareerApplicationMessagesWs } from "./interfaces/ws/careerApplicationMessagesWs";
 
 dotenv.config();
 
@@ -140,9 +139,6 @@ async function bootstrap() {
       `docspot-backend listening on :${port} (boot ${Date.now() - bootStartMs}ms)`,
     );
   });
-
-  // Realtime careers chat (WebSocket + Postgres LISTEN/NOTIFY).
-  mountCareerApplicationMessagesWs({ server });
 
   const shutdown = async () => {
     server.close(() => {
