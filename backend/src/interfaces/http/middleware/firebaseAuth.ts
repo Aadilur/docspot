@@ -37,7 +37,9 @@ function getFirebaseApp(): admin.app.App {
   return firebaseApp;
 }
 
-async function verifyIdToken(idToken: string): Promise<AuthContext> {
+export async function verifyFirebaseIdToken(
+  idToken: string,
+): Promise<AuthContext> {
   getFirebaseApp();
   const decoded = await admin.auth().verifyIdToken(idToken);
 
@@ -85,7 +87,7 @@ export async function requireFirebaseAuth(
   }
 
   try {
-    const auth = await verifyIdToken(token);
+    const auth = await verifyFirebaseIdToken(token);
     (req as any).auth = auth;
     next();
   } catch (err) {
@@ -137,8 +139,40 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
-function getAdminSessionCookieName(): string {
+export function getAdminSessionCookieName(): string {
   return (process.env.ADMIN_SESSION_COOKIE || "docspot_admin_session").trim();
+}
+
+export async function verifyAdminSessionCookie(
+  sessionCookie: string,
+): Promise<AuthContext> {
+  const cookie = String(sessionCookie || "").trim();
+  if (!cookie) throw new Error("Unauthorized");
+
+  getFirebaseApp();
+  const decoded = await admin.auth().verifySessionCookie(cookie, true);
+
+  const allow = isAdminClaims(decoded) || isAdminUid(decoded.uid);
+  if (!allow) throw new Error("Forbidden");
+
+  return {
+    uid: decoded.uid,
+    email: typeof decoded.email === "string" ? decoded.email : undefined,
+    name:
+      typeof (decoded as any)?.name === "string"
+        ? String((decoded as any).name)
+        : undefined,
+    picture:
+      typeof (decoded as any)?.picture === "string"
+        ? String((decoded as any).picture)
+        : undefined,
+    locale:
+      typeof (decoded as any)?.locale === "string"
+        ? String((decoded as any).locale)
+        : undefined,
+    provider: undefined,
+    decoded,
+  };
 }
 
 export async function requireAdminSession(

@@ -325,6 +325,27 @@ export async function listCareerApplicationMessages(params: {
   return (res.rows ?? []).map(mapMessageRow);
 }
 
+export async function getCareerApplicationMessageById(
+  messageId: string,
+): Promise<CareerApplicationMessage | null> {
+  await ensureSchema();
+  const pg = getPostgresPool();
+
+  const id = String(messageId || "").trim();
+  if (!id) return null;
+
+  const res = await pg.query(
+    `select id, application_id, sender_role, message, created_at
+     from career_application_messages
+     where id = $1::uuid
+     limit 1`,
+    [id],
+  );
+  const row = (res.rows ?? [])[0];
+  if (!row) return null;
+  return mapMessageRow(row);
+}
+
 export async function addCareerApplicationMessage(params: {
   applicationId: string;
   senderRole: "user" | "admin";

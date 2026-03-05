@@ -548,6 +548,9 @@ export async function mountAdmin(app: Express): Promise<void> {
 
   const adminJs = new AdminJS({
     rootPath: "/admin",
+    assets: {
+      scripts: ["/admin/careers-live-chat.js"],
+    },
     ...(componentLoader ? { componentLoader } : {}),
     resources: [
       {
@@ -923,6 +926,34 @@ export async function mountAdmin(app: Express): Promise<void> {
           actions: {
             new: { isAccessible: false, isVisible: false },
             bulkDelete: { isAccessible: false, isVisible: false },
+            openChat: {
+              actionType: "record",
+              icon: "Chat",
+              label: "Open Chat",
+              handler: async (request: any, _res: any, context: any) => {
+                const recordId =
+                  context?.record?.params?.id ??
+                  request?.params?.recordId ??
+                  request?.params?.id;
+                if (!recordId) {
+                  return {
+                    notice: {
+                      type: "error",
+                      message: "Missing record id",
+                    },
+                  };
+                }
+
+                const qs = new URLSearchParams();
+                qs.set("filters.application_id", String(recordId));
+                qs.set("sortBy", "created_at");
+                qs.set("direction", "asc");
+
+                return {
+                  redirectUrl: `/admin/resources/career_application_messages?${qs.toString()}`,
+                };
+              },
+            },
             downloadCv: {
               actionType: "record",
               icon: "Download",
@@ -1095,7 +1126,8 @@ export async function mountAdmin(app: Express): Promise<void> {
       {
         resource: careerApplicationMessages,
         options: {
-          navigation: { name: "Careers", icon: "Briefcase" },
+          // Hide the raw global list; access messages via an application's "Open Chat".
+          navigation: null,
           actions: {
             new: { before: adminActionBeforeNewCareerApplicationMessage() },
             edit: { isAccessible: false, isVisible: false },
@@ -1594,6 +1626,67 @@ export async function mountAdmin(app: Express): Promise<void> {
   });
 
   adminRouter.use(requireAdminSession);
+
+  // Push-based live refresh for the per-application careers chat view.
+  adminRouter.get("/careers-live-chat.js", (_req: Request, res: Response) => {
+    res.status(200).type("application/javascript").send(`(() => {
+  try {
+    const path = window.location.pathname.replace(/\\/+$/, "");
+    if (path !== "/admin/resources/career_application_messages") return;
+
+    const qs = new URLSearchParams(window.location.search);
+    const applicationId = qs.get("filters.application_id");
+    if (!applicationId) return;
+
+    const wsProto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const wsUrl = wsProto + "//" + window.location.host + "/admin/ws/careers";
+
+    let reloadScheduled = false;
+
+    function connect() {
+      const ws = new WebSocket(wsUrl);
+
+      ws.addEventListener("open", () => {
+        ws.send(JSON.stringify({ type: "subscribe", applicationId }));
+      });
+
+      ws.addEventListener("message", (event) => {
+        if (reloadScheduled) return;
+        let payload = null;
+        try {
+          payload = JSON.parse(event.data);
+        } catch {
+          payload = null;
+        }
+        if (!payload || payload.type !== "message") return;
+        if (payload.applicationId !== applicationId) return;
+
+        reloadScheduled = true;
+        window.setTimeout(() => {
+          window.location.reload();
+        }, 250);
+      });
+
+      ws.addEventListener("close", () => {
+        if (reloadScheduled) return;
+        window.setTimeout(connect, 1500);
+      });
+
+      ws.addEventListener("error", () => {
+        try {
+          ws.close();
+        } catch {
+          // ignore
+        }
+      });
+    }
+
+    connect();
+  } catch {
+    // ignore
+  }
+})();`);
+  });
 
   const router = AdminJSExpress.buildRouter(adminJs);
   adminRouter.use(router);

@@ -630,6 +630,33 @@ export async function ensureSchema(): Promise<void> {
     "create index if not exists career_application_messages_app_idx on career_application_messages(application_id, created_at asc);",
   );
 
+  // Realtime notifications for career application chat.
+  // - AdminJS writes directly to the DB; LISTEN/NOTIFY lets the API push updates.
+  await pg.query(`
+    create or replace function notify_career_application_message()
+    returns trigger
+    as $$
+    begin
+      perform pg_notify(
+        'career_application_messages',
+        json_build_object(
+          'applicationId', NEW.application_id,
+          'messageId', NEW.id
+        )::text
+      );
+      return NEW;
+    end;
+    $$ language plpgsql;
+  `);
+  await pg.query(
+    "drop trigger if exists career_application_messages_notify on career_application_messages;",
+  );
+  await pg.query(`
+    create trigger career_application_messages_notify
+    after insert on career_application_messages
+    for each row execute function notify_career_application_message();
+  `);
+
   // Medicine reminders.
   await pg.query(`
     create table if not exists medicines (
