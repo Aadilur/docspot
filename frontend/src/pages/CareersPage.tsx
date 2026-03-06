@@ -111,7 +111,7 @@ export default function CareersPage() {
           </p>
         </section>
 
-        <section className="mt-6 grid gap-4 sm:grid-cols-3">
+        {/* <section className="mt-6 grid gap-4 sm:grid-cols-3">
           {values.map((v) => (
             <div
               key={v.title}
@@ -125,7 +125,7 @@ export default function CareersPage() {
               </p>
             </div>
           ))}
-        </section>
+        </section> */}
 
         <section className="mt-6 rounded-2xl border border-zinc-200/70 bg-white p-5 shadow-sm dark:border-zinc-800/70 dark:bg-zinc-950">
           <div className="flex items-start justify-between gap-4">
