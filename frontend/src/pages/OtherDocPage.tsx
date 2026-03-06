@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import {
   Calendar,
+  ChevronDown,
   ChevronRight,
   FileText,
   Pause,
@@ -100,6 +101,17 @@ export default function OtherDocPage() {
   const { configured, loading: authLoading, user } = useAuthState();
   const authRequired = useAuthRequiredModal();
 
+  const HOW_IT_WORKS_STORAGE_KEY = "docspot:ui:howItWorks:otherDoc";
+  const [howItWorksOpen, setHowItWorksOpen] = useState<boolean>(() => {
+    const raw =
+      typeof window !== "undefined"
+        ? window.localStorage.getItem(HOW_IT_WORKS_STORAGE_KEY)
+        : null;
+    if (raw === "0") return false;
+    if (raw === "1") return true;
+    return true;
+  });
+
   const [items, setItems] = useState<ObjectGroupListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -113,6 +125,14 @@ export default function OtherDocPage() {
   const [issueDateDraft, setIssueDateDraft] = useState<string>("");
   const [textNoteDraft, setTextNoteDraft] = useState<string>("");
   const [createSheetError, setCreateSheetError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(
+      HOW_IT_WORKS_STORAGE_KEY,
+      howItWorksOpen ? "1" : "0",
+    );
+  }, [howItWorksOpen]);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [files, setFiles] = useState<Array<{ id: string; file: File }>>([]);
@@ -408,6 +428,60 @@ export default function OtherDocPage() {
             {t("otherDocPageSubtitle")}
           </p>
         </section>
+
+        <details
+          open={howItWorksOpen}
+          onToggle={(e) => {
+            setHowItWorksOpen(e.currentTarget.open);
+          }}
+          className="mt-4 rounded-2xl border border-zinc-200/70 bg-white/70 p-4 shadow-sm backdrop-blur-sm dark:border-zinc-800/70 dark:bg-zinc-950/30"
+        >
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 select-none text-sm font-semibold text-zinc-900 dark:text-zinc-50 [&::-webkit-details-marker]:hidden">
+            <span>{t("howItWorksTitle")}</span>
+            <ChevronDown
+              className={
+                "h-4 w-4 shrink-0 transition-transform " +
+                (howItWorksOpen ? "rotate-180" : "")
+              }
+              aria-hidden="true"
+            />
+          </summary>
+
+          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
+            {t("otherDocHowBody", {
+              defaultValue:
+                "Create an item, add location + photos, then search or share when needed.",
+            })}
+          </p>
+
+          <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-zinc-600 dark:text-zinc-300">
+            <li>
+              {t("otherDocHowStep1Title", {
+                defaultValue: "Create an item",
+              })}
+            </li>
+            <li>
+              {t("otherDocHowStep2Title", {
+                defaultValue: "Add where you kept it",
+              })}
+            </li>
+            <li>
+              {t("otherDocHowStep3Title", {
+                defaultValue: "Attach a photo/PDF (optional)",
+              })}
+            </li>
+            <li>
+              {t("otherDocHowStep4Title", {
+                defaultValue: "Update when you move it",
+              })}
+            </li>
+            <li>
+              {t("otherDocHowStep5Title", {
+                defaultValue: "Search or share a view-only link (optional)",
+              })}
+            </li>
+          </ol>
+        </details>
 
         <section className="mt-6">
           <div className="flex flex-wrap items-center justify-between gap-3">

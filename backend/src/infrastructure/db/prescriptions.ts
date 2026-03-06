@@ -1,7 +1,7 @@
 import crypto from "crypto";
 
 import { ensureSchema } from "./schema";
-import { getPostgresPool } from "./postgres";
+import { getPostgresPool, withPostgresTransaction } from "./postgres";
 
 function isNonEmptyText(value: unknown, maxLen: number): value is string {
   return (
@@ -130,7 +130,6 @@ export async function createGroupWithFirstReport(params: {
   groupTitle?: string | null;
 }): Promise<{ group: PrescriptionGroup; report: PrescriptionReport }> {
   await ensureSchema();
-  const pg = getPostgresPool();
 
   if (!isNonEmptyText(params.report.title, 180)) {
     throw new Error("title is required");
@@ -149,16 +148,15 @@ export async function createGroupWithFirstReport(params: {
   const doctor = toNullableShortText(params.report.doctor, 120);
   const textNote = toNullableShortText(params.report.textNote, 5000);
 
-  await pg.query("begin");
-  try {
-    const gRes = await pg.query(
+  return await withPostgresTransaction(async (client) => {
+    const gRes = await client.query(
       `insert into prescription_groups (id, user_id, title, created_at, updated_at)
        values ($1::uuid, $2::uuid, $3::text, now(), now())
        returning *`,
       [groupId, params.userId, groupTitle],
     );
 
-    const rRes = await pg.query(
+    const rRes = await client.query(
       `insert into prescription_reports (id, group_id, user_id, title, issue_date, next_appointment, doctor, text_note, created_at, updated_at)
        values ($1::uuid, $2::uuid, $3::uuid, $4::text, $5::date, $6::date, $7::text, $8::text, now(), now())
        returning *`,
@@ -174,16 +172,11 @@ export async function createGroupWithFirstReport(params: {
       ],
     );
 
-    await pg.query("commit");
-
     return {
       group: rowToGroup(gRes.rows[0]),
       report: rowToReport(rRes.rows[0]),
     };
-  } catch (e) {
-    await pg.query("rollback");
-    throw e;
-  }
+  });
 }
 
 export async function listGroups(params: {
@@ -549,11 +542,8 @@ export async function deleteAttachment(params: {
   attachmentId: string;
 }): Promise<{ key: string } | null> {
   await ensureSchema();
-  const pg = getPostgresPool();
-
-  await pg.query("begin");
-  try {
-    const keyRes = await pg.query(
+  return await withPostgresTransaction(async (client) => {
+    const keyRes = await client.query(
       `select a.key as key
        from prescription_attachments a
        join prescription_reports r on r.id = a.report_id
@@ -568,32 +558,27 @@ export async function deleteAttachment(params: {
     );
 
     if (keyRes.rows.length === 0) {
-      await pg.query("rollback");
       return null;
     }
 
     const key = String(keyRes.rows[0].key);
 
-    await pg.query(
+    await client.query(
       `delete from prescription_attachments where id = $1::uuid and user_id = $2::uuid`,
       [params.attachmentId, params.userId],
     );
 
-    await pg.query(
+    await client.query(
       `update prescription_reports set updated_at = now() where id = $1::uuid and user_id = $2::uuid`,
       [params.reportId, params.userId],
     );
-    await pg.query(
+    await client.query(
       `update prescription_groups set updated_at = now() where id = $1::uuid and user_id = $2::uuid`,
       [params.groupId, params.userId],
     );
 
-    await pg.query("commit");
     return { key };
-  } catch (e) {
-    await pg.query("rollback");
-    throw e;
-  }
+  });
 }
 
 export async function getGroupAttachmentKeys(params: {

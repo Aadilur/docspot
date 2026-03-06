@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import {
   Plus,
+  ChevronDown,
   ChevronRight,
   Upload,
   FileText,
@@ -98,6 +99,17 @@ export default function PrescriptionGroupsPage() {
   const { configured, loading: authLoading, user } = useAuthState();
   const authRequired = useAuthRequiredModal();
 
+  const HOW_IT_WORKS_STORAGE_KEY = "docspot:ui:howItWorks:prescription";
+  const [howItWorksOpen, setHowItWorksOpen] = useState<boolean>(() => {
+    const raw =
+      typeof window !== "undefined"
+        ? window.localStorage.getItem(HOW_IT_WORKS_STORAGE_KEY)
+        : null;
+    if (raw === "0") return false;
+    if (raw === "1") return true;
+    return true;
+  });
+
   const [items, setItems] = useState<PrescriptionGroupListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -113,6 +125,14 @@ export default function PrescriptionGroupsPage() {
   const [doctorDraft, setDoctorDraft] = useState<string>("");
   const [textNoteDraft, setTextNoteDraft] = useState<string>("");
   const [createSheetError, setCreateSheetError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(
+      HOW_IT_WORKS_STORAGE_KEY,
+      howItWorksOpen ? "1" : "0",
+    );
+  }, [howItWorksOpen]);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [files, setFiles] = useState<Array<{ id: string; file: File }>>([]);
@@ -402,6 +422,60 @@ export default function PrescriptionGroupsPage() {
             {t("prescriptionPageSubtitle")}
           </p>
         </section>
+
+        <details
+          open={howItWorksOpen}
+          onToggle={(e) => {
+            setHowItWorksOpen(e.currentTarget.open);
+          }}
+          className="mt-4 rounded-2xl border border-zinc-200/70 bg-white/70 p-4 shadow-sm backdrop-blur-sm dark:border-zinc-800/70 dark:bg-zinc-950/30"
+        >
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 select-none text-sm font-semibold text-zinc-900 dark:text-zinc-50 [&::-webkit-details-marker]:hidden">
+            <span>{t("howItWorksTitle")}</span>
+            <ChevronDown
+              className={
+                "h-4 w-4 shrink-0 transition-transform " +
+                (howItWorksOpen ? "rotate-180" : "")
+              }
+              aria-hidden="true"
+            />
+          </summary>
+
+          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
+            {t("prescriptionHowBody", {
+              defaultValue:
+                "Create a group, add prescriptions/reports, then share when needed.",
+            })}
+          </p>
+
+          <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-zinc-600 dark:text-zinc-300">
+            <li>
+              {t("prescriptionHowStep1Title", {
+                defaultValue: "Create a group",
+              })}
+            </li>
+            <li>
+              {t("prescriptionHowStep2Title", {
+                defaultValue: "Upload prescription photos/PDFs",
+              })}
+            </li>
+            <li>
+              {t("prescriptionHowStep3Title", {
+                defaultValue: "Add reports + a short note (optional)",
+              })}
+            </li>
+            <li>
+              {t("prescriptionHowStep4Title", {
+                defaultValue: "Find fast with search",
+              })}
+            </li>
+            <li>
+              {t("prescriptionHowStep5Title", {
+                defaultValue: "Share a view-only link (optional)",
+              })}
+            </li>
+          </ol>
+        </details>
 
         <section className="mt-6">
           <div className="flex flex-wrap items-center justify-between gap-3">

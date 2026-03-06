@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 
 import { ensureSchema } from "./schema";
-import { getPostgresPool } from "./postgres";
+import { getPostgresPool, withPostgresTransaction } from "./postgres";
 
 function coerceBigintLike(value: unknown): number {
   if (typeof value === "number") return value;
@@ -73,8 +73,12 @@ function mapMessageRow(row: any): CareerApplicationMessage {
   };
 }
 
+type PgQueryable = {
+  query: (text: string, values?: any[]) => Promise<{ rows: any[] }>;
+};
+
 async function getPublishedJobBySlugTx(
-  pg: ReturnType<typeof getPostgresPool>,
+  pg: PgQueryable,
   slug: string,
 ): Promise<{ id: string; slug: string } | null> {
   const res = await pg.query(
@@ -210,9 +214,8 @@ export async function createCareerApplication(params: {
   const msgId = randomUUID();
   const now = new Date().toISOString();
 
-  await pg.query("begin");
-  try {
-    await pg.query(
+  await withPostgresTransaction(async (client) => {
+    await client.query(
       `insert into career_applications (
          id,
          job_id,
@@ -252,7 +255,7 @@ export async function createCareerApplication(params: {
       ],
     );
 
-    await pg.query(
+    await client.query(
       `insert into career_application_messages (
          id,
          application_id,
@@ -272,12 +275,7 @@ export async function createCareerApplication(params: {
        )`,
       [msgId, appId, userId, initialMessage, now, now],
     );
-
-    await pg.query("commit");
-  } catch (e) {
-    await pg.query("rollback");
-    throw e;
-  }
+  });
 
   return {
     id: appId,
@@ -366,10 +364,9 @@ export async function addCareerApplicationMessage(params: {
   const id = randomUUID();
   const now = new Date().toISOString();
 
-  await pg.query("begin");
-  try {
+  await withPostgresTransaction(async (client) => {
     if (senderRole === "user") {
-      const limitRes = await pg.query(
+      const limitRes = await client.query(
         `select user_message_limit
          from career_applications
          where id = $1::uuid
@@ -384,7 +381,7 @@ export async function addCareerApplicationMessage(params: {
         Math.trunc(Number(limitRow.user_message_limit ?? 5)),
       );
 
-      const countRes = await pg.query(
+      const countRes = await client.query(
         `select count(*)::int as c
          from career_application_messages
          where application_id = $1::uuid and sender_role = 'user'`,
@@ -400,7 +397,7 @@ export async function addCareerApplicationMessage(params: {
       }
     }
 
-    await pg.query(
+    await client.query(
       `insert into career_application_messages (
          id,
          application_id,
@@ -421,16 +418,11 @@ export async function addCareerApplicationMessage(params: {
       [id, applicationId, senderRole, senderUserId, message, now, now],
     );
 
-    await pg.query(
+    await client.query(
       `update career_applications set updated_at = $2::timestamptz where id = $1::uuid`,
       [applicationId, now],
     );
-
-    await pg.query("commit");
-  } catch (e) {
-    await pg.query("rollback");
-    throw e;
-  }
+  });
 
   return {
     id,

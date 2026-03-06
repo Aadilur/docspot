@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
-import { BellRing, Check, Plus, RefreshCw, Users, X } from "lucide-react";
+import { BellRing, Check, ChevronDown, Plus, RefreshCw, Users, X } from "lucide-react";
 
 import Footer from "../components/Footer";
 import Header from "../components/Header";
@@ -272,6 +272,25 @@ export default function ReminderPage() {
     Boolean(initial?.created),
   );
 
+  const HOW_IT_WORKS_STORAGE_KEY = "docspot:ui:howItWorks:reminder";
+  const [howItWorksOpen, setHowItWorksOpen] = useState<boolean>(() => {
+    const raw =
+      typeof window !== "undefined"
+        ? window.localStorage.getItem(HOW_IT_WORKS_STORAGE_KEY)
+        : null;
+    if (raw === "0") return false;
+    if (raw === "1") return true;
+    return true;
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(
+      HOW_IT_WORKS_STORAGE_KEY,
+      howItWorksOpen ? "1" : "0",
+    );
+  }, [howItWorksOpen]);
+
   const createdMedicine = useMemo(() => {
     const id =
       typeof initial?.createdMedicineId === "string"
@@ -525,6 +544,57 @@ export default function ReminderPage() {
             ) : null}
           </div>
         </div>
+
+        <details
+          open={howItWorksOpen}
+          onToggle={(e) => {
+            setHowItWorksOpen(e.currentTarget.open);
+          }}
+          className="mt-4 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
+        >
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 select-none text-sm font-semibold text-zinc-900 dark:text-zinc-50 [&::-webkit-details-marker]:hidden">
+            <span>{t("howItWorksTitle")}</span>
+            <ChevronDown
+              className={
+                "h-4 w-4 shrink-0 transition-transform " +
+                (howItWorksOpen ? "rotate-180" : "")
+              }
+              aria-hidden="true"
+            />
+          </summary>
+
+          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
+            {t("reminderHowBody", {
+              defaultValue: "Add medicines, set schedules, and check off doses.",
+            })}
+          </p>
+
+          <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-zinc-600 dark:text-zinc-300">
+            <li>
+              {t("reminderHowStep1Title", { defaultValue: "Add a medicine" })}
+            </li>
+            <li>
+              {t("reminderHowStep2Title", {
+                defaultValue: "Set times & dose",
+              })}
+            </li>
+            <li>
+              {t("reminderHowStep3Title", {
+                defaultValue: "See what’s due today",
+              })}
+            </li>
+            <li>
+              {t("reminderHowStep4Title", {
+                defaultValue: "Mark taken or skipped",
+              })}
+            </li>
+            <li>
+              {t("reminderHowStep5Title", {
+                defaultValue: "Caregiver view (optional)",
+              })}
+            </li>
+          </ol>
+        </details>
 
         {createdVisible ? (
           <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-200">

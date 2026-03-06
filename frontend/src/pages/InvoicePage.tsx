@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import {
   Calendar,
+  ChevronDown,
   ChevronRight,
   FileText,
   Pause,
@@ -99,6 +100,17 @@ export default function InvoicePage() {
   const { configured, loading: authLoading, user } = useAuthState();
   const authRequired = useAuthRequiredModal();
 
+  const HOW_IT_WORKS_STORAGE_KEY = "docspot:ui:howItWorks:invoice";
+  const [howItWorksOpen, setHowItWorksOpen] = useState<boolean>(() => {
+    const raw =
+      typeof window !== "undefined"
+        ? window.localStorage.getItem(HOW_IT_WORKS_STORAGE_KEY)
+        : null;
+    if (raw === "0") return false;
+    if (raw === "1") return true;
+    return true;
+  });
+
   const [items, setItems] = useState<InvoiceGroupListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -112,6 +124,14 @@ export default function InvoicePage() {
   const [issueDateDraft, setIssueDateDraft] = useState<string>("");
   const [textNoteDraft, setTextNoteDraft] = useState<string>("");
   const [createSheetError, setCreateSheetError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(
+      HOW_IT_WORKS_STORAGE_KEY,
+      howItWorksOpen ? "1" : "0",
+    );
+  }, [howItWorksOpen]);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [files, setFiles] = useState<Array<{ id: string; file: File }>>([]);
@@ -407,6 +427,58 @@ export default function InvoicePage() {
             {t("invoicePageSubtitle")}
           </p>
         </section>
+
+        <details
+          open={howItWorksOpen}
+          onToggle={(e) => {
+            setHowItWorksOpen(e.currentTarget.open);
+          }}
+          className="mt-4 rounded-2xl border border-zinc-200/70 bg-white/70 p-4 shadow-sm backdrop-blur-sm dark:border-zinc-800/70 dark:bg-zinc-950/30"
+        >
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 select-none text-sm font-semibold text-zinc-900 dark:text-zinc-50 [&::-webkit-details-marker]:hidden">
+            <span>{t("howItWorksTitle")}</span>
+            <ChevronDown
+              className={
+                "h-4 w-4 shrink-0 transition-transform " +
+                (howItWorksOpen ? "rotate-180" : "")
+              }
+              aria-hidden="true"
+            />
+          </summary>
+
+          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
+            {t("invoiceHowBody", {
+              defaultValue:
+                "Create a group, add receipts/invoices, then search or share when needed.",
+            })}
+          </p>
+
+          <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-zinc-600 dark:text-zinc-300">
+            <li>
+              {t("invoiceHowStep1Title", { defaultValue: "Create a group" })}
+            </li>
+            <li>
+              {t("invoiceHowStep2Title", {
+                defaultValue: "Add receipt photos/PDFs",
+              })}
+            </li>
+            <li>
+              {t("invoiceHowStep3Title", {
+                defaultValue: "Add date + a short note",
+              })}
+            </li>
+            <li>
+              {t("invoiceHowStep4Title", {
+                defaultValue: "Search later when you need it",
+              })}
+            </li>
+            <li>
+              {t("invoiceHowStep5Title", {
+                defaultValue: "Share a view-only link (optional)",
+              })}
+            </li>
+          </ol>
+        </details>
 
         <section className="mt-6">
           <div className="flex flex-wrap items-center justify-between gap-3">

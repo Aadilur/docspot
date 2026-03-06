@@ -926,10 +926,10 @@ export default function LandingPage() {
               <p className="text-xs font-semibold uppercase tracking-widest text-brand-700 dark:text-brand-300">
                 {t("brand")}
               </p>
-              <h1 className="mt-2 text-balance text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-4xl">
+              <h1 className="mt-3 text-balance text-2xl font-semibold leading-snug tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-2xl">
                 {t("tagline")}
               </h1>
-              <p className="mt-3 max-w-2xl text-pretty text-zinc-600 dark:text-zinc-300">
+              <p className="mt-4 max-w-2xl text-pretty text-sm leading-relaxed text-zinc-600 dark:text-zinc-300 sm:text-base">
                 {t("subtitle")}
               </p>
 
@@ -973,22 +973,6 @@ export default function LandingPage() {
                 </span>
               </div>
 
-              <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-                <button
-                  type="button"
-                  onClick={() => setGetStartedOpen(true)}
-                  className="inline-flex w-full items-center justify-center rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-300 active:translate-y-[1px] motion-reduce:transition-none dark:focus:ring-brand-900 sm:w-auto"
-                >
-                  {t("ctaPrimary")}
-                </button>
-                <a
-                  href="/about"
-                  className="inline-flex w-full items-center justify-center rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 shadow-sm transition-colors hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-brand-200 active:translate-y-[1px] motion-reduce:transition-none dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900 dark:focus:ring-brand-900 sm:w-auto"
-                >
-                  {t("ctaSecondary")}
-                </a>
-              </div>
-
               <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">
                 {t("heroFootnote")}
               </p>
@@ -1011,15 +995,6 @@ export default function LandingPage() {
                       })}
                     </div>
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setGetStartedOpen(true)}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-300 active:translate-y-[1px] motion-reduce:transition-none dark:focus:ring-brand-900 sm:w-auto"
-                  >
-                    {t("ctaPrimary")}
-                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                  </button>
                 </div>
 
                 <div className="mt-5 grid grid-cols-2 gap-2 sm:gap-3">
@@ -1119,11 +1094,7 @@ export default function LandingPage() {
                             ? t("Loading...", "Loading...")
                             : formatCountLabel("reminders")}
                         </span>
-                      ) : (
-                        <span className="rounded-full border border-zinc-200/70 bg-white/70 px-2 py-1 text-[11px] font-semibold text-zinc-700 dark:border-zinc-800/70 dark:bg-zinc-950/40 dark:text-zinc-200">
-                          {t("availableNow")}
-                        </span>
-                      )}
+                      ) : null}
                     </div>
                     <div className="mt-3 text-sm font-semibold text-zinc-900 dark:text-zinc-50">
                       {t("serviceReminderTitle")}
@@ -1180,13 +1151,224 @@ export default function LandingPage() {
                 })}
               </p>
             </div>
+          </div>
 
-            <a
-              href="#how"
-              className="hidden rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 shadow-sm transition-colors hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900 dark:focus:ring-brand-900 sm:inline-flex"
-            >
-              {t("seeHowItWorks", { defaultValue: "See how it works" })}
-            </a>
+          <div className="mt-4 overflow-hidden rounded-3xl bg-gradient-to-br from-brand-50 via-white to-white shadow-sm ring-0 dark:from-brand-500/10 dark:via-zinc-950 dark:to-zinc-950 sm:border sm:border-zinc-200/70 sm:ring-1 sm:ring-zinc-200/60 dark:sm:border-zinc-800/70 dark:sm:ring-zinc-800/60">
+            <div className="grid gap-6 px-4 py-5 sm:p-6 md:grid-cols-2 md:items-center">
+              <div className="min-w-0">
+                {canUseCounts ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="inline-flex items-center rounded-full border border-zinc-200/70 bg-white/80 px-3 py-1 text-xs font-semibold text-zinc-700 shadow-sm backdrop-blur dark:border-zinc-800/70 dark:bg-zinc-950/40 dark:text-zinc-200">
+                      {serviceCountsLoading
+                        ? t("Loading...", "Loading...")
+                        : formatCountLabel("reminders")}
+                    </span>
+                  </div>
+                ) : null}
+
+                <h3 className="mt-4 text-balance text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-xl">
+                  {t("reminderShowcaseTitle", {
+                    defaultValue: "Medication reminders that feel calm",
+                  })}
+                </h3>
+
+                <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
+                  {t("reminderShowcaseBody", {
+                    defaultValue:
+                      "Set schedules and track medicines without noisy complexity — built for real life.",
+                  })}
+                </p>
+
+                <ul className="mt-4 hidden grid-cols-2 gap-2 text-sm text-zinc-600 dark:text-zinc-300 sm:grid">
+                  {[
+                    t("reminderShowcaseB1", {
+                      defaultValue: "Set schedules in minutes",
+                    }) as any,
+                    t("reminderShowcaseB2", {
+                      defaultValue: "See what’s due at a glance",
+                    }) as any,
+                    t("reminderShowcaseB3", {
+                      defaultValue: "Designed for caregivers",
+                    }) as any,
+                  ]
+                    .slice(0, 4)
+                    .map((b) => (
+                      <li key={b} className="flex items-start gap-2">
+                        <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-brand-600/10 text-brand-700 ring-1 ring-brand-500/20 dark:bg-brand-400/10 dark:text-brand-300 dark:ring-brand-400/20">
+                          <Check className="h-4 w-4" aria-hidden="true" />
+                        </span>
+                        <span className="min-w-0">{b}</span>
+                      </li>
+                    ))}
+                </ul>
+
+                <details className="mt-4 rounded-2xl bg-white/60 p-3 ring-1 ring-zinc-200/60 dark:bg-zinc-950/30 dark:ring-zinc-800/60 sm:hidden">
+                  <summary className="cursor-pointer list-none select-none text-xs font-semibold text-zinc-900 dark:text-zinc-50 [&::-webkit-details-marker]:hidden">
+                    {t("moreDetails", { defaultValue: "More details" })}
+                  </summary>
+                  <ul className="mt-3 grid gap-2 text-sm text-zinc-600 dark:text-zinc-300">
+                    {[
+                      t("reminderShowcaseB1", {
+                        defaultValue: "Set schedules in minutes",
+                      }) as any,
+                      t("reminderShowcaseB2", {
+                        defaultValue: "See what’s due at a glance",
+                      }) as any,
+                      t("reminderShowcaseB3", {
+                        defaultValue: "Designed for caregivers",
+                      }) as any,
+                    ].map((b) => (
+                      <li key={b} className="flex items-start gap-2">
+                        <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-brand-600/10 text-brand-700 ring-1 ring-brand-500/20 dark:bg-brand-400/10 dark:text-brand-300 dark:ring-brand-400/20">
+                          <Check className="h-4 w-4" aria-hidden="true" />
+                        </span>
+                        <span className="min-w-0">{b}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+
+                <div className="mt-5 flex flex-wrap items-center gap-3">
+                  <Link
+                    to="/reminder"
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-6 py-3 text-base font-semibold text-white shadow-sm transition-colors hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-300 active:translate-y-[1px] motion-reduce:transition-none dark:focus:ring-brand-900 sm:w-auto"
+                  >
+                    {t("setupReminderNow", {
+                      defaultValue: "Set up your reminder now",
+                    })}
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  </Link>
+                </div>
+              </div>
+
+              <Link
+                to="/reminder"
+                className="group relative block overflow-hidden rounded-3xl bg-white/60 shadow-sm ring-1 ring-zinc-200/60 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-white/80 focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:bg-zinc-950/30 dark:ring-zinc-800/60 dark:hover:bg-zinc-950/45 dark:focus:ring-brand-900"
+                aria-label={
+                  t("setupReminderNow", {
+                    defaultValue: "Set up your reminder now",
+                  }) as any
+                }
+              >
+                <div className="p-4 sm:p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                        {t("reminderExampleTitle", {
+                          defaultValue: "Example schedule",
+                        })}
+                      </div>
+                      <div className="mt-1 text-xs font-semibold text-zinc-600 dark:text-zinc-300">
+                        {t("reminderExampleBody", {
+                          defaultValue:
+                            "Set times, then mark doses taken — simple for caregivers.",
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-2">
+                    {[
+                      {
+                        time: t("demoReminderT1", { defaultValue: "08:00" }),
+                        title: t("demoReminderM1", {
+                          defaultValue: "Vitamin D",
+                        }),
+                        note: t("demoReminderN1", { defaultValue: "1 tablet" }),
+                        status: t("demoReminderS1", { defaultValue: "Due" }),
+                        statusClassName:
+                          "bg-amber-600/15 text-amber-700 dark:bg-amber-400/10 dark:text-amber-300",
+                      },
+                      {
+                        time: t("demoReminderT2", { defaultValue: "13:00" }),
+                        title: t("demoReminderM2", {
+                          defaultValue: "Antibiotic",
+                        }),
+                        note: t("demoReminderN2", {
+                          defaultValue: "After lunch",
+                        }),
+                        status: t("demoReminderS2", { defaultValue: "Taken" }),
+                        statusClassName:
+                          "bg-green-600/15 text-green-700 dark:bg-green-400/10 dark:text-green-300",
+                      },
+                    ].map((item) => (
+                      <div
+                        key={`${item.time}-${item.title}`}
+                        className="flex items-start justify-between gap-4 rounded-2xl bg-white/55 px-3 py-3 ring-1 ring-zinc-200/60 dark:bg-zinc-950/30 dark:ring-zinc-800/60"
+                      >
+                        <div className="flex items-start gap-3">
+                          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-600/10 text-brand-700 ring-1 ring-brand-500/20 dark:bg-brand-400/10 dark:text-brand-300 dark:ring-brand-400/20">
+                            <BellRing className="h-5 w-5" aria-hidden="true" />
+                          </span>
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                                {item.title}
+                              </div>
+                              <span
+                                className={
+                                  "rounded-full px-2 py-0.5 text-xs font-semibold " +
+                                  item.statusClassName
+                                }
+                              >
+                                {item.status}
+                              </span>
+                            </div>
+                            <div className="mt-0.5 text-xs text-zinc-600 dark:text-zinc-300">
+                              {item.note}
+                            </div>
+                          </div>
+                        </div>
+
+                        <span className="rounded-full border border-zinc-200/70 bg-white/70 px-2.5 py-1 text-xs font-semibold text-zinc-700 dark:border-zinc-800/70 dark:bg-zinc-950/40 dark:text-zinc-200">
+                          {item.time}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-3 rounded-2xl bg-white/60 p-3 ring-1 ring-zinc-200/60 dark:bg-zinc-950/30 dark:ring-zinc-800/60">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-zinc-700 dark:text-zinc-200">
+                      <Users className="h-4 w-4" aria-hidden="true" />
+                      {t("demoCaregiversTitle", {
+                        defaultValue: "Caregivers",
+                      })}
+                    </div>
+
+                    <div className="mt-2 grid gap-2">
+                      {[
+                        {
+                          name: t("demoCaregiver1", {
+                            defaultValue: "Ayesha",
+                          }),
+                          role: t("demoCaregiverRole1", {
+                            defaultValue: "View only",
+                          }),
+                        },
+                        {
+                          name: t("demoCaregiver2", {
+                            defaultValue: "Rahim",
+                          }),
+                          role: t("demoCaregiverRole2", {
+                            defaultValue: "Can edit",
+                          }),
+                        },
+                      ].map((c) => (
+                        <div
+                          key={`${c.name}-${c.role}`}
+                          className="flex items-center justify-between gap-3 rounded-xl bg-white/70 px-3 py-2 text-xs font-semibold text-zinc-700 ring-1 ring-zinc-200/60 dark:bg-zinc-950/40 dark:text-zinc-200 dark:ring-zinc-800/60"
+                        >
+                          <span className="min-w-0 truncate">{c.name}</span>
+                          <span className="shrink-0 rounded-full border border-zinc-200/70 bg-white/70 px-2 py-0.5 text-[11px] font-semibold text-zinc-700 dark:border-zinc-800/70 dark:bg-zinc-950/40 dark:text-zinc-200">
+                            {c.role}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </Link>
+            </div>
           </div>
 
           <div className="mt-6 grid gap-4 md:grid-cols-3">
@@ -1393,239 +1575,6 @@ export default function LandingPage() {
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </div>
             </Link>
-          </div>
-
-          <div className="mt-4 overflow-hidden rounded-3xl bg-gradient-to-br from-brand-50 via-white to-white shadow-sm ring-0 dark:from-brand-500/10 dark:via-zinc-950 dark:to-zinc-950 sm:border sm:border-zinc-200/70 sm:ring-1 sm:ring-zinc-200/60 dark:sm:border-zinc-800/70 dark:sm:ring-zinc-800/60">
-            <div className="grid gap-6 px-4 py-5 sm:p-6 md:grid-cols-2 md:items-center">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="inline-flex items-center gap-2 rounded-full border border-zinc-200/70 bg-white/80 px-3 py-1 text-xs font-semibold text-zinc-800 shadow-sm backdrop-blur dark:border-zinc-800/70 dark:bg-zinc-950/40 dark:text-zinc-100">
-                    <BellRing
-                      className="h-4 w-4 text-brand-700 dark:text-brand-300"
-                      aria-hidden="true"
-                    />
-                    {t("availableNow")}
-                  </span>
-                  {canUseCounts ? (
-                    <span className="inline-flex items-center rounded-full border border-zinc-200/70 bg-white/80 px-3 py-1 text-xs font-semibold text-zinc-700 shadow-sm backdrop-blur dark:border-zinc-800/70 dark:bg-zinc-950/40 dark:text-zinc-200">
-                      {serviceCountsLoading
-                        ? t("Loading...", "Loading...")
-                        : formatCountLabel("reminders")}
-                    </span>
-                  ) : null}
-                </div>
-
-                <h3 className="mt-4 text-balance text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-xl">
-                  {t("reminderShowcaseTitle", {
-                    defaultValue: "Medication reminders that feel calm",
-                  })}
-                </h3>
-
-                <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
-                  {t("reminderShowcaseBody", {
-                    defaultValue:
-                      "Set schedules and track medicines without noisy complexity — built for real life.",
-                  })}
-                </p>
-
-                <ul className="mt-4 hidden grid-cols-2 gap-2 text-sm text-zinc-600 dark:text-zinc-300 sm:grid">
-                  {[
-                    t("reminderShowcaseB1", {
-                      defaultValue: "Set schedules in minutes",
-                    }) as any,
-                    t("reminderShowcaseB2", {
-                      defaultValue: "See what’s due at a glance",
-                    }) as any,
-                    t("reminderShowcaseB3", {
-                      defaultValue: "Designed for caregivers",
-                    }) as any,
-                  ]
-                    .slice(0, 4)
-                    .map((b) => (
-                      <li key={b} className="flex items-start gap-2">
-                        <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-brand-600/10 text-brand-700 ring-1 ring-brand-500/20 dark:bg-brand-400/10 dark:text-brand-300 dark:ring-brand-400/20">
-                          <Check className="h-4 w-4" aria-hidden="true" />
-                        </span>
-                        <span className="min-w-0">{b}</span>
-                      </li>
-                    ))}
-                </ul>
-
-                <details className="mt-4 rounded-2xl bg-white/60 p-3 ring-1 ring-zinc-200/60 dark:bg-zinc-950/30 dark:ring-zinc-800/60 sm:hidden">
-                  <summary className="cursor-pointer list-none select-none text-xs font-semibold text-zinc-900 dark:text-zinc-50 [&::-webkit-details-marker]:hidden">
-                    {t("moreDetails", { defaultValue: "More details" })}
-                  </summary>
-                  <ul className="mt-3 grid gap-2 text-sm text-zinc-600 dark:text-zinc-300">
-                    {[
-                      t("reminderShowcaseB1", {
-                        defaultValue: "Set schedules in minutes",
-                      }) as any,
-                      t("reminderShowcaseB2", {
-                        defaultValue: "See what’s due at a glance",
-                      }) as any,
-                      t("reminderShowcaseB3", {
-                        defaultValue: "Designed for caregivers",
-                      }) as any,
-                    ].map((b) => (
-                      <li key={b} className="flex items-start gap-2">
-                        <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-brand-600/10 text-brand-700 ring-1 ring-brand-500/20 dark:bg-brand-400/10 dark:text-brand-300 dark:ring-brand-400/20">
-                          <Check className="h-4 w-4" aria-hidden="true" />
-                        </span>
-                        <span className="min-w-0">{b}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </details>
-
-                <div className="mt-5 flex flex-wrap items-center gap-3">
-                  <Link
-                    to="/reminder"
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-300 active:translate-y-[1px] motion-reduce:transition-none dark:focus:ring-brand-900"
-                  >
-                    {t("openReminders", { defaultValue: "Open reminders" })}
-                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => setGetStartedOpen(true)}
-                    className="inline-flex items-center justify-center rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 shadow-sm transition-colors hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-brand-200 active:translate-y-[1px] motion-reduce:transition-none dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900 dark:focus:ring-brand-900"
-                  >
-                    {t("ctaPrimary")}
-                  </button>
-                </div>
-              </div>
-
-              <Link
-                to="/reminder"
-                className="group relative block overflow-hidden rounded-3xl bg-white/60 shadow-sm ring-1 ring-zinc-200/60 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-white/80 focus:outline-none focus:ring-2 focus:ring-brand-200 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:bg-zinc-950/30 dark:ring-zinc-800/60 dark:hover:bg-zinc-950/45 dark:focus:ring-brand-900"
-                aria-label={
-                  t("openReminders", { defaultValue: "Open reminders" }) as any
-                }
-              >
-                <div className="p-4 sm:p-5">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                        {t("reminderExampleTitle", {
-                          defaultValue: "Example schedule",
-                        })}
-                      </div>
-                      <div className="mt-1 text-xs font-semibold text-zinc-600 dark:text-zinc-300">
-                        {t("reminderExampleBody", {
-                          defaultValue:
-                            "Set times, then mark doses taken — simple for caregivers.",
-                        })}
-                      </div>
-                    </div>
-
-                    <span className="inline-flex w-fit items-center gap-2 rounded-full border border-zinc-200/70 bg-white/70 px-3 py-1 text-xs font-semibold text-zinc-800 shadow-sm dark:border-zinc-800/70 dark:bg-zinc-950/40 dark:text-zinc-100">
-                      <span className="h-1.5 w-1.5 rounded-full bg-brand-600 dark:bg-brand-400" />
-                      {t("availableNow")}
-                    </span>
-                  </div>
-
-                  <div className="mt-4 grid gap-2">
-                    {[
-                      {
-                        time: t("demoReminderT1", { defaultValue: "08:00" }),
-                        title: t("demoReminderM1", {
-                          defaultValue: "Vitamin D",
-                        }),
-                        note: t("demoReminderN1", { defaultValue: "1 tablet" }),
-                        status: t("demoReminderS1", { defaultValue: "Due" }),
-                        statusClassName:
-                          "bg-amber-600/15 text-amber-700 dark:bg-amber-400/10 dark:text-amber-300",
-                      },
-                      {
-                        time: t("demoReminderT2", { defaultValue: "13:00" }),
-                        title: t("demoReminderM2", {
-                          defaultValue: "Antibiotic",
-                        }),
-                        note: t("demoReminderN2", {
-                          defaultValue: "After lunch",
-                        }),
-                        status: t("demoReminderS2", { defaultValue: "Taken" }),
-                        statusClassName:
-                          "bg-green-600/15 text-green-700 dark:bg-green-400/10 dark:text-green-300",
-                      },
-                    ].map((item) => (
-                      <div
-                        key={`${item.time}-${item.title}`}
-                        className="flex items-start justify-between gap-4 rounded-2xl bg-white/55 px-3 py-3 ring-1 ring-zinc-200/60 dark:bg-zinc-950/30 dark:ring-zinc-800/60"
-                      >
-                        <div className="flex items-start gap-3">
-                          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-600/10 text-brand-700 ring-1 ring-brand-500/20 dark:bg-brand-400/10 dark:text-brand-300 dark:ring-brand-400/20">
-                            <BellRing className="h-5 w-5" aria-hidden="true" />
-                          </span>
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                                {item.title}
-                              </div>
-                              <span
-                                className={
-                                  "rounded-full px-2 py-0.5 text-xs font-semibold " +
-                                  item.statusClassName
-                                }
-                              >
-                                {item.status}
-                              </span>
-                            </div>
-                            <div className="mt-0.5 text-xs text-zinc-600 dark:text-zinc-300">
-                              {item.note}
-                            </div>
-                          </div>
-                        </div>
-
-                        <span className="rounded-full border border-zinc-200/70 bg-white/70 px-2.5 py-1 text-xs font-semibold text-zinc-700 dark:border-zinc-800/70 dark:bg-zinc-950/40 dark:text-zinc-200">
-                          {item.time}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="mt-3 rounded-2xl bg-white/60 p-3 ring-1 ring-zinc-200/60 dark:bg-zinc-950/30 dark:ring-zinc-800/60">
-                    <div className="flex items-center gap-2 text-xs font-semibold text-zinc-700 dark:text-zinc-200">
-                      <Users className="h-4 w-4" aria-hidden="true" />
-                      {t("demoCaregiversTitle", {
-                        defaultValue: "Caregivers",
-                      })}
-                    </div>
-
-                    <div className="mt-2 grid gap-2">
-                      {[
-                        {
-                          name: t("demoCaregiver1", {
-                            defaultValue: "Ayesha",
-                          }),
-                          role: t("demoCaregiverRole1", {
-                            defaultValue: "View only",
-                          }),
-                        },
-                        {
-                          name: t("demoCaregiver2", {
-                            defaultValue: "Rahim",
-                          }),
-                          role: t("demoCaregiverRole2", {
-                            defaultValue: "Can edit",
-                          }),
-                        },
-                      ].map((c) => (
-                        <div
-                          key={`${c.name}-${c.role}`}
-                          className="flex items-center justify-between gap-3 rounded-xl bg-white/70 px-3 py-2 text-xs font-semibold text-zinc-700 ring-1 ring-zinc-200/60 dark:bg-zinc-950/40 dark:text-zinc-200 dark:ring-zinc-800/60"
-                        >
-                          <span className="min-w-0 truncate">{c.name}</span>
-                          <span className="shrink-0 rounded-full border border-zinc-200/70 bg-white/70 px-2 py-0.5 text-[11px] font-semibold text-zinc-700 dark:border-zinc-800/70 dark:bg-zinc-950/40 dark:text-zinc-200">
-                            {c.role}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </Link>
-            </div>
           </div>
         </section>
 

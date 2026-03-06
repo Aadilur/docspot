@@ -1,7 +1,7 @@
 import crypto from "crypto";
 
 import { ensureSchema } from "./schema";
-import { getPostgresPool } from "./postgres";
+import { getPostgresPool, withPostgresTransaction } from "./postgres";
 
 function isNonEmptyText(value: unknown, maxLen: number): value is string {
   return (
@@ -126,7 +126,6 @@ export async function createGroupWithFirstReport(params: {
   };
 }): Promise<{ group: InvoiceGroup; report: InvoiceReport }> {
   await ensureSchema();
-  const pg = getPostgresPool();
 
   if (!isNonEmptyText(params.report.title, 220)) {
     throw new Error("title is required");
@@ -147,16 +146,15 @@ export async function createGroupWithFirstReport(params: {
   const doctor = toNullableShortText(params.report.doctor, 180);
   const textNote = toNullableShortText(params.report.textNote, 5000);
 
-  await pg.query("begin");
-  try {
-    const gRes = await pg.query(
+  return await withPostgresTransaction(async (client) => {
+    const gRes = await client.query(
       `insert into invoice_groups (id, user_id, title, created_at, updated_at)
        values ($1::uuid, $2::uuid, $3::text, now(), now())
        returning *`,
       [groupId, params.userId, groupTitle],
     );
 
-    const rRes = await pg.query(
+    const rRes = await client.query(
       `insert into invoice_reports (id, group_id, user_id, title, issue_date, next_appointment, doctor, text_note, created_at, updated_at)
        values ($1::uuid, $2::uuid, $3::uuid, $4::text, $5::date, $6::date, $7::text, $8::text, now(), now())
        returning *`,
@@ -172,15 +170,11 @@ export async function createGroupWithFirstReport(params: {
       ],
     );
 
-    await pg.query("commit");
     return {
       group: rowToGroup(gRes.rows[0]),
       report: rowToReport(rRes.rows[0]),
     };
-  } catch (e) {
-    await pg.query("rollback");
-    throw e;
-  }
+  });
 }
 
 export async function listGroups(params: {
@@ -506,11 +500,8 @@ export async function deleteAttachment(params: {
   attachmentId: string;
 }): Promise<{ key: string } | null> {
   await ensureSchema();
-  const pg = getPostgresPool();
-
-  await pg.query("begin");
-  try {
-    const keyRes = await pg.query(
+  return await withPostgresTransaction(async (client) => {
+    const keyRes = await client.query(
       `select a.key as key
        from invoice_attachments a
        join invoice_reports r on r.id = a.report_id
@@ -525,32 +516,27 @@ export async function deleteAttachment(params: {
     );
 
     if (keyRes.rows.length === 0) {
-      await pg.query("rollback");
       return null;
     }
 
     const key = String(keyRes.rows[0].key);
 
-    await pg.query(
+    await client.query(
       `delete from invoice_attachments where id = $1::uuid and user_id = $2::uuid`,
       [params.attachmentId, params.userId],
     );
 
-    await pg.query(
+    await client.query(
       `update invoice_reports set updated_at = now() where id = $1::uuid and user_id = $2::uuid`,
       [params.reportId, params.userId],
     );
-    await pg.query(
+    await client.query(
       `update invoice_groups set updated_at = now() where id = $1::uuid and user_id = $2::uuid`,
       [params.groupId, params.userId],
     );
 
-    await pg.query("commit");
     return { key };
-  } catch (e) {
-    await pg.query("rollback");
-    throw e;
-  }
+  });
 }
 
 export async function getGroupAttachmentKeys(params: {

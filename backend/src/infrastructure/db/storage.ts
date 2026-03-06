@@ -1,5 +1,5 @@
 import { ensureSchema } from "./schema";
-import { getPostgresPool } from "./postgres";
+import { getPostgresPool, withPostgresTransaction } from "./postgres";
 
 const SOFT_OVERAGE_FACTOR = 1.0;
 const HARD_OVERAGE_FACTOR = 1.1;
@@ -157,16 +157,14 @@ export async function applyObjectUpsert(params: {
   etag: string | null;
 }): Promise<{ usage: StorageUsage; warning: "soft_over" | null }> {
   await ensureSchema();
-  const pg = getPostgresPool();
 
   const userId = params.userId;
   const key = params.key;
   const sizeBytes = Math.max(0, Math.trunc(params.sizeBytes));
 
-  await pg.query("begin");
-  try {
+  await withPostgresTransaction(async (client) => {
     // Lock the user row for a correct atomic counter update.
-    const userRes = await pg.query(
+    const userRes = await client.query(
       `select storage_used_bytes, storage_reserved_bytes, storage_quota_bytes, user_type from users where id = $1::uuid for update`,
       [userId],
     );
@@ -193,7 +191,7 @@ export async function applyObjectUpsert(params: {
 
     const limit = getStorageLimitFromQuota(quotaBytes);
 
-    const prevRes = await pg.query(
+    const prevRes = await client.query(
       `select size_bytes from storage_objects where user_id = $1::uuid and key = $2::text and deleted_at is null`,
       [userId, key],
     );
@@ -208,7 +206,7 @@ export async function applyObjectUpsert(params: {
       throw new Error("HARD_CAP_EXCEEDED");
     }
 
-    await pg.query(
+    await client.query(
       `insert into storage_objects (user_id, key, size_bytes, etag, deleted_at, updated_at)
        values ($1::uuid, $2::text, $3::bigint, $4::text, null, now())
        on conflict (user_id, key)
@@ -220,22 +218,19 @@ export async function applyObjectUpsert(params: {
       [userId, key, sizeBytes, params.etag],
     );
 
-    await pg.query(
+    await client.query(
       `update users set storage_used_bytes = greatest(0, storage_used_bytes + $2::bigint), updated_at = now() where id = $1::uuid`,
       [userId, delta],
     );
 
-    await pg.query("commit");
+    return;
+  });
 
-    const usage = await getUserStorageUsage(userId);
-    return {
-      usage,
-      warning: usage.effectiveUsedBytes > usage.quotaBytes ? "soft_over" : null,
-    };
-  } catch (e) {
-    await pg.query("rollback");
-    throw e;
-  }
+  const usage = await getUserStorageUsage(userId);
+  return {
+    usage,
+    warning: usage.effectiveUsedBytes > usage.quotaBytes ? "soft_over" : null,
+  };
 }
 
 export async function applyObjectDeletes(params: {
@@ -243,19 +238,17 @@ export async function applyObjectDeletes(params: {
   keys: string[];
 }): Promise<StorageUsage> {
   await ensureSchema();
-  const pg = getPostgresPool();
 
   const userId = params.userId;
   const keys = Array.from(new Set(params.keys.filter(Boolean)));
   if (keys.length === 0) return await getUserStorageUsage(userId);
 
-  await pg.query("begin");
-  try {
-    await pg.query(`select id from users where id = $1::uuid for update`, [
+  await withPostgresTransaction(async (client) => {
+    await client.query(`select id from users where id = $1::uuid for update`, [
       userId,
     ]);
 
-    const sizesRes = await pg.query(
+    const sizesRes = await client.query(
       `select key, size_bytes from storage_objects where user_id = $1::uuid and key = any($2::text[]) and deleted_at is null`,
       [userId, keys],
     );
@@ -268,23 +261,21 @@ export async function applyObjectDeletes(params: {
     }
 
     if (foundKeys.length > 0) {
-      await pg.query(
+      await client.query(
         `update storage_objects set deleted_at = now(), updated_at = now() where user_id = $1::uuid and key = any($2::text[]) and deleted_at is null`,
         [userId, foundKeys],
       );
 
-      await pg.query(
+      await client.query(
         `update users set storage_used_bytes = greatest(0, storage_used_bytes - $2::bigint), updated_at = now() where id = $1::uuid`,
         [userId, total],
       );
     }
 
-    await pg.query("commit");
-    return await getUserStorageUsage(userId);
-  } catch (e) {
-    await pg.query("rollback");
-    throw e;
-  }
+    return;
+  });
+
+  return await getUserStorageUsage(userId);
 }
 
 export async function reserveUpload(params: {
@@ -298,7 +289,6 @@ export async function reserveUpload(params: {
   expiresAt: string;
 }> {
   await ensureSchema();
-  const pg = getPostgresPool();
 
   const userId = params.userId;
   const key = params.key;
@@ -308,16 +298,15 @@ export async function reserveUpload(params: {
     Math.min(60 * 60, Math.trunc(params.ttlSeconds ?? 15 * 60)),
   );
 
-  await pg.query("begin");
-  try {
-    const userRes = await pg.query(
+  const expiresAt = await withPostgresTransaction(async (client) => {
+    const userRes = await client.query(
       `select storage_used_bytes, storage_reserved_bytes, storage_quota_bytes, user_type
        from users where id = $1::uuid for update`,
       [userId],
     );
     if (userRes.rows.length === 0) throw new Error("User not found");
 
-    await cleanupExpiredReservationsTx(pg, userId);
+    await cleanupExpiredReservationsTx(client, userId);
 
     const row = userRes.rows[0];
     const usedBefore = Math.max(0, coerceBigintLike(row.storage_used_bytes));
@@ -339,7 +328,7 @@ export async function reserveUpload(params: {
         : defaultQuota;
     const limit = getStorageLimitFromQuota(quotaBytes);
 
-    const prevSizeRes = await pg.query(
+    const prevSizeRes = await client.query(
       `select size_bytes from storage_objects where user_id = $1::uuid and key = $2::text and deleted_at is null`,
       [userId, key],
     );
@@ -349,7 +338,7 @@ export async function reserveUpload(params: {
     const expectedDelta = expectedSizeBytes - prevSize;
     const reserveNeeded = Math.max(0, expectedDelta);
 
-    const existingRes = await pg.query(
+    const existingRes = await client.query(
       `select size_bytes from storage_reservations where user_id = $1::uuid and key = $2::text and expires_at >= now()`,
       [userId, key],
     );
@@ -363,13 +352,13 @@ export async function reserveUpload(params: {
       throw new Error("HARD_CAP_EXCEEDED");
     }
 
-    const expiresAtRes = await pg.query(
+    const expiresAtRes = await client.query(
       `select now() + ($1::int || ' seconds')::interval as expires_at`,
       [ttlSeconds],
     );
     const expiresAt = new Date(expiresAtRes.rows[0].expires_at).toISOString();
 
-    await pg.query(
+    await client.query(
       `insert into storage_reservations (user_id, key, size_bytes, expires_at)
        values ($1::uuid, $2::text, $3::bigint, $4::timestamptz)
        on conflict (user_id, key)
@@ -378,7 +367,7 @@ export async function reserveUpload(params: {
     );
 
     if (reserveDelta !== 0) {
-      await pg.query(
+      await client.query(
         `update users
          set storage_reserved_bytes = greatest(0, storage_reserved_bytes + $2::bigint), updated_at = now()
          where id = $1::uuid`,
@@ -386,18 +375,15 @@ export async function reserveUpload(params: {
       );
     }
 
-    await pg.query("commit");
+    return expiresAt;
+  });
 
-    const usage = await getUserStorageUsage(userId);
-    return {
-      usage,
-      warning: usage.effectiveUsedBytes > usage.quotaBytes ? "soft_over" : null,
-      expiresAt,
-    };
-  } catch (e) {
-    await pg.query("rollback");
-    throw e;
-  }
+  const usage = await getUserStorageUsage(userId);
+  return {
+    usage,
+    warning: usage.effectiveUsedBytes > usage.quotaBytes ? "soft_over" : null,
+    expiresAt,
+  };
 }
 
 export async function confirmUpload(params: {
@@ -407,22 +393,20 @@ export async function confirmUpload(params: {
   etag: string | null;
 }): Promise<{ usage: StorageUsage; warning: "soft_over" | null }> {
   await ensureSchema();
-  const pg = getPostgresPool();
 
   const userId = params.userId;
   const key = params.key;
   const actualSizeBytes = Math.max(0, Math.trunc(params.actualSizeBytes));
 
-  await pg.query("begin");
-  try {
-    const userRes = await pg.query(
+  await withPostgresTransaction(async (client) => {
+    const userRes = await client.query(
       `select storage_used_bytes, storage_reserved_bytes, storage_quota_bytes, user_type
        from users where id = $1::uuid for update`,
       [userId],
     );
     if (userRes.rows.length === 0) throw new Error("User not found");
 
-    await cleanupExpiredReservationsTx(pg, userId);
+    await cleanupExpiredReservationsTx(client, userId);
 
     const row = userRes.rows[0];
     const usedBefore = Math.max(0, coerceBigintLike(row.storage_used_bytes));
@@ -444,7 +428,7 @@ export async function confirmUpload(params: {
         : defaultQuota;
     const limit = getStorageLimitFromQuota(quotaBytes);
 
-    const prevSizeRes = await pg.query(
+    const prevSizeRes = await client.query(
       `select size_bytes from storage_objects where user_id = $1::uuid and key = $2::text and deleted_at is null`,
       [userId, key],
     );
@@ -453,7 +437,7 @@ export async function confirmUpload(params: {
       : 0;
     const actualDelta = actualSizeBytes - prevSize;
 
-    const reservationRes = await pg.query(
+    const reservationRes = await client.query(
       `select size_bytes from storage_reservations where user_id = $1::uuid and key = $2::text and expires_at >= now()`,
       [userId, key],
     );
@@ -462,11 +446,11 @@ export async function confirmUpload(params: {
       : 0;
 
     if (reservedForKey > 0) {
-      await pg.query(
+      await client.query(
         `delete from storage_reservations where user_id = $1::uuid and key = $2::text`,
         [userId, key],
       );
-      await pg.query(
+      await client.query(
         `update users
          set storage_reserved_bytes = greatest(0, storage_reserved_bytes - $2::bigint), updated_at = now()
          where id = $1::uuid`,
@@ -480,7 +464,7 @@ export async function confirmUpload(params: {
       throw new Error("HARD_CAP_EXCEEDED");
     }
 
-    await pg.query(
+    await client.query(
       `insert into storage_objects (user_id, key, size_bytes, etag, deleted_at, updated_at)
        values ($1::uuid, $2::text, $3::bigint, $4::text, null, now())
        on conflict (user_id, key)
@@ -492,22 +476,19 @@ export async function confirmUpload(params: {
       [userId, key, actualSizeBytes, params.etag],
     );
 
-    await pg.query(
+    await client.query(
       `update users set storage_used_bytes = greatest(0, storage_used_bytes + $2::bigint), updated_at = now() where id = $1::uuid`,
       [userId, actualDelta],
     );
 
-    await pg.query("commit");
+    return;
+  });
 
-    const usage = await getUserStorageUsage(userId);
-    return {
-      usage,
-      warning: usage.effectiveUsedBytes > usage.quotaBytes ? "soft_over" : null,
-    };
-  } catch (e) {
-    await pg.query("rollback");
-    throw e;
-  }
+  const usage = await getUserStorageUsage(userId);
+  return {
+    usage,
+    warning: usage.effectiveUsedBytes > usage.quotaBytes ? "soft_over" : null,
+  };
 }
 
 export async function cancelUploadReservations(params: {
@@ -515,20 +496,18 @@ export async function cancelUploadReservations(params: {
   keys: string[];
 }): Promise<void> {
   await ensureSchema();
-  const pg = getPostgresPool();
 
   const userId = params.userId;
   const keys = Array.from(new Set(params.keys.filter(Boolean)));
   if (keys.length === 0) return;
 
-  await pg.query("begin");
-  try {
-    await pg.query(`select id from users where id = $1::uuid for update`, [
+  await withPostgresTransaction(async (client) => {
+    await client.query(`select id from users where id = $1::uuid for update`, [
       userId,
     ]);
-    await cleanupExpiredReservationsTx(pg, userId);
+    await cleanupExpiredReservationsTx(client, userId);
 
-    const sumRes = await pg.query(
+    const sumRes = await client.query(
       `select coalesce(sum(size_bytes), 0) as total
        from storage_reservations
        where user_id = $1::uuid and key = any($2::text[])`,
@@ -536,13 +515,13 @@ export async function cancelUploadReservations(params: {
     );
     const total = Math.max(0, coerceBigintLike(sumRes.rows?.[0]?.total));
 
-    await pg.query(
+    await client.query(
       `delete from storage_reservations where user_id = $1::uuid and key = any($2::text[])`,
       [userId, keys],
     );
 
     if (total > 0) {
-      await pg.query(
+      await client.query(
         `update users
          set storage_reserved_bytes = greatest(0, storage_reserved_bytes - $2::bigint), updated_at = now()
          where id = $1::uuid`,
@@ -550,11 +529,8 @@ export async function cancelUploadReservations(params: {
       );
     }
 
-    await pg.query("commit");
-  } catch (e) {
-    await pg.query("rollback");
-    throw e;
-  }
+    return;
+  });
 }
 
 export async function applyPrefixDeletes(params: {
@@ -563,19 +539,17 @@ export async function applyPrefixDeletes(params: {
   limit?: number;
 }): Promise<{ keys: string[]; usage: StorageUsage; hasMore: boolean }> {
   await ensureSchema();
-  const pg = getPostgresPool();
 
   const userId = params.userId;
   const prefix = params.prefix;
   const limit = Math.max(1, Math.min(5000, Math.trunc(params.limit ?? 1000)));
 
-  await pg.query("begin");
-  try {
-    await pg.query(`select id from users where id = $1::uuid for update`, [
+  const result = await withPostgresTransaction(async (client) => {
+    await client.query(`select id from users where id = $1::uuid for update`, [
       userId,
     ]);
 
-    const res = await pg.query(
+    const res = await client.query(
       `select key, size_bytes
        from storage_objects
        where user_id = $1::uuid and deleted_at is null and key like $2::text
@@ -592,18 +566,18 @@ export async function applyPrefixDeletes(params: {
     }
 
     if (keys.length > 0) {
-      await pg.query(
+      await client.query(
         `update storage_objects set deleted_at = now(), updated_at = now() where user_id = $1::uuid and key like $2::text and deleted_at is null`,
         [userId, `${prefix}%`],
       );
 
-      await pg.query(
+      await client.query(
         `update users set storage_used_bytes = greatest(0, storage_used_bytes - $2::bigint), updated_at = now() where id = $1::uuid`,
         [userId, total],
       );
     }
 
-    const hasMoreRes = await pg.query(
+    const hasMoreRes = await client.query(
       `select 1
        from storage_objects
        where user_id = $1::uuid and deleted_at is null and key like $2::text
@@ -611,15 +585,15 @@ export async function applyPrefixDeletes(params: {
       [userId, `${prefix}%`],
     );
 
-    await pg.query("commit");
-
     return {
       keys,
-      usage: await getUserStorageUsage(userId),
       hasMore: hasMoreRes.rows.length > 0,
     };
-  } catch (e) {
-    await pg.query("rollback");
-    throw e;
-  }
+  });
+
+  return {
+    keys: result.keys,
+    usage: await getUserStorageUsage(userId),
+    hasMore: result.hasMore,
+  };
 }
