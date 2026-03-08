@@ -41,7 +41,6 @@ import {
 
 import Footer from "../components/Footer";
 import Header from "../components/Header";
-import PricingSection from "../components/PricingSection";
 import { getCmsBannersCached } from "../shared/api/cms";
 import { listInvoiceGroups } from "../shared/api/invoices";
 import { listObjectGroups } from "../shared/api/objects";
@@ -1608,9 +1607,6 @@ export default function LandingPage() {
             ))}
           </ol>
         </section>
-
-        {/* Pricing */}
-        <PricingSection />
 
         {/* Testimonials */}
         <section id="testimonials" className="mt-12 scroll-mt-24">

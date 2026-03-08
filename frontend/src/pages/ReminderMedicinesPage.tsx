@@ -6,7 +6,6 @@ import { ArrowLeft, ArrowRight, BellRing, Pill } from "lucide-react";
 
 import Footer from "../components/Footer";
 import Header from "../components/Header";
-import { FeedNativeAd } from "../shared/ads";
 import {
   getReminderSettings,
   getTodayTimeline,
@@ -416,8 +415,6 @@ export default function ReminderMedicinesPage() {
                         </div>
                       </div>
                     </Link>
-
-                    {idx === 2 ? <FeedNativeAd /> : null}
                   </Fragment>
                 );
               })}

@@ -21,7 +21,6 @@ import {
 
 import Footer from "../components/Footer";
 import Header from "../components/Header";
-import { ShareNativeAd, useAdGate } from "../shared/ads";
 import { useAuthRequiredModal } from "../shared/auth";
 import { useAuthState } from "../shared/firebase/useAuthState";
 import { compressImageFile } from "../shared/images/compress";
@@ -199,7 +198,6 @@ export default function InvoiceGroupDetailsPage() {
   } | null>(null);
 
   const canUse = configured && !authLoading && !!user && !!groupId;
-  const shareGate = useAdGate({ seconds: 14 });
   const authRequired = useAuthRequiredModal();
 
   const editingReport = useMemo(() => {
@@ -311,7 +309,7 @@ export default function InvoiceGroupDetailsPage() {
 
   function startShareCreate() {
     authRequired.requireAuth(() => {
-      shareGate.run(createShareLinkNow);
+      void createShareLinkNow();
     });
   }
 
@@ -330,8 +328,6 @@ export default function InvoiceGroupDetailsPage() {
   return (
     <div className="min-h-dvh bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-50">
       <Header />
-
-      {shareGate.modal}
       {authRequired.modal}
 
       <main className="mx-auto w-full max-w-5xl px-4 pb-12 pt-6 sm:px-5">
@@ -817,10 +813,6 @@ export default function InvoiceGroupDetailsPage() {
                           );
                         })()}
                       </div>
-                    </div>
-
-                    <div className="mt-4 empty:hidden">
-                      <ShareNativeAd />
                     </div>
                   </>
                 ) : null}

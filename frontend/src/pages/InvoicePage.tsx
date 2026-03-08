@@ -18,7 +18,6 @@ import {
 
 import Footer from "../components/Footer";
 import Header from "../components/Header";
-import { FeedNativeAd } from "../shared/ads";
 import { useAuthRequiredModal } from "../shared/auth";
 import { useAuthState } from "../shared/firebase/useAuthState";
 import { compressImageFile } from "../shared/images/compress";
@@ -623,8 +622,6 @@ export default function InvoicePage() {
                       </div>
                     </div>
                   </Link>
-
-                  {idx === 2 ? <FeedNativeAd /> : null}
                 </Fragment>
               ))}
             </div>
